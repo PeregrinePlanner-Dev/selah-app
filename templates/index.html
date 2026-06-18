@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah — Exploring Theology</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: #1a3d6e; color: white;
+    padding: 12px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0;
+  }
+  .header-title { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.02em; }
+  .header-sub   { font-size: 0.69rem; opacity: 0.65; margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .node-badge {
+    background: rgba(255,255,255,0.15); border-radius: 5px;
+    padding: 4px 10px; font-size: 0.75rem; font-weight: 600;
+  }
+
+  /* ── Layout ── */
+  .app-grid {
+    display: flex; flex: 1; gap: 8px; padding: 8px;
+    min-height: 0; overflow: hidden;
+  }
+  .col-left   { width: 21%; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .col-chat   { flex: 1;    display: flex; flex-direction: column; min-height: 0; }
+  .col-right  { width: 28%; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+  /* ── Card base ── */
+  .card {
+    background: white; border-radius: 8px; border: 1px solid #e2e4e9;
+    padding: 12px 13px; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .card-label {
+    font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; margin-bottom: 8px; flex-shrink: 0;
+  }
+
+  /* ── Left: Session Anchor ── */
+  .anchor-card  { flex: 1; border-color: #bfdbfe; background: #eff6ff; min-height: 0; }
+  .anchor-label { color: #1d4ed8; }
+  .anchor-body  {
+    font-size: 0.75rem; line-height: 1.65; color: #374151;
+    overflow-y: auto; flex: 1;
+  }
+  .anchor-body strong { font-weight: 600; color: #1e3a8a; }
+  .anchor-placeholder { color: #93c5fd; font-style: italic; font-size: 0.75rem; }
+
+  /* ── Left: Reflection Prompts ── */
+  .prompts-card  { flex-shrink: 0; border-color: #d1fae5; background: #f0fdf4; min-height: 0; }
+  .prompts-label { color: #065f46; }
+  .prompts-body  { display: flex; flex-direction: column; gap: 5px; }
+  .prompt-chip {
+    display: block; width: 100%; text-align: left;
+    background: white; border: 1px solid #a7f3d0;
+    border-radius: 20px; padding: 6px 12px;
+    font-size: 0.72rem; color: #065f46; cursor: pointer;
+    transition: background .15s, transform .1s;
+    font-family: inherit; line-height: 1.4;
+  }
+  .prompt-chip:hover   { background: #ecfdf5; transform: translateX(2px); }
+  .prompt-chip:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Left: Action Buttons ── */
+  .actions-card  { flex-shrink: 0; }
+  .actions-label { color: #6b7280; }
+  .action-btn {
+    display: block; width: 100%; text-align: left;
+    border: 1px solid #e5e7eb; border-radius: 6px;
+    background: white; padding: 7px 10px; margin-bottom: 6px;
+    font-size: 0.75rem; color: #374151; cursor: pointer;
+    transition: background .15s;
+  }
+  .action-btn:last-child { margin-bottom: 0; }
+  .action-btn:hover { background: #f9fafb; }
+  .action-btn.danger { color: #dc2626; border-color: #fecaca; }
+  .action-btn.danger:hover { background: #fef2f2; }
+
+  /* ── Chat ── */
+  .chat-card  { flex: 1; min-height: 0; }
+  .chat-label { color: #374151; }
+  .chat-messages {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    gap: 10px; padding-right: 2px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 90%; }
+  .msg.user      { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .msg-bubble {
+    border-radius: 12px; padding: 9px 13px;
+    font-size: 0.875rem; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .msg-bubble      { background: #1a3d6e; color: white; border-bottom-right-radius: 3px; }
+  .msg.assistant .msg-bubble { background: #f3f4f6; color: #111827; border-bottom-left-radius: 3px; }
+
+  .typing { display: none; align-self: flex-start; }
+  .typing .msg-bubble { background: #f3f4f6; color: #9ca3af; font-style: italic; font-size: 0.8125rem; }
+  .typing.show { display: flex; }
+
+  .chat-input-row { margin-top: 10px; display: flex; gap: 7px; flex-shrink: 0; }
+  .chat-input {
+    flex: 1; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 9px 13px; font-size: 0.875rem; resize: none;
+    font-family: inherit; line-height: 1.5;
+    min-height: 42px; max-height: 110px; outline: none;
+  }
+  .chat-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+  .send-btn {
+    background: #1a3d6e; color: white; border: none;
+    border-radius: 8px; padding: 9px 18px; font-size: 0.875rem;
+    cursor: pointer; font-weight: 600; flex-shrink: 0;
+  }
+  .send-btn:hover    { background: #15316a; }
+  .send-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+  /* ── Right: Source Material ── */
+  .source-card  { flex: 1; min-height: 0; border-color: #e8e9a0; background: #fafde5; }
+  .source-label { color: #5a5900; }
+  .source-body  { overflow-y: auto; flex: 1; }
+  .source-placeholder { color: #b8b96a; font-style: italic; font-size: 0.75rem; }
+
+  .source-item {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e8e9a0;
+  }
+  .source-item:last-child { border-bottom: none; margin-bottom: 0; }
+  .source-type {
+    font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; margin-bottom: 4px;
+  }
+  .source-type.scripture  { color: #1d4ed8; }
+  .source-type.theologian { color: #7c3aed; }
+  .source-ref {
+    font-size: 0.75rem; font-weight: 600; color: #1f2937; margin-bottom: 6px;
+  }
+  .source-text {
+    font-size: 0.75rem; line-height: 1.65; color: #374151;
+    font-style: italic;
+  }
+  .source-text.theologian { font-style: normal; }
+
+  /* ── Right: Switch Topic ── */
+  .topic-card  { flex-shrink: 0; }
+  .topic-label { color: #374151; }
+  select {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 6px 8px; font-size: 0.75rem; color: #374151; background: white;
+    margin-bottom: 6px;
+  }
+  .go-btn {
+    width: 100%; background: #1a3d6e; color: white; border: none;
+    border-radius: 6px; padding: 7px; font-size: 0.75rem; cursor: pointer;
+  }
+  .go-btn:hover { background: #15316a; }
+
+  /* ── Footer ── */
+  .app-footer {
+    flex-shrink: 0;
+    background: #f8faff; border-top: 2px solid #dbeafe;
+    padding: 9px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.78rem; color: #6b7280;
+  }
+  .app-footer a { color: #1a3d6e; text-decoration: none; font-weight: 600; transition: color .15s; }
+  .app-footer a:hover { color: #2563eb; text-decoration: underline; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+  /* ── Help Button ── */
+  .help-btn {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+    color: white; border-radius: 5px; padding: 4px 10px;
+    font-size: 0.72rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em;
+    transition: background .15s;
+  }
+  .help-btn:hover { background: rgba(255,255,255,0.22); }
+
+  /* ── How to Use Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 12px;
+    width: 500px; max-width: 93vw; max-height: 87vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-header {
+    background: #1a3d6e; color: white;
+    padding: 16px 20px; border-radius: 12px 12px 0 0;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0;
+  }
+  .modal-header h2 { font-size: 1rem; font-weight: 700; }
+  .modal-close {
+    background: none; border: none; color: white;
+    font-size: 1.4rem; cursor: pointer; opacity: 0.75;
+    line-height: 1; padding: 0 3px;
+  }
+  .modal-close:hover { opacity: 1; }
+  .modal-body { padding: 20px 22px; }
+  .modal-section { margin-bottom: 20px; }
+  .modal-section:last-child { margin-bottom: 0; }
+  .modal-section-title {
+    font-size: 0.59rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; color: #9ca3af; margin-bottom: 9px;
+  }
+  .modal-intro {
+    font-size: 0.84rem; line-height: 1.68; color: #374151;
+  }
+  .modal-intro strong { color: #111827; }
+  .action-explain {
+    display: flex; gap: 11px; margin-bottom: 12px; align-items: flex-start;
+  }
+  .action-explain:last-child { margin-bottom: 0; }
+  .action-icon {
+    font-size: 1rem; flex-shrink: 0; width: 22px; text-align: center; margin-top: 2px;
+  }
+  .action-name {
+    font-size: 0.82rem; font-weight: 600; color: #111827; margin-bottom: 2px;
+  }
+  .action-desc {
+    font-size: 0.775rem; line-height: 1.56; color: #4b5563;
+  }
+  .modal-divider {
+    border: none; border-top: 1px solid #e5e7eb; margin: 18px 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <div class="header-title">Selah</div>
+    <div class="header-sub">Exploring Theology</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button class="help-btn" onclick="openHelp()">How to use Selah</button>
+    <span class="node-badge" id="node-badge">No topic yet</span>
+  </div>
+</header>
+
+<div class="app-grid">
+
+  <!-- LEFT: Anchor · Reflection · Actions -->
+  <div class="col-left">
+
+    <div class="card anchor-card">
+      <div class="card-label anchor-label">Session Anchor</div>
+      <div class="anchor-body" id="anchor-body">
+        <span class="anchor-placeholder">Your session summary will build here as you explore.</span>
+      </div>
+    </div>
+
+    <div class="card prompts-card">
+      <div class="card-label prompts-label">Reflection Prompts</div>
+      <div class="prompts-body" id="prompts-body">
+        <button class="prompt-chip" onclick="sendChip(this, 'I have a question about this')">I have a question about this</button>
+        <button class="prompt-chip" onclick="sendChip(this, 'I\'m not sure where to start')">I'm not sure where to start</button>
+        <button class="prompt-chip" onclick="sendChip(this, 'Tell me more')">Tell me more</button>
+      </div>
+    </div>
+
+    <div class="card actions-card">
+      <div class="card-label actions-label">Actions</div>
+      <input type="file" id="upload-input" accept=".txt" style="display:none" onchange="uploadSession(event)">
+      <button class="action-btn" onclick="document.getElementById('upload-input').click()">⬆ Upload Previous Session</button>
+      <button class="action-btn" onclick="downloadRecap()">⬇ Download Session Recap</button>
+      <button class="action-btn" onclick="newConversation()">↺ New Conversation</button>
+      <button class="action-btn" onclick="openFeedback()">✉ Send Feedback</button>
+    </div>
+
+  </div>
+
+  <!-- CENTER: Chat -->
+  <div class="col-chat">
+    <div class="card chat-card">
+      <div class="card-label chat-label">Conversation</div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg assistant">
+          <div class="msg-bubble">Welcome. What would you like to explore?</div>
+        </div>
+      </div>
+      <div class="typing" id="typing">
+        <div class="msg-bubble">Selah is thinking…</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea
+          id="chat-input"
+          class="chat-input"
+          placeholder="Ask anything — a question, a doubt, a topic…"
+          rows="1"
+          autocomplete="off"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Switch Topic · Source Material -->
+  <div class="col-right">
+
+    <div class="card topic-card">
+      <div class="card-label topic-label">Switch Topic</div>
+      <select id="node-select">
+        <option value="">— choose a topic —</option>
+
+        <optgroup label="── Starting Points ──">
+          <option value="Grace">Grace — God's unearned favor</option>
+          <option value="Sin">Sin — what went wrong and why</option>
+          <option value="Faith">Faith — what it means to believe</option>
+        </optgroup>
+
+        <optgroup label="── Salvation ──">
+          <option value="Justification">Justification — being declared righteous</option>
+          <option value="Sanctification">Sanctification — growing in holiness</option>
+          <option value="Regeneration">Regeneration — what it means to be born again</option>
+          <option value="Atonement">Atonement — how the cross saves</option>
+          <option value="Law and Gospel">Law & Gospel — command and grace</option>
+        </optgroup>
+
+        <optgroup label="── God ──">
+          <option value="Theology Proper">Theology Proper — the nature of God</option>
+          <option value="Trinity">Trinity — one God, three persons</option>
+          <option value="Sovereignty and Free Will">Sovereignty & Free Will — election and human freedom</option>
+        </optgroup>
+
+        <optgroup label="── Jesus, Spirit & Scripture ──">
+          <option value="Christology">Christology — who Jesus is</option>
+          <option value="Holy Spirit">Holy Spirit — the Spirit's person and work</option>
+          <option value="Scripture and Revelation">Scripture & Revelation — how God speaks</option>
+        </optgroup>
+
+        <optgroup label="── Humanity & Creation ──">
+          <option value="Anthropology">Anthropology — what it means to be human</option>
+          <option value="Creation">Creation — God made everything, and why it matters</option>
+        </optgroup>
+
+        <optgroup label="── The Church ──">
+          <option value="Ecclesiology">Ecclesiology — what the church is</option>
+          <option value="Sacraments and Ordinances">Sacraments & Ordinances — baptism and communion</option>
+          <option value="Covenant Theology">Covenant Theology — how the Bible's story fits together</option>
+        </optgroup>
+
+        <optgroup label="── Life with God ──">
+          <option value="Prayer">Prayer — talking with God</option>
+          <option value="Assurance">Assurance — can I know I'm saved?</option>
+          <option value="Miracles">Miracles — does God still act?</option>
+        </optgroup>
+
+        <optgroup label="── Hard Questions ──">
+          <option value="Suffering and Providence">Suffering & Providence — why God allows it</option>
+          <option value="Problem of Evil">Problem of Evil — the philosophical challenge</option>
+          <option value="Angels Demons and Spiritual Warfare">Angels, Demons & Spiritual Warfare</option>
+        </optgroup>
+
+        <optgroup label="── Faith & Culture ──">
+          <option value="Vocation and Work">Vocation & Work — does God care about my job?</option>
+          <option value="Social Ethics">Social Ethics — justice, sexuality, race, and the church</option>
+        </optgroup>
+
+        <optgroup label="── Last Things ──">
+          <option value="Resurrection">Resurrection — the empty tomb and what it means</option>
+          <option value="Eschatology">Eschatology — end times and what comes after</option>
+        </optgroup>
+
+      </select>
+      <button class="go-btn" onclick="switchNode()">Go →</button>
+    </div>
+
+    <div class="card source-card">
+      <div class="card-label source-label">Source Material</div>
+      <div class="source-body" id="source-body">
+        <span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer class="app-footer">
+  <span>Selah is free. If you found it helpful, you can <a href="https://ko-fi.com/selahtheology" target="_blank" rel="noopener">support us here ☕</a>.</span>
+</footer>
+
+<script>
+const sessionId = crypto.randomUUID();
+let isLoading      = false;
+let sourceItems    = [];  // accumulates across turns
+let sessionStarted = false;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 110) + "px";
+}
+
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function scrollChat() {
+  const el = document.getElementById("chat-messages");
+  el.scrollTop = el.scrollHeight;
+}
+
+function setLoading(on) {
+  isLoading = on;
+  document.getElementById("send-btn").disabled = on;
+  // Do NOT disable the textarea — browsers restore its value on re-enable.
+  // isLoading check in sendMessage and handleKey blocks double-sends instead.
+  document.getElementById("typing").classList.toggle("show", on);
+  document.querySelectorAll(".prompt-chip").forEach(c => c.disabled = on);
+  scrollChat();
+}
+
+function esc(str) {
+  // Process line by line so block-level elements work correctly
+  const lines = str.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g,"<em>$1</em>");
+
+    if (/^---+$/.test(line.trim())) {
+      out.push('<hr style="border:none;border-top:1px solid #d1d5db;margin:6px 0;">');
+    } else if (/^>\s/.test(line)) {
+      out.push('<span style="display:block;border-left:3px solid #9ca3af;padding-left:10px;margin:4px 0;color:#374151;font-style:italic;">'
+        + line.replace(/^>\s/, '') + '</span>');
+    } else {
+      out.push(line);
+    }
+  }
+  return out.join("<br>");
+}
+
+function addBubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = `msg ${role}`;
+  wrap.innerHTML = `<div class="msg-bubble">${esc(text)}</div>`;
+  document.getElementById("chat-messages").appendChild(wrap);
+  scrollChat();
+}
+
+// ── Update panels ──────────────────────────────────────────────────────────
+function updateAnchor(text) {
+  if (!text) return;
+  const el = document.getElementById("anchor-body");
+  el.innerHTML = esc(text);
+}
+
+function sendChip(btn, text) {
+  if (isLoading) return;
+  sendMessage(text);
+}
+
+function updateChips(chips) {
+  if (!chips || chips.length === 0) return;
+  const el = document.getElementById("prompts-body");
+  el.innerHTML = chips
+    .map(c => `<button class="prompt-chip" onclick="sendChip(this, ${JSON.stringify(c)})">${esc(c)}</button>`)
+    .join("");
+}
+
+function updatePrompt(question) { /* unused — chips replace this */ }
+
+function addSource(source) {
+  if (!source) return;
+  sourceItems.unshift(source);   // newest first
+  renderSources();
+}
+
+function renderSources() {
+  const el = document.getElementById("source-body");
+  if (sourceItems.length === 0) return;
+  el.innerHTML = sourceItems.map(s => `
+    <div class="source-item">
+      <div class="source-type ${s.type}">${s.type === "scripture" ? "Scripture" : "Theologian"}</div>
+      <div class="source-ref">${esc(s.label)}</div>
+      <div class="source-text ${s.type}">${esc(s.content)}</div>
+    </div>
+  `).join("");
+}
+
+// ── Send message ───────────────────────────────────────────────────────────
+async function sendMessage(text, forceNode) {
+  const input   = document.getElementById("chat-input");
+  const message = text || input.value.trim();
+  if (!message || isLoading) return;
+
+  addBubble("user", message);
+  input.value = "";
+  input.style.height = "auto";
+  if (!sessionStarted) {
+    sessionStarted = true;
+    input.placeholder = "";
+  }
+  setLoading(true);
+
+  try {
+    const body = { message, session_id: sessionId };
+    if (forceNode) body.node = forceNode;
+
+    const res  = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    addBubble("assistant", data.reply);
+    updateAnchor(data.anchor);
+    updateChips(data.chips);
+    addSource(data.source);
+
+    if (data.node) {
+      document.getElementById("node-badge").textContent = data.node;
+    }
+  } catch (err) {
+    addBubble("assistant", "Something went wrong — check the terminal.");
+  } finally {
+    setLoading(false);
+    const inp = document.getElementById("chat-input");
+    inp.value = "";
+    inp.style.height = "auto";
+    inp.focus();
+  }
+}
+
+// ── Switch topic ───────────────────────────────────────────────────────────
+function switchNode() {
+  const sel  = document.getElementById("node-select");
+  const node = sel.value;
+  if (!node) return;
+  sourceItems = [];   // clear source panel on topic switch
+  renderSources();
+  sendMessage(`I'd like to explore: ${node}`, node);
+  sel.value = "";
+}
+
+// ── Download session recap ─────────────────────────────────────────────────
+async function downloadRecap() {
+  const res  = await fetch("/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  const data = await res.json();
+  const blob = new Blob([data.text], { type: "text/plain" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Selah-recap-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────
+const TALLY_URL = "https://tally.so/r/Y5qNAv";
+
+function openFeedback() {
+  window.open(TALLY_URL, "_blank", "noopener");
+}
+
+// ── New conversation ───────────────────────────────────────────────────────
+async function newConversation() {
+  await fetch("/reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  document.getElementById("chat-messages").innerHTML =
+    `<div class="msg assistant"><div class="msg-bubble">Welcome. What would you like to explore?</div></div>`;
+  document.getElementById("anchor-body").innerHTML =
+    `<span class="anchor-placeholder">Your session summary will build here as you explore.</span>`;
+  document.getElementById("prompts-body").innerHTML =
+    `<button class="prompt-chip" onclick="sendChip(this, 'I have a question about this')">I have a question about this</button>
+     <button class="prompt-chip" onclick="sendChip(this, 'I\\'m not sure where to start')">I'm not sure where to start</button>
+     <button class="prompt-chip" onclick="sendChip(this, 'Tell me more')">Tell me more</button>`;
+  document.getElementById("source-body").innerHTML =
+    `<span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>`;
+  document.getElementById("node-badge").textContent = "No topic yet";
+  document.getElementById("chat-input").placeholder = "Ask anything — a question, a doubt, a topic…";
+  sessionStarted = false;
+  sourceItems = [];
+}
+
+// ── Help modal ────────────────────────────────────────────────────────────
+function openHelp() {
+  document.getElementById("help-modal").classList.add("show");
+}
+function closeHelp() {
+  document.getElementById("help-modal").classList.remove("show");
+}
+function closeHelpModal(e) {
+  if (e.target === document.getElementById("help-modal")) closeHelp();
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeHelp();
+});
+
+// ── Upload previous session ────────────────────────────────────────────────
+async function uploadSession(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+
+  const res  = await fetch("/upload_session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, content: text }),
+  });
+  const data = await res.json();
+
+  if (data.node) {
+    document.getElementById("node-badge").textContent = data.node;
+  }
+  if (data.anchor) updateAnchor(data.anchor);
+
+  // Show the returning-session greeting in chat
+  addBubble("assistant", data.greeting);
+  sourceItems = [];
+  event.target.value = ""; // reset file input
+}
+</script>
+
+<!-- ── How to Use Modal ── -->
+<div class="modal-overlay" id="help-modal" onclick="closeHelpModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>How to Use Selah</h2>
+      <button class="modal-close" onclick="closeHelp()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-section">
+        <div class="modal-section-title">The Idea</div>
+        <p class="modal-intro">Selah is a Hebrew word meaning <em>pause</em> — a signal to stop, sit with what you've just heard, and let it sink in. This tool is built on that same rhythm: not to give you all the answers at once, but to take you one layer deeper at a time. Most things worth understanding take more than one sitting. Selah is designed for that.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">Selah Meets You Where You Are</div>
+        <p class="modal-intro">Whether you're new to faith or deep into it, Selah adjusts to your level — it reads your language and responds accordingly. If you want to give it a head start, just say so at the start: <em>"I'm new to this"</em> or <em>"I've been studying theology for years."</em> Either way, it will find its footing — but naming it upfront saves time.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">The Layout</div>
+        <p class="modal-intro">The <strong>left panel</strong> holds your Session Anchor — a running summary of what you've covered — and Reflection Prompts, which give you a starting point if you're not sure what to say next. The <strong>center</strong> is the conversation. The <strong>right panel</strong> shows Scripture passages and theologian arguments as they surface in the conversation, so you can revisit them without scrolling back. Use <strong>Switch Topic</strong> to move into a different area of theology.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">The Action Buttons</div>
+
+        <div class="action-explain">
+          <div class="action-icon">⬇</div>
+          <div>
+            <div class="action-name">Download Session Recap</div>
+            <div class="action-desc">Before you close, save your session. You'll get a plain text file capturing where you landed and what questions are still open. Do this at the end of every visit — it's how you carry the thread forward.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
+          <div class="action-icon">⬆</div>
+          <div>
+            <div class="action-name">Upload Previous Session</div>
+            <div class="action-desc">When you return, upload that recap file before you start. Selah will pick up where you left off — same topic, same tensions, same questions still in the air. Without it, Selah has no memory of previous visits.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
+          <div class="action-icon">↺</div>
+          <div>
+            <div class="action-name">New Conversation</div>
+            <div class="action-desc">Clears everything and starts fresh. Use this when you want to explore a completely new area, unconnected to what came before.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
+          <div class="action-icon">✉</div>
+          <div>
+            <div class="action-name">Send Feedback</div>
+            <div class="action-desc">Something felt off theologically, or a response didn't land right? This opens a short form. We want to know.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
