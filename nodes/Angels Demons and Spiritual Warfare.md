@@ -108,4 +108,75 @@ People who leave occult involvement and come to Christianity often carry several
 
 **The cultural osmosis problem**
 
-A distinct and growing pastoral challenge: many Christians engage in practices they don't classify as occult because the cultural framing has shifted. Astrology ("I'm just a Gemini, it's harmless"), tarot ("it's just for self-reflection"), crystals ("they have energy"), manifestation practices, and spirit boards ("it's a game") are widely perceived as spiritually neutral by people who would never describe themselves as 
+A distinct and growing pastoral challenge: many Christians engage in practices they don't classify as occult because the cultural framing has shifted. Astrology ("I'm just a Gemini, it's harmless"), tarot ("it's just for self-reflection"), crystals ("they have energy"), manifestation practices, and spirit boards ("it's a game") are widely perceived as spiritually neutral by people who would never describe themselves as occultists. TES should be able to receive these without triggering a categorical condemnation, while still being able to explain why the biblical tradition treats these as in the same category as the more obviously serious practices.
+
+The argument: the category is not determined by the user's intention but by what the practice is actually doing — seeking spiritual knowledge, power, or guidance through means other than God. The person who checks their horoscope "just for fun" is not guilty of the same thing as the person who has taken initiation into a coven. But the direction is the same, the habit of mind being formed is the same, and the question of where one goes for spiritual orientation is the same.
+
+---
+
+## Scripture Anchors
+
+- **Job 1–2** — Satan as a being who appears in the divine court, accuses Job, and inflicts suffering within God's permissive governance; the most detailed picture of demonic agency in the OT
+- **Matt 4:1–11** — the temptation of Jesus; Satan as real personal adversary; the dialogue and the resistance through Scripture; Jesus's authority over Satan demonstrated
+- **Luke 10:17–20** — "the seventy-two returned with joy, saying, 'Lord, even the demons are subject to us in your name!'... I saw Satan fall like lightning from heaven" — the disciples' authority; the more important thing (names written in heaven)
+- **John 8:44** — "he was a murderer from the beginning, and does not stand in the truth, because there is no truth in him... he is a liar and the father of lies" — Satan's nature and character
+- **Col 2:15** — "he disarmed the rulers and authorities and put them to open shame, by triumphing over them in him" — the definitive defeat of demonic powers at the cross
+- **Eph 6:10–18** — the armor of God; the nature of the opponent; the means of warfare (truth, righteousness, peace, faith, salvation, Scripture, prayer)
+- **Heb 1:14** — "ministering spirits sent out to serve for the sake of those who are to inherit salvation" — the angelic vocation
+- **1 Pet 5:8–9** — "your adversary the devil prowls around like a roaring lion, seeking someone to devour. Resist him, firm in your faith" — the ongoing danger; the response (resistance in faith)
+- **Rev 12:7–12** — war in heaven; Satan cast down; "they have conquered him by the blood of the Lamb and by the word of their testimony" — the victory of the martyrs; the basis of spiritual warfare
+- **Deut 18:9–14** — the comprehensive list of prohibited practices: divination, fortune-telling, omen interpretation, sorcery, spell-casting, mediums, spiritists, necromancy; "anyone who does these things is detestable to the Lord"; the key text for the occult entry point
+- **Lev 19:26, 31** — "Do not practice divination or seek omens... Do not turn to mediums or seek out spiritists, for you will be defiled by them. I am the Lord your God" — the prohibition is grounded in God's identity, not only in danger
+- **1 Sam 28:3–25** — Saul and the medium at Endor; Saul consults the dead Samuel through a medium in violation of his own law; the account is taken seriously (Samuel actually appears); it ends in Saul's death; the paradigm case for why the prohibition exists
+- **Isa 8:19–20** — "When someone tells you to consult mediums and spiritists, who whisper and mutter, should not a people inquire of their God? Why consult the dead on behalf of the living?" — the theological logic of the prohibition: God is the proper source; seeking elsewhere is a statement of distrust
+- **Acts 19:18–20** — the Ephesian converts who had practiced magic burned their scrolls publicly; estimated value 50,000 drachmas (roughly 137 years of a laborer's daily wage); the break from occult involvement was complete, costly, and public; the model for renunciation
+- **Gal 5:19–21** — *pharmakeia* (sorcery/witchcraft) listed among the works of the flesh alongside sexual immorality and idolatry; placed in the NT's account of sin, not merely in OT law
+
+---
+
+## Theologian Map
+
+**John Calvin (1509–1564)**
+*Institutes* I.14 — "On Angels and Devils." Calvin's treatment is restrained and exegetically careful: he will say what Scripture says and not speculate beyond it. Angels are real, created, good spirits who serve God as his messengers and the church's protectors. Satan is a real personal being, a "degenerate angel" who fell through pride, whose deception began in Eden, and whose defeat is certain in Christ. Calvin's angelology is comprehensive but his demonology is deliberately minimal — he resists the elaborate speculation of medieval Scholasticism and focuses on what Scripture reveals. His emphasis: the Christian need not fear demons because God's sovereignty governs them completely; their power is only what God permits.
+
+**C.S. Lewis (1898–1963)**
+*The Screwtape Letters* — the most widely read work of popular demonology in the modern era. Written as letters from a senior demon (Screwtape) to his junior demon nephew (Wormwood) about how to tempt their human "patient," Lewis presents demonic strategy as operating primarily through deception, distraction, and the exploitation of human weakness and self-centeredness. The demons are not primarily interested in obvious evil — they work through comfort, habit, vague spiritual aspirations, and the gradual cooling of love. Lewis's contribution: he makes the demonic intelligible without making it sensational; it is not spectacle but the small daily choices that constitute the real spiritual battlefield.
+
+**Walter Wink (1935–2012)**
+*Naming the Powers*, *Unmasking the Powers*, *Engaging the Powers* — Wink's trilogy argues that the NT's "powers and authorities" are real but best understood as the spiritual dimension of social, political, and institutional structures. The "principalities and powers" of Ephesians are not individual demonic beings but the corporate spiritual character of institutions and systems — the power of Wall Street, the spirit of nationalism, the corporate culture of a given organization. Spiritual warfare is engagement with these systemic powers through prayer, truth-telling, and nonviolent resistance. Wink is not within the conservative evangelical tradition but represents the most serious liberal Protestant engagement with the powers; his work challenges conservatives to engage the social dimension of spiritual warfare.
+
+**Clinton Arnold (1958–)**
+*Powers of Darkness*, *Three Crucial Questions About Spiritual Warfare* — the most exegetically careful conservative evangelical treatment of spiritual warfare. Arnold argues that Ephesians 6 is best understood against the background of the Artemis cult in Ephesus, which involved fear of demonic powers; Paul's response is to affirm that Christ's authority exceeds all such powers and that the Christian is equipped for genuine spiritual conflict through the armor of God. Arnold takes the reality of demonic activity seriously without endorsing the excesses of deliverance ministry or territorial warfare; he represents a conservative middle position between cessationist minimalism and charismatic maximalism.
+
+---
+
+## Entry Points
+
+- **"Are angels real?"** — the existence entry; the biblical evidence; Calvin's careful treatment; the distinction between angelic appearances in Scripture and popular angelology
+- **"Can a Christian be demon-possessed?"** — the possession/oppression distinction; the Spirit's indwelling; the pastoral reassurance; what demonic activity in Christians does look like
+- **"What is spiritual warfare really?"** — Eph 6 as primary text; the armor as the Christian life; the cessationist vs. continuationist debate on deliverance ministry
+- **"I feel like there's something oppressing me spiritually"** — the pastoral entry; prayer, Scripture, and community as primary means; the authority of Christ's name; when to seek pastoral help
+- **"Is the devil real or just a symbol for evil?"** — the personal being entry; Jesus's interactions with Satan; the NT's consistent depiction; the cost of depersonalizing Satan
+- **Scholars:** The exegesis of Isa 14 and Ezek 28; Wink on the powers; Arnold on Eph 6; Lewis on demonic strategy; cessationism and the continuation of exorcism
+- **"I've been involved in Wicca / witchcraft / the occult"** — the primary personal-involvement entry; the goal is not condemnation but locating the real question underneath: what were you actually looking for? (spiritual reality, knowledge, power, community, meaning); the Christian answer addresses each of those on its own terms before the prohibition question arises; routes to Theology Proper (who is God?), Anthropology (what are humans made for?)
+- **"I use tarot / astrology / crystals — is that a problem?"** — the cultural-osmosis entry; the most common form; the user is unlikely to think of themselves as occultists; the question is how to explain the biblical category without categorical condemnation; the key move is the logic of Isa 8:19–20 (where are you going for spiritual orientation, and why?), not Deut 18 cold
+- **"My family member is into witchcraft / the occult"** — the concern-for-another entry. Loop sequencing: *Loop 1* — establish relational context with one question (what is the relationship? what has the conversation been like?). *Loop 2* — introduce a biblical anchor; lead with the theological logic of Isa 8:19–20 ("should not a people inquire of their God? Why consult the dead on behalf of the living?") rather than the prohibition list cold; ask what the user makes of it. *Loop 3 onward* — run the relational and biblical tracks together. The pastoral task is helping the user hold theological seriousness without relational condemnation; how to remain in relationship while being clear about what you believe; prayer as the primary spiritual action. Do not run the pastoral track alone for more than one loop before introducing Scripture.
+- **"I used to be heavily involved in the occult — how do I deal with that now?"** — the former-practitioner entry; the most pastorally serious; the authority of Christ over all spiritual powers (Col 2:15); renunciation as a real and appropriate act; the Acts 19 model; the need for community and pastoral accompaniment; experiences they had should be taken seriously, not dismissed
+
+---
+
+## Failure Modes
+
+- **Dismissiveness** — treating Satan and demons as mythological or metaphorical; this evacuates the reality of spiritual opposition that the NT consistently assumes; the person experiencing genuine spiritual attack is left without a framework
+- **Sensationalism** — making the demonic the primary explanatory category for all suffering, failure, and difficulty; locating a demon behind every sin and every setback; this displaces human responsibility and personal accountability
+- **Territorial warfare excess** — elaborate schemes of spiritual mapping, naming territorial spirits, and binding regional powers that go well beyond what the NT teaches; the practices can produce spiritual pride and displace prayer and moral seriousness
+- **Angel worship or invocation** — addressing angels in prayer, invoking their presence, seeking their guidance; this Col 2:18 error confuses the creature with the Creator; angels are not the proper recipients of Christian prayer
+- **Fear displacement** — a theology of spiritual warfare that produces fear of demonic power rather than confidence in Christ's victory; the NT consistently moves from the reality of spiritual opposition to the sufficiency of Christ's authority
+- **Ignoring the cosmic dimension** — treating the Christian life as purely individual moral struggle without the NT's cosmic horizon (principalities, powers, rulers of darkness); this impoverishes the theology of prayer and the understanding of historical evil
+- **Opening condemnation on the occult entry** — leading with Deuteronomy 18 before establishing any relationship or understanding what the person was actually seeking; the condemnation may be accurate but it is the last thing they can receive before they have a reason to care; the first task is the deeper question, not the verdict
+- **Dismissing occult experiences** — telling a former practitioner that nothing spiritually real occurred in their involvement; the NT does not support this; dismissal leaves them without a framework for what actually happened and undercuts the credibility of everything else you say
+- **Treating all occult involvement as equal** — a person who checked their horoscope once and a person who has taken initiation into a coven are in meaningfully different situations; the same theological framework applies but the pastoral response and urgency differ; collapsing the distinction loses the former and overwhelms the latter
+
+---
+
+*Node: Angels, Demons & Spiritual Warfare — v1. Built 2026-06-16. Entry Points updated 2026-06-19 (concern-for-another loop sequencing). Sections restored 2026-06-19.*
