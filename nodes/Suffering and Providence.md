@@ -94,6 +94,9 @@ Letters written from Tegel prison while awaiting execution provide the most prof
 **Nicholas Wolterstorff (1932–)**
 *Lament for a Son* — written after his son Eric's death in a climbing accident — is the most honest recent Christian theology of grief and loss. Wolterstorff resists theodicy and resolution in favor of lament and the patient cry for God's presence. His theological contribution: the lament tradition of the Psalms is not a stage to pass through on the way to acceptance but a legitimate ongoing posture before God. He also develops the theology of the suffering God — the God who is not distant from suffering but present in it, suffering with his creation.
 
+**Elisabeth Elliot (1926–2015)**
+*A Path Through Suffering* (1990) and *Suffering Is Never for Nothing* (2019) provide the most widely-read evangelical testimonial theology of suffering — written from inside actual traumatic loss rather than from a theoretical vantage. Her husband Jim Elliot was killed in 1956 by the Waorani people in Ecuador; she returned to live among them. Her theological contribution: *acceptance* as an active, ongoing choice rather than a passive state. She draws on Amy Carmichael — "In acceptance lieth peace" — peace is found *in* the act of acceptance, not in the elimination of difficulty. She refuses to perform resolution: the valley is real, God is present in it, and the Christian is not promised that grief resolves but that God is present throughout it. Her honesty about the sustained, particular quality of loss — against evangelical culture's anxiety about prolonged grief — is itself a pastoral gift. Elliot does not offer theodicy; she offers trust. The contrast with C.S. Lewis is productive: Lewis works through doubt before arriving at trust (*A Grief Observed*); Elliot begins in trust and describes what that trust costs and sustains. Both are needed; neither replaces the other.
+
 **Martyn Lloyd-Jones (1899–1981)**
 Lloyd-Jones brings a diagnostic distinction to suffering that no other voice on this node provides: the difference between spiritual depression caused by external circumstances and spiritual depression caused by internal doctrinal confusion. Both present as suffering; neither is well served by the other's cure. The person who is depressed because they have lost a child needs the comfort of Wolterstorff and the lament of the Psalms — not a lecture on Romans 6. The person who is depressed because they do not understand their standing before God needs doctrinal clarity — not sympathy that confirms the problem is the circumstance. His deployment here is therefore always diagnostic before prescriptive: which kind of suffering is this? His *Spiritual Depression* provides the most useful taxonomy in the tradition for answering that question and calibrating pastoral response accordingly.
 
@@ -113,4 +116,12 @@ Lloyd-Jones brings a diagnostic distinction to suffering that no other voice on 
 ## Failure Modes
 
 - **Rushed to resolution** — offering hope and comfort before acknowledging the reality and weight of suffering; spiritual bypassing; Job's friends' error
-- **Retribution theology** — assuming sufferin
+- **Retribution theology** — assuming suffering is caused by specific sin; the instinct to explain rather than comfort; "God is teaching you something" as the first word
+- **Platitudes** — "God needed another angel"; "everything happens for a reason"; "God won't give you more than you can handle" (1 Cor 10:13 is about temptation, not suffering); none of these are biblical
+- **Therapeutic displacement** — treating suffering as primarily a psychological problem to be managed rather than a theological reality to be engaged with God
+- **Sovereignty as silencer** — using divine sovereignty to shut down lament; "God is in control" as a way of telling the sufferer their grief is inappropriate
+- **Skipping the cross** — moving directly from suffering to resurrection hope without dwelling in the Good Friday darkness; the cruciform shape of Christian suffering-theology requires passing through, not around, the cross
+
+---
+
+*Node: Suffering & Providence — v1. Built 2026-06-16.*

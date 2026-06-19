@@ -106,6 +106,15 @@ The theological architect of robust cultural and political engagement. "Every sq
 **Tim Keller (1950–2023)**
 *Generous Justice* (2010) makes the exegetical case that personal piety and social justice are inseparable in Scripture — that the pursuit of justice for the poor and marginalized is not a liberal addition to the gospel but integral to what the Old and New Testaments describe as godly living. Keller's approach: he argues from the Hebrew *tzedakah* (righteousness/justice — the same word) that the OT never separates the two; he reads Luke 4 and the Sermon on the Mount together; he engages the prophets seriously. His cultural context (New York City; working with the poor; engaging secular culture) gives his treatment of social ethics an unusual pastoral texture.
 
+**Dorothy Sayers (1893–1957)**
+*Are Women Human?* (essays, 1938/1947) contains the most pointed Christian argument against misogyny in the tradition. Sayers's central claim: the habit of treating women as a category rather than as individual persons is an intellectual failure before it is a moral one. "What is repugnant to every human being is to be reckoned always as a member of a class and not as an individual person." Her argument is grounded in the imago dei: God's image is bestowed on persons, not categories; the appropriate unit of response to any woman is the particular person she is, not the class she represents. She does not argue that women deserve more — she argues that women are human beings and human beings deserve what human beings deserve; the category error is the problem. Sayers is the primary TES voice for users entering with misogynistic or anti-women bias.
+
+**Elisabeth Elliot (1926–2015)**
+*Let Me Be a Woman* (1976) provides the complementarian counterpart to Sayers's egalitarian anthropology. Elliot argues against both the diminishment of women and the erasure of gender distinction — she holds both. A woman's dignity is not dependent on role parity; it is grounded in her full humanity as an image-bearer, honored by God in the specific particularity of her calling. Her witness (missionary linguist, widow who returned to live among her husband's killers, sustained author and teacher for 50 years) is itself the argument against anyone who imagines women's callings are limited or second-tier. The Sayers/Elliot pairing is TES's native tension on gender and dignity: both demolish misogyny from within orthodox Christianity; they disagree on the positive account of gender roles; the convergence on women's full humanity is the productive point.
+
+**Rosaria Butterfield (1962–)**
+*The Secret Thoughts of an Unlikely Convert* (2012) is the most credible conservative evangelical voice for users entering through sexuality and identity questions. A former tenured professor in English and Women's Studies, formerly in a committed same-sex relationship, Butterfield converted through sustained intellectual engagement with Scripture in 1999. Her primary argument: the identity question is prior to the ethics question — "Is there a place for me here?" must be answered before "What does the Bible require?" can be heard. Her *The Gospel Comes with a House Key* (2018) argues that genuine open-table hospitality is not optional but the structural condition under which the traditional sexual ethic becomes livable. She critiques both progressive churches (which have solved the loneliness problem in the wrong direction) and conservative churches (which impose the burden without sharing it). She cannot be conscripted by either side of the debate and should not be deployed as a trump card.
+
 **Dietrich Bonhoeffer (1906–1945)**
 The cost of the church's silence. Bonhoeffer's witness — resigning from the German church rather than comply with Nazi ideology, returning to Germany when he could have remained safe in New York, ultimately executed for his role in the resistance — provides the most concrete demonstration of what Christian social ethics costs. His theological point: the church that retreats into spiritual privatism ("the church has nothing to do with politics") when faced with state evil has not remained neutral; it has taken a side. *The Cost of Discipleship* and *Ethics* (published posthumously) provide the theological framework. His engagement with racial injustice in America (his time in Harlem in 1930–31) predates and informs his later German resistance.
 
@@ -113,26 +122,5 @@ The cost of the church's silence. Bonhoeffer's witness — resigning from the Ge
 
 ## Entry Points
 
-- **"What does the Bible say about homosexuality/same-sex marriage?"** — the most-asked high-voltage question; the goal is to locate this in the deeper doctrinal questions (what does Scripture say about *human sexuality*, about *the body*, about *creation order* vs. *new creation hermeneutics*?) without adjudicating the debate; routes to Anthropology, Creation
-- **"Why doesn't the church talk about racism?"** — enters through frustration with the church; the history of Christian complicity and Christian prophetic leadership; the imago dei foundation; routes to Anthropology, Atonement
-- **"Is Christianity just a white Western religion?"** — the historical and global church question; Paul's mission; Acts as the expansion outward; Rev 7:9 as the eschatological image; routes to Ecclesiology, Eschatology
-- **"What does God say about poverty/wealth inequality?"** — the OT economic provisions; the prophets; jubilee; the NT's koinonia; routes to Vocation & Work, Creation
-- **"Should Christians be politically involved?"** — the three-tradition framework; the Kingdom's critique of all political arrangements; prophetic engagement vs. partisan capture; routes to Ecclesiology, Eschatology
-- **"Does God care about climate change/the environment?"** — creation care as theology before it is politics; Gen 2:15; the stewardship obligation; where theology ends and policy begins; routes to Creation, Eschatology
-- **Scholars:** King's *Letter from Birmingham Jail*; Volf's *Exclusion and Embrace*; Keller's *Generous Justice*; Bonhoeffer's *Ethics*; Kuyper on sphere sovereignty
-
----
-
-## Failure Modes
-
-- **Tribal capture** — the church functioning as the chaplain to one political party; reducing the Kingdom to a platform; the test: can the church prophetically challenge the party it most closely aligns with?
-- **Avoidance** — refusing to engage contested social questions at all out of fear of division; Bonhoeffer's warning: silence is not neutrality; the church that said nothing in Weimar Germany was not neutral
-- **Proof-texting politics** — extracting isolated verses to support predetermined political positions; the Deuteronomy texts on economic blessing misread as personal prosperity promises; the NT communalism read as a mandate for state socialism
-- **Reducing sin to the personal** — treating social ethics as entirely a matter of individual heart change while ignoring the structural dimensions of injustice; Amos did not address only the individual conscience
-- **Reducing sin to the structural** — treating social ethics as entirely a matter of systemic reform while ignoring personal repentance and transformation; structures are changed by people who are changed
-- **Conflating the theological with the political** — what Scripture says about the imago dei does not automatically entail a specific immigration policy; what Scripture says about creation stewardship does not automatically entail a specific carbon policy; the move from biblical principle to policy application requires wisdom, involves legitimate Christian disagreement, and should be made with humility
-- **Historical amnesia** — engaging social ethics as if the church has a clean record; the tradition's complicity in slavery, colonialism, and racial hierarchy is not a footnote — it is part of the story the church must own and learn from
-
----
-
-*Node: Social Ethics — v1. Built 2026-06-18.*
+- **"What does the Bible say about homosexuality/same-sex marriage?"** — the most-asked high-voltage question; the goal is to locate this in the deeper doctrinal questions (what does Scripture say about *human sexuality*, about *the body*, about *creation order* vs. *new creation hermeneutics*?) without adjudicating the debate; routes to Anthropology, Creation; Butterfield is the primary voice
+- **"The Bible / Christianity is misogynistic / anti-women"** — the gender-bias entry; the user may be arriving with genuine hurt, cultural assumption, or intellectual challeng
