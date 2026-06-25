@@ -123,21 +123,15 @@ CHIP_1: [Short thing the person might naturally say next, 4-7 words, user-voice]
 CHIP_2: [Different angle or follow-up, 4-7 words]
 CHIP_3: [Another direction they might take, 4-7 words]
 
-Then answer: did the LAST TES response introduce a Scripture passage (actually quoted, not \
-just referenced) OR a theologian's argument (with real substance, not just a name drop)?
+List ALL Scripture passages actually quoted AND all theologian arguments introduced in the LAST TES response only (not earlier turns). Up to 3 items. Use this exact format for each:
 
-If Scripture:
-SOURCE_TYPE: scripture
-SOURCE_LABEL: [Book Chapter:Verse (Translation)]
-SOURCE_CONTENT: [the quoted text]
+SOURCE_TYPE: scripture OR theologian
+SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Name (dates)]
+SOURCE_CONTENT: [quoted text] OR [argument in 2-3 sentences]
+SOURCE_END
 
-If Theologian:
-SOURCE_TYPE: theologian
-SOURCE_LABEL: [Name (dates)]
-SOURCE_CONTENT: [the argument in 2-3 sentences]
-
-If neither:
-SOURCE_TYPE: none"""
+Repeat the SOURCE_TYPE / SOURCE_LABEL / SOURCE_CONTENT / SOURCE_END block for each item.
+If nothing was introduced, output: SOURCE_TYPE: none"""
 
 
 def format_convo_for_haiku(messages: list, max_chars: int = 3000) -> str:
@@ -248,18 +242,19 @@ def chat():
         chips = [c.strip() for c in chip_matches if c.strip()]
         convo["chips"] = chips
 
-        # Parse source from Haiku only if Sonnet tags produced nothing
+        # Parse all SOURCE blocks from Haiku if Sonnet tags produced nothing
         if not sources:
-            src_type_m = re.search(r'SOURCE_TYPE:\s*(\S+)', haiku_text)
-            if src_type_m and src_type_m.group(1).strip() != "none":
-                src_label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                        haiku_text)
-                src_content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\n[A-Z_]+:|$)', haiku_text, re.DOTALL)
-                if src_label_m and src_content_m:
-                    sources = [{
-                        "type":    src_type_m.group(1).strip(),
-                        "label":   src_label_m.group(1).strip(),
-                        "content": src_content_m.group(1).strip(),
-                    }]
+            blocks = re.split(r'SOURCE_END', haiku_text)
+            for block in blocks:
+                type_m    = re.search(r'SOURCE_TYPE:\s*(\S+)',                              block)
+                label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                              block)
+                content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
+                if type_m and type_m.group(1).strip() not in ("none", "") and label_m and content_m:
+                    sources.append({
+                        "type":    type_m.group(1).strip(),
+                        "label":   label_m.group(1).strip(),
+                        "content": content_m.group(1).strip(),
+                    })
 
     except Exception as e:
         print(f"[ANCHOR/CHIPS/SOURCE ERROR] {e}")

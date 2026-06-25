@@ -80,11 +80,20 @@
     background: white; padding: 7px 10px; margin-bottom: 6px;
     font-size: 0.75rem; color: #374151; cursor: pointer;
     transition: background .15s;
+    position: relative;
   }
   .action-btn:last-child { margin-bottom: 0; }
   .action-btn:hover { background: #f9fafb; }
   .action-btn.danger { color: #dc2626; border-color: #fecaca; }
   .action-btn.danger:hover { background: #fef2f2; }
+  .action-btn .tip {
+    display: none; position: absolute; left: 105%; top: 0;
+    width: 200px; background: #1f2937; color: #f9fafb;
+    font-size: 0.7rem; line-height: 1.4; padding: 6px 9px;
+    border-radius: 5px; z-index: 100; pointer-events: none;
+    white-space: normal;
+  }
+  .action-btn:hover .tip { display: block; }
 
   /* ── Chat ── */
   .chat-card  { flex: 1; min-height: 0; }
@@ -282,10 +291,10 @@
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
       <input type="file" id="upload-input" accept=".txt" style="display:none" onchange="uploadSession(event)">
-      <button class="action-btn" title="Returning to a previous conversation? Upload the recap file you saved last time — Selah will pick up where you left off." onclick="document.getElementById('upload-input').click()">⬆ Upload Previous Session</button>
-      <button class="action-btn" title="Save this conversation as a text file. Upload it next time you visit to continue where you left off — Selah has no memory between sessions without it." onclick="downloadRecap()">⬇ Download Session Recap</button>
-      <button class="action-btn" title="Start fresh with a new topic. Download your session recap first if you want to save this conversation." onclick="newConversation()">↺ New Conversation</button>
-      <button class="action-btn" title="Send us a note — questions, reactions, things that surprised you, or things that didn't work." onclick="openFeedback()">✉ Send Feedback</button>
+      <button class="action-btn" onclick="document.getElementById('upload-input').click()">⬆ Upload Previous Session<span class="tip">Returning to a previous conversation? Upload the recap file you saved last time — Selah will pick up where you left off.</span></button>
+      <button class="action-btn" onclick="downloadRecap()">⬇ Download Session Recap<span class="tip">Save this conversation as a text file. Upload it next time you visit to continue — Selah has no memory between sessions without it.</span></button>
+      <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Download your session recap first if you want to save this conversation.</span></button>
+      <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
     </div>
 
   </div>
