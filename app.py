@@ -86,14 +86,13 @@ Do not mention these tags in your conversational reply -- they are stripped befo
 
 [QUESTION: your closing question or reflection invitation]
 
-If you quoted a Scripture passage this turn:
+For each Scripture passage you quoted AND each theologian argument you introduced THIS turn, append one tag:
 [SOURCE:scripture|Reference (translation)|Full quoted text]
-
-If you introduced a specific theologian's argument this turn:
 [SOURCE:theologian|Theologian Name (dates)|The core argument in 2-4 sentences]
 
-If neither Scripture nor a theologian was introduced, omit the SOURCE tag entirely.
-Only tag content you actually introduced in THIS response, not previous turns.
+You may include multiple SOURCE tags if you introduced multiple items this turn.
+Only tag content first introduced in THIS response — never re-tag Scripture or theologians from prior turns.
+If you introduced nothing new, omit SOURCE tags entirely.
 """
 
 def build_system_prompt(node_name: str) -> str:
@@ -154,23 +153,23 @@ def format_convo_for_haiku(messages: list, max_chars: int = 3000) -> str:
 def parse_response(raw: str) -> dict:
     """Strip structured tags from Claude's reply and extract them separately."""
     question = ""
-    source   = None
+    sources  = []
 
     q_match = re.search(r'\[QUESTION:\s*(.*?)\]', raw, re.DOTALL)
     if q_match:
         question = q_match.group(1).strip()
         raw = raw[:q_match.start()].strip()
 
-    s_match = re.search(r'\[SOURCE:(scripture|theologian)\|(.*?)\|(.*?)\]', raw, re.DOTALL)
-    if s_match:
-        source = {
-            "type":    s_match.group(1),
-            "label":   s_match.group(2).strip(),
-            "content": s_match.group(3).strip(),
-        }
-        raw = raw[:s_match.start()].strip() + raw[s_match.end():].strip()
+    # Collect ALL source tags, then strip them from the reply
+    for m in re.finditer(r'\[SOURCE:(scripture|theologian)\|(.*?)\|(.*?)\]', raw, re.DOTALL):
+        sources.append({
+            "type":    m.group(1),
+            "label":   m.group(2).strip(),
+            "content": m.group(3).strip(),
+        })
+    raw = re.sub(r'\[SOURCE:(scripture|theologian)\|.*?\|.*?\]', '', raw, flags=re.DOTALL).strip()
 
-    return {"reply": raw.strip(), "question": question, "source": source}
+    return {"reply": raw.strip(), "question": question, "sources": sources}
 
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
@@ -227,8 +226,8 @@ def chat():
         convo["anchor"] = f"Exploring {active_node}."
 
     # ── Combined anchor + chips + source -- one Haiku call ────────────────────
-    chips  = []
-    source = parsed["source"]
+    chips   = []
+    sources = parsed["sources"]
     try:
         convo_text = format_convo_for_haiku(convo["messages"])
         haiku_resp = client.messages.create(
@@ -249,18 +248,18 @@ def chat():
         chips = [c.strip() for c in chip_matches if c.strip()]
         convo["chips"] = chips
 
-        # Parse source from Haiku if Sonnet tags did not produce one
-        if source is None:
+        # Parse source from Haiku only if Sonnet tags produced nothing
+        if not sources:
             src_type_m = re.search(r'SOURCE_TYPE:\s*(\S+)', haiku_text)
             if src_type_m and src_type_m.group(1).strip() != "none":
-                src_label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',             haiku_text)
+                src_label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                        haiku_text)
                 src_content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\n[A-Z_]+:|$)', haiku_text, re.DOTALL)
                 if src_label_m and src_content_m:
-                    source = {
+                    sources = [{
                         "type":    src_type_m.group(1).strip(),
                         "label":   src_label_m.group(1).strip(),
                         "content": src_content_m.group(1).strip(),
-                    }
+                    }]
 
     except Exception as e:
         print(f"[ANCHOR/CHIPS/SOURCE ERROR] {e}")
@@ -268,7 +267,7 @@ def chat():
     return jsonify({
         "reply":    parsed["reply"],
         "question": parsed["question"],
-        "source":   source,
+        "sources":  sources,
         "node":     active_node,
         "anchor":   convo["anchor"],
         "chips":    chips,

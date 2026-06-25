@@ -492,8 +492,15 @@ function updatePrompt(question) { /* unused — chips replace this */ }
 
 function addSource(source) {
   if (!source) return;
+  // Deduplicate by label
+  if (sourceItems.some(s => s.label === source.label)) return;
   sourceItems.unshift(source);   // newest first
   renderSources();
+}
+
+function addSources(sources) {
+  if (!sources || !sources.length) return;
+  sources.forEach(s => addSource(s));
 }
 
 function renderSources() {
@@ -537,7 +544,7 @@ async function sendMessage(text, forceNode) {
     addBubble("assistant", data.reply);
     updateAnchor(data.anchor);
     updateChips(data.chips);
-    addSource(data.source);
+    addSources(data.sources);
 
     if (data.node) {
       document.getElementById("node-badge").textContent = data.node;
