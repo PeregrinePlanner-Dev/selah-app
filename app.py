@@ -226,7 +226,7 @@ def chat():
         convo_text = format_convo_for_haiku(convo["messages"])
         haiku_resp = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=300,
+            max_tokens=700,
             messages=[{
                 "role": "user",
                 "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text)
