@@ -2,7 +2,7 @@
 
 **Weight:** The event on which Christianity stands or falls (1 Cor 15:17). The resurrection is not an appendix to the atonement but constitutive of salvation — it is the inaugural event of the new creation, the vindication of Jesus's identity and mission, and the ground of Christian hope. It is also the most historically contested claim in the tradition: the bodily resurrection of Jesus is the point at which Christianity most directly engages secular historiography, and the apologetic arguments for it are some of the most carefully developed in Christian intellectual history.
 
-**Connects to:** Christology, Atonement, Justification, Eschatology, Anthropology, Assurance, Miracles
+**Connects to:** Christology, Atonement, Justification, Eschatology, Anthropology, Assurance, Miracles, Evangelism & Mission
 
 ---
 
@@ -114,4 +114,4 @@ The most thorough evangelical NT scholar on the historical resurrection. His *Th
 
 ---
 
-*Node: Resurrection — v1. Built 202
+*Node: Resurrection — v

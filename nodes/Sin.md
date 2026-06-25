@@ -2,7 +2,7 @@
 
 **Weight:** Foundation node — Grace only makes sense against it, and Atonement, Justification, and Sanctification all presuppose it. The depth of a user's understanding of sin directly determines the depth of their understanding of salvation.
 
-**Connects to:** Grace, Atonement, Anthropology, Justification, Sanctification, Sovereignty & Free Will, Suffering & Providence
+**Connects to:** Grace, Atonement, Anthropology, Justification, Sanctification, Sovereignty & Free Will, Suffering & Providence, Evangelism & Mission
 
 ---
 
@@ -129,4 +129,4 @@ Brings the corporate and structural dimension that classical Reformed hamartiolo
 
 ---
 
-*Node: Sin (Hamartiology) — v1. Built 
+*Node: Sin (Hamartiology) — v

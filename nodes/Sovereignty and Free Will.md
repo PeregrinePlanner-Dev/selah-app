@@ -2,7 +2,7 @@
 
 **Weight:** The most frequently debated node among theologically engaged evangelicals. The question of how God's sovereign control and human genuine freedom relate is not merely academic — it shapes how people understand prayer, evangelism, suffering, moral responsibility, and salvation. This is also the node where the Calvinist/Arminian divide is most explicit, and where Molinism appears as a sophisticated middle position. Romans 9 is the central text and one of the most contested passages in all of Pauline theology.
 
-**Connects to:** Theology Proper, Grace, Faith, Regeneration, Justification, Assurance, Atonement, Suffering & Providence, Problem of Evil, Miracles
+**Connects to:** Theology Proper, Grace, Faith, Regeneration, Justification, Assurance, Atonement, Suffering & Providence, Problem of Evil, Miracles, Evangelism & Mission
 
 ---
 
@@ -116,4 +116,4 @@ The most philosophically sophisticated defender of Calvinist compatibilism. *Fre
 
 ---
 
-*Node: Sovereignty & Free Will —
+*Node: Sovereignty & Free Will — v

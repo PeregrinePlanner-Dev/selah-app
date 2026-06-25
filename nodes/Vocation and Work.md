@@ -2,7 +2,7 @@
 
 **Weight:** Practical theology with deep doctrinal roots — and one of the most pastorally immediate nodes in the library. Most users spend forty or more hours a week working, yet have never heard a theology of work that goes beyond "work hard and be honest." This node has a Luther-to-Keller arc that is genuinely transformative: the sacred/secular divide is not a biblical category; every legitimate calling is holy; work is not a consequence of the fall but a feature of the image of God. Users who enter through "does God care about my job?" are asking a deeper question than they know.
 
-**Connects to:** Anthropology, Creation, Sanctification, Ecclesiology, Eschatology, Social Ethics
+**Connects to:** Anthropology, Creation, Sanctification, Ecclesiology, Eschatology, Social Ethics, Evangelism & Mission
 
 ---
 
@@ -131,4 +131,4 @@ The Reformation's most important voice on vocation. Luther's key move: the pries
 
 ---
 
-*Node: Vocation & Work — v1. Built 2026-06-18.*
+*Node: Vocation & Work — v

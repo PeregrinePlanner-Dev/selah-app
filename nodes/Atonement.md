@@ -2,7 +2,7 @@
 
 **Weight:** The mechanism of salvation — what actually happened at the cross, and why it had to happen. Every other node in the salvation sequence (Justification, Sanctification, Grace, Assurance) draws from this one. Atonement theology is also one of the most actively contested areas in contemporary evangelical scholarship: the penal substitution debates of the early 2000s reopened questions that had seemed settled, and the recovery of Christus Victor and participatory models has permanently complicated any single-theory account. This node must hold multiple theories without flattening them.
 
-**Connects to:** Justification, Sin, Grace, Christology, Sovereignty & Free Will, Assurance, Law & Gospel, Social Ethics
+**Connects to:** Justification, Sin, Grace, Christology, Sovereignty & Free Will, Assurance, Law & Gospel, Social Ethics, Evangelism & Mission
 
 ---
 
@@ -139,4 +139,4 @@ Brings the resurrection back to the center of atonement theology and embeds the 
 
 ---
 
-*Node: Atonement — v1. Built 
+*Node: Atonement — v

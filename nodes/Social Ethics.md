@@ -2,7 +2,7 @@
 
 **Weight:** Gateway and routing node more than a traditional doctrinal locus. Users who enter through contemporary cultural debates — sexuality and gender, racial justice, economic inequality, environmental responsibility, political engagement — are asking questions the traditional systematic theology categories don't directly address. This node's function is not to resolve those debates but to: (1) identify the deeper theological question beneath the cultural question, (2) root the user in the doctrinal categories that actually address it, and (3) model a posture of charitable engagement rather than tribal defense. The church that has nothing to say to these questions has evacuated the field; the church that says too much too quickly loses the theological grounding that makes its voice worth hearing.
 
-**Connects to:** Anthropology, Creation, Ecclesiology, Atonement, Eschatology, Vocation & Work
+**Connects to:** Anthropology, Creation, Ecclesiology, Atonement, Eschatology, Vocation & Work, Evangelism & Mission
 
 ---
 
@@ -123,4 +123,27 @@ The cost of the church's silence. Bonhoeffer's witness — resigning from the Ge
 ## Entry Points
 
 - **"What does the Bible say about homosexuality/same-sex marriage?"** — the most-asked high-voltage question; the goal is to locate this in the deeper doctrinal questions (what does Scripture say about *human sexuality*, about *the body*, about *creation order* vs. *new creation hermeneutics*?) without adjudicating the debate; routes to Anthropology, Creation; Butterfield is the primary voice
-- **"The Bible / Christianity is misogynistic / anti-women"** — the gender-bias entry; the user may be arriving with genuine hurt, cultural assumption, or intellectual challeng
+- **"The Bible / Christianity is misogynistic / anti-women"** — the gender-bias entry; the user may be arriving with genuine hurt, cultural assumption, or intellectual challenge; the goal is not to debate the charge but to locate the deeper question (what does Christian theology actually say about women's humanity and dignity?); Sayers is the primary voice; Elliot provides the complementarian dimension; routes to Anthropology
+- **"Women are [inferior / less spiritual / more easily deceived / meant to be submissive]"** — the internalized misogyny entry from within traditional Christianity; more common than the external challenge; Sayers and Elliot together are the response; Sayers on the category error; Elliot on dignity within the complementarian frame; routes to Anthropology
+- **"Why doesn't the church talk about racism?"** — enters through frustration with the church; the history of Christian complicity and Christian prophetic leadership; the imago dei foundation; routes to Anthropology, Atonement
+- **"Is Christianity just a white Western religion?"** — the historical and global church question; Paul's mission; Acts as the expansion outward; Rev 7:9 as the eschatological image; routes to Ecclesiology, Eschatology
+- **"What does God say about poverty/wealth inequality?"** — the OT economic provisions; the prophets; jubilee; the NT's koinonia; routes to Vocation & Work, Creation
+- **"Should Christians be politically involved?"** — the three-tradition framework; the Kingdom's critique of all political arrangements; prophetic engagement vs. partisan capture; routes to Ecclesiology, Eschatology
+- **"Does God care about climate change/the environment?"** — creation care as theology before it is politics; Gen 2:15; the stewardship obligation; where theology ends and policy begins; routes to Creation, Eschatology
+- **Scholars:** King's *Letter from Birmingham Jail*; Volf's *Exclusion and Embrace*; Keller's *Generous Justice*; Bonhoeffer's *Ethics*; Kuyper on sphere sovereignty
+
+---
+
+## Failure Modes
+
+- **Tribal capture** — the church functioning as the chaplain to one political party; reducing the Kingdom to a platform; the test: can the church prophetically challenge the party it most closely aligns with?
+- **Avoidance** — refusing to engage contested social questions at all out of fear of division; Bonhoeffer's warning: silence is not neutrality; the church that said nothing in Weimar Germany was not neutral
+- **Proof-texting politics** — extracting isolated verses to support predetermined political positions; the Deuteronomy texts on economic blessing misread as personal prosperity promises; the NT communalism read as a mandate for state socialism
+- **Reducing sin to the personal** — treating social ethics as entirely a matter of individual heart change while ignoring the structural dimensions of injustice; Amos did not address only the individual conscience
+- **Reducing sin to the structural** — treating social ethics as entirely a matter of systemic reform while ignoring personal repentance and transformation; structures are changed by people who are changed
+- **Conflating the theological with the political** — what Scripture says about the imago dei does not automatically entail a specific immigration policy; what Scripture says about creation stewardship does not automatically entail a specific carbon policy; the move from biblical principle to policy application requires wisdom, involves legitimate Christian disagreement, and should be made with humility
+- **Historical amnesia** — engaging social ethics as if the church has a clean record; the tradition's complicity in slavery, colonialism, and racial hierarchy is not a footnote — it is part of the story the church must own and learn from
+
+---
+
+*Node: Social Ethics — v

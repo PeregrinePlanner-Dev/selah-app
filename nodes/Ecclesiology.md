@@ -2,7 +2,7 @@
 
 **Weight:** The most practically undertheologized area of evangelical Christianity. Evangelicals have strong soteriology and weak ecclesiology — the church is treated as a helpful supplement to individual salvation rather than as the community in which salvation is lived out. The NT's assumption is the opposite: the church is not optional for Christians, and the shape of the church matters for the shape of discipleship. Ecclesiology is also where the deepest disagreements between Protestant denominations live — polity, ordinances/sacraments, and the nature of church authority are fault lines that have divided the Reformation's heirs.
 
-**Connects to:** Christology, Holy Spirit, Sacraments & Ordinances, Sovereignty & Free Will, Sanctification, Eschatology, Vocation & Work, Social Ethics
+**Connects to:** Christology, Holy Spirit, Sacraments & Ordinances, Sovereignty & Free Will, Sanctification, Eschatology, Vocation & Work, Social Ethics, Evangelism & Mission
 
 ---
 
@@ -116,4 +116,4 @@ Smyth was one of the founders of the English Baptist tradition and the first art
 
 ---
 
-*Node: Ecclesio
+*Node: Ecclesiology — v
