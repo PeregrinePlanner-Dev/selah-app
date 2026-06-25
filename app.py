@@ -286,6 +286,7 @@ def export():
     """Return a plain-text session transcript for saving."""
     data    = request.json
     sid     = data.get("session_id")
+    sources = data.get("sources", [])
     convo   = conversations.get(sid, {})
     msgs    = convo.get("messages", [])
     anchor  = convo.get("anchor", "")
@@ -293,10 +294,18 @@ def export():
 
     lines = [f"Selah Session Export\nNode: {node}\n\n=== Session Anchor ===\n{anchor}\n\n=== Conversation ===\n"]
     for m in msgs:
-        role = "You" if m["role"] == "user" else "TES"
+        role = "You" if m["role"] == "user" else "Selah"
         text = re.sub(r'\[QUESTION:.*?\]', '', m["content"], flags=re.DOTALL)
         text = re.sub(r'\[SOURCE:.*?\]',   '', text,         flags=re.DOTALL).strip()
         lines.append(f"{role}:\n{text}\n")
+
+    if sources:
+        lines.append("\n=== Sources Cited ===\n")
+        for s in sources:
+            kind  = "Scripture" if s.get("type") == "scripture" else "Theologian"
+            label = s.get("label", "")
+            content = s.get("content", "")
+            lines.append(f"{kind} — {label}\n{content}\n")
 
     return jsonify({"text": "\n".join(lines)})
 
