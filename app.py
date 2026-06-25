@@ -253,8 +253,8 @@ def chat():
         if source is None:
             src_type_m = re.search(r'SOURCE_TYPE:\s*(\S+)', haiku_text)
             if src_type_m and src_type_m.group(1).strip() != "none":
-                src_label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',   haiku_text)
-                src_content_m = re.search(r'SOURCE_CONTENT:\s*(.+)', haiku_text)
+                src_label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',             haiku_text)
+                src_content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\n[A-Z_]+:|$)', haiku_text, re.DOTALL)
                 if src_label_m and src_content_m:
                     source = {
                         "type":    src_type_m.group(1).strip(),
