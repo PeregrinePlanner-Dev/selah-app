@@ -292,7 +292,7 @@ def export():
     anchor  = convo.get("anchor", "")
     node    = convo.get("node", "")
 
-    lines = [f"TES Session Export\nNode: {node}\n\n=== Session Anchor ===\n{anchor}\n\n=== Conversation ===\n"]
+    lines = [f"Selah Session Export\nNode: {node}\n\n=== Session Anchor ===\n{anchor}\n\n=== Conversation ===\n"]
     for m in msgs:
         role = "You" if m["role"] == "user" else "TES"
         text = re.sub(r'\[QUESTION:.*?\]', '', m["content"], flags=re.DOTALL)
