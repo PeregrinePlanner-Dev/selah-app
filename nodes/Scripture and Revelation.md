@@ -57,67 +57,38 @@ Inspiration establishes what Scripture is; hermeneutics determines how it is rea
 
 **Cultural relativity:** Which biblical commands are timeless and which are culturally specific? How does the reader distinguish? The trajectory from the household codes (Eph 5–6) to contemporary marriage and workplace practice requires a hermeneutic. Egalitarians and complementarians read the same texts through different hermeneutical frameworks and reach opposite conclusions on gender in church and home.
 
+### 5. Canon — Which Books Belong in Scripture?
+
+Before Scripture can function with authority, a prior question must be settled: *which writings constitute Scripture?* The word "canon" (Greek *kanōn*, measuring rod or rule) refers to the collection of books recognized as authoritative Scripture. The canon question is not abstract — it determines which text Christians read, cite, and submit to.
+
+**How the OT canon was formed:** The Hebrew Bible (Tanakh) consists of 39 books (in Protestant counting) and its core was recognized as authoritative long before the NT era — the Law and Prophets are cited as settled authority throughout the intertestamental period. The traditional claim that the Council of Jamnia (c. AD 90) fixed the Jewish canon is now doubted by most scholars; it was more a confirmation of existing practice than a decision. The criteria operative in the recognition of the OT canon included: prophetic origin, consistency with established Torah, and the testimony of the community. The books were *recognized* as having intrinsic authority, not *granted* authority by a council — this distinction matters theologically.
+
+**The deuterocanonical books (Apocrypha):** Between the Protestant OT (39 books) and the Catholic OT (46 books) lie seven additional writings — Tobit, Judith, 1–2 Maccabees, Wisdom of Solomon, Sirach (Ecclesiasticus), and Baruch — included in the Greek Septuagint (LXX) and in the Latin Vulgate. The Catholic Church formally defined these as canonical at the Council of Trent (1546), partly in response to Protestant challenges. Protestants follow the shorter Hebrew canon, following Jerome's principle that books not in the Hebrew OT lack canonical authority; Luther placed the Apocrypha in a separate section — "useful to read but not to establish doctrine." The books are valuable historically (1 Maccabees is the primary source for the intertestamental period) but Protestant and Catholic traditions genuinely disagree on their status.
+
+**How the NT canon was formed:** The NT canon was not decreed by a single council but emerged through a process of recognition over the 2nd–4th centuries. The criteria operative in recognizing NT books included: **apostolicity** (written by an apostle or someone in their immediate circle), **orthodoxy** (consistent with the rule of faith), **catholicity** (received and used across the broader church), and **antiquity** (demonstrably early origin). Most of the NT — the Pauline letters, the four Gospels, Acts, 1 Peter, 1 John — was recognized quickly and widely. A handful of books (Hebrews, James, 2 Peter, 2–3 John, Jude, Revelation) remained disputed longer in some regions. The Councils of Hippo (393) and Carthage (397) listed the 27-book NT as we have it — but they were ratifying a consensus already operative in practice, not creating it from scratch.
+
+**The critical challenge:** Bart Ehrman and others argue that the canon is a product of the winning side of 2nd–3rd century theological controversies — that the "losers" (Gnostics, Marcionites) also had texts that were simply suppressed. This argument is historically overstated: the core of the NT was recognized before the major Gnostic controversies, and the Gnostic gospels (Gospel of Thomas, Gospel of Philip) were late compositions that failed the apostolicity and antiquity criteria. The church did not *create* orthodoxy and *impose* it on a diverse early Christianity — the diversity was real, but the apostolic core was there from the beginning.
+
+**Did the church create the canon or recognize it?** This is the sharpest theological question. The Catholic answer tends toward: the church, guided by the Spirit, determined which books are Scripture — therefore the church's authority underwrites the canon's authority. The Protestant answer (Luther, Calvin, Warfield): the church recognized what was already intrinsically Scripture; the canon's authority is self-attesting and validated by the Spirit's internal witness. For Protestants, the canon's authority does not rest on the church's decision; for Catholics, Scripture and Tradition stand together under the magisterium.
+
+---
+
+### 6. Historical-Critical Method — The Scholarly Challenge to Traditional Authorship
+
+The historical-critical method applies the same methods used in secular historical study to the biblical text: analyzing sources, dating documents, examining genre, comparing with ancient Near Eastern parallels, and asking questions about authorship, composition, and historical accuracy. It arose in the 18th–19th centuries as part of the Enlightenment's application of reason to all claims, including religious ones.
+
+**Higher vs. lower criticism:** *Lower (textual) criticism* analyzes manuscript variants to establish the most reliable original text — this is theologically uncontroversial and essential to good scholarship (Metzger, Nestle-Aland). *Higher criticism* investigates the authorship, dating, sources, and composition of biblical texts — this is where the controversy lies, because its conclusions often contradict traditional claims.
+
+**The Documentary Hypothesis (JEDP):** Julius Wellhausen (1878) argued that the Pentateuch (Genesis–Deuteronomy) was not written by Moses but was a composite of four documents: J (Yahwist, 9th c. BC), E (Elohist, 8th c.), D (Deuteronomist, 7th c.), and P (Priestly, 6th–5th c.), edited together after the Babylonian exile. If Wellhausen is right, Moses is at best a legendary figure and the Pentateuch is largely a late composition. This hypothesis dominated critical scholarship through the 20th century and still shapes academic OT work, though it has been significantly revised and contested even within critical scholarship.
+
+**The evangelical response:** Evangelical scholars do not simply reject critical method but dispute its conclusions and challenge its presuppositions. K.A. Kitchen (*On the Reliability of the Old Testament*, 2003) marshals archaeological and ancient Near Eastern evidence to argue that the Pentateuch's legal, narrative, and covenantal forms fit the 2nd millennium BC far better than Wellhausen's late dating. John Oswalt (*The Bible Among the Myths*, 2009) challenges the assumption that the OT is essentially a variant of ancient Near Eastern mythology. The key critique of the JEDP hypothesis: it began with the anti-supernaturalist assumption that predictive prophecy is impossible, so any passage predicting future events must have been written after the fact (*vaticinium ex eventu*). Once you grant predictive prophecy as possible, the dating evidence shifts significantly.
+
+**The NT equivalent — the Jesus Seminar and Ehrman:** The Jesus Seminar (founded 1985) used voting (with colored beads) to determine which sayings of Jesus were "authentic." They concluded that about 18% of the sayings in the Gospels plausibly go back to the historical Jesus. Bart Ehrman's popular works (*Misquoting Jesus*, 2005; *Jesus, Interrupted*, 2009) reach wide audiences with arguments that the NT text is unreliable, the Gospels are theologically motivated rather than historically accurate, and that Paul invented much of Christian theology. Evangelical responses from Craig Blomberg (*The Historical Reliability of the Gospels*), D.A. Carson, and others engage these arguments specifically: the manuscript tradition for the NT is exceptionally strong compared to any ancient document, and the alleged discrepancies Ehrman cites are well within the range of normal ancient historical writing.
+
+**The hermeneutical fork:** The historical-critical method as a *tool* — asking questions about genre, historical context, ancient parallels, authorship — is legitimate and valuable; evangelical scholars use it. The historical-critical method as an *ideology* — beginning with the assumption that miracles don't happen and Scripture is merely a human document — produces different conclusions because it begins with different presuppositions. The evangelical claim is not that critical questions are illegitimate, but that the anti-supernaturalist assumptions built into much critical scholarship are not neutral: they foreclose conclusions before the evidence is examined.
+
+---
+
 ### 4. General vs. Special Revelation — What Can Nature Tell Us About God?
 
-**General revelation** (available to all humanity through creation, conscience, and history) gives real knowledge of God — his power and divine nature are "clearly seen, being understood from what has been made" (Rom 1:20). The moral law is written on the human heart (Rom 2:15). This is why pagan philosophers can arrive at genuine moral insights and why natural theology (arguments for God's existence from reason) has a legitimate role.
-
-**The limit of general revelation:** It is not saving knowledge. It establishes God's existence and moral character sufficient to leave humanity without excuse (Rom 1:20) but insufficient to reveal the gospel. Saving knowledge of God comes through special revelation — Scripture, and supremely through the Word made flesh, Jesus Christ.
-
-**Natural theology's contested status:** Reformed theology (especially post-Barth) is suspicious of natural theology — the attempt to prove God's existence from reason and nature apart from Scripture. Barth's objection: natural theology places human reason in judgment over revelation and produces an idol rather than the living God. The Thomistic and Catholic tradition is more confident in natural theology as a legitimate pathway to God that is then supplemented and clarified by revelation.
-
----
-
-## Scripture Anchors
-
-- **2 Tim 3:16–17** — "all Scripture is God-breathed (*theopneustos*) and is useful for teaching, rebuking, correcting and training in righteousness, so that the servant of God may be thoroughly equipped for every good work" — the inspiration text; note *theopneustos* is a passive participle (breathed out by God); the sufficiency claim
-- **2 Pet 1:20–21** — "no prophecy of Scripture came about by the prophet's own interpretation... but prophets, though human, spoke from God as they were carried along by the Holy Spirit" — dual authorship; the human speaks, the Spirit carries
-- **Ps 119:105** — "your word is a lamp for my feet, a light on my path" — the functional sufficiency; Scripture as guidance for life
-- **Isa 40:8** — "the grass withers and the flowers fall, but the word of our God endures forever" — the permanence and reliability of the Word
-- **John 10:35** — "Scripture cannot be set aside" (*ou dunatai luthēnai*) — Jesus's own view of Scripture's authority; he treats it as binding even in its details
-- **John 17:17** — "sanctify them by the truth; your word is truth" — Scripture as truth, not merely containing truth
-- **Matt 5:17–18** — "not the smallest letter, not the least stroke of a pen, will by any means disappear from the Law until everything is accomplished" — the detail-level authority of Scripture
-- **Rom 1:18–20** — general revelation; "what may be known about God is plain to them, because God has made it plain to them... his eternal power and divine nature... have been clearly seen"
-- **Rom 15:4** — "everything that was written in the past was written to teach us, so that through the endurance taught in the Scriptures and the encouragement they provide we might have hope" — the purposiveness of Scripture; it was written *for* us
-
----
-
-## Theologian Map
-
-**B.B. Warfield (1851–1921)**
-Princeton Seminary's most influential theologian and the architect of the modern evangelical doctrine of inerrancy. *The Inspiration and Authority of the Bible* is the foundational text. Warfield's key move: full inspiration does not suppress or override the human authors but works through them so completely that every word they freely write is also exactly what God intends. The concursive theory of inspiration: God's sovereign providence worked in, through, and by means of the human authors' personalities, experiences, and abilities so that the result is simultaneously the human's own words and God's own words. Warfield's precision: *verbal* inspiration (the words, not just the ideas) and *plenary* inspiration (all of Scripture, not just the theologically important parts).
-
-**Karl Barth (1886–1968)**
-The most significant 20th century challenge to the Warfieldian position from within Protestant theology. Barth's threefold Word of God: the Word revealed (Jesus Christ), the Word written (Scripture), and the Word proclaimed (preaching). Scripture is not itself the Word of God — it *becomes* the Word of God in the event of encounter, when the Spirit uses it to bring the reader into contact with the living Christ. This is not liberal denial of Scripture's authority; Barth's Scripture is functionally powerful and his theology is soaked in it. But his rejection of inerrancy and his event-theology of revelation place him outside the evangelical consensus. His contribution: the living, dynamic character of Scripture as encounter, not merely information.
-
-**Kevin Vanhoozer (1957–)**
-The most sophisticated contemporary evangelical theologian of Scripture. *Is There a Meaning in This Text?* (1998) engages postmodern hermeneutics and defends the possibility of authorial intent against the deconstructionist claim that texts are indefinitely polysemous (meaning whatever readers bring to them). His model: Scripture as God's communicative action — God is the author who performs speech acts through the human authors, and the reader's task is to understand those intended acts. The Spirit's role in illumination is to enable the reader to understand what the divine author communicates, not to generate new meaning beyond it.
-
-**Graeme Goldsworthy (1934–)**
-The clearest expositor of the redemptive-historical hermeneutic in accessible form. *According to Plan* and *Preaching the Whole Bible as Christian Scripture* insist that every part of Scripture must be read in relation to its place in the redemptive-historical arc — creation, fall, Israel, Christ, church, new creation — and that Christ is the interpretive key to the whole. Old Testament texts are not complete in themselves but point forward; New Testament texts interpret the Old by showing what they were pointing toward. This prevents both moralistic readings of OT narrative (the story of David is about courage, not about the coming King) and the abandonment of the OT as irrelevant to Christians.
-
----
-
-## Entry Points
-
-- **"How do we know the Bible is true?"** — the authority question; the circular but not viciously circular nature of Scripture's self-attestation; the internal witness of the Spirit
-- **"Doesn't the Bible have errors and contradictions?"** — the inerrancy challenge; specific alleged contradictions require specific engagement; the genre and intent framework
-- **"The Bible was written by men — why should I trust it?"** — the human authorship question; 2 Pet 1:20–21; dual authorship as the answer
-- **"How do I know how to interpret the Bible?"** — the hermeneutics entry; genre, context, redemptive-historical location
-- **"Are all the Bible's commands still binding today?"** — the cultural-relativity question; how to distinguish timeless from time-bound; the hermeneutical framework
-- **Scholars:** Warfield vs. Barth on inspiration; the Enns controversy; Vanhoozer's speech-act theory; inerrancy and the phenomena of Scripture; natural theology debates
-
----
-
-## Failure Modes
-
-- **Bibliolatry** — treating the text as an end in itself rather than as the vehicle through which the living God speaks; "the Bible says" as a conversation-stopper rather than a conversation-opener
-- **Wooden literalism** — ignoring genre and treating all Scripture as flat, context-free instruction; leads to arbitrary application and missed meaning
-- **Proof-texting** — extracting individual verses without context to support a predetermined conclusion; the most common abuse of Scripture in popular Christianity
-- **Inspiration without illumination** — affirming that Scripture is inspired while ignoring the Spirit's necessary role in enabling understanding; reading Scripture as a purely cognitive exercise
-- **Relevance-driven interpretation** — starting with what is culturally acceptable or personally comfortable and working backward to find Scripture's support; the reader's preferences govern the text
-- **Inerrancy as idol** — defending the doctrine of inerrancy more energetically than actually reading and obeying Scripture; winning the argument while losing the encounter
-
----
-
-*Node: Scripture & Revelation — v1. Built 2026-06-16.*
-       
+**General revelation** (available to all humanity through creation, conscience, and history) gives real knowledge of God — his power
