@@ -86,13 +86,16 @@ Do not mention these tags in your conversational reply -- they are stripped befo
 
 [QUESTION: your closing question or reflection invitation]
 
-For each Scripture passage you quoted AND each theologian argument you introduced THIS turn, append one tag:
-[SOURCE:scripture|Reference (translation)|Full quoted text]
+For each Scripture passage you directly quoted AND each named theologian's argument you introduced THIS turn, append one tag:
+[SOURCE:scripture|Book Chapter:Verse (Translation)|Full quoted text]
 [SOURCE:theologian|Theologian Name (dates)|The core argument in 2-4 sentences]
 
-You may include multiple SOURCE tags if you introduced multiple items this turn.
-Only tag content first introduced in THIS response — never re-tag Scripture or theologians from prior turns.
-If you introduced nothing new, omit SOURCE tags entirely.
+Rules:
+- Scripture: only tag verses you actually quoted with text, not verses merely mentioned or referenced in passing.
+- Theologian: only tag when you cite a specific named theologian (e.g., Augustine, Calvin, Barth). Do NOT tag your own arguments or unnamed "implicit" theological reasoning.
+- You may include multiple SOURCE tags per turn.
+- Only tag content first introduced in THIS response — never re-tag from prior turns.
+- If you introduced nothing new this turn, omit SOURCE tags entirely.
 """
 
 def build_system_prompt(node_name: str) -> str:
@@ -123,26 +126,30 @@ CHIP_1: [Short thing the person might naturally say next, 4-7 words, user-voice]
 CHIP_2: [Different angle or follow-up, 4-7 words]
 CHIP_3: [Another direction they might take, 4-7 words]
 
-List ALL Scripture passages actually quoted AND all theologian arguments introduced in the LAST TES response only (not earlier turns). Up to 3 items. Use this exact format for each:
+Now look ONLY at the final SET response (ignore all Person turns and all earlier SET turns).
+List every Scripture passage SET directly quoted (with text) AND every named theologian argument SET introduced.
+Do not include: verses only mentioned by the Person, verses SET merely referenced without quoting, or unnamed/implicit theological arguments.
+
+Use this exact format for each item found:
 
 SOURCE_TYPE: scripture OR theologian
-SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Name (dates)]
-SOURCE_CONTENT: [quoted text] OR [argument in 2-3 sentences]
+SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Theologian Name (dates)]
+SOURCE_CONTENT: [exact quoted text] OR [the argument in 2-3 sentences]
 SOURCE_END
 
-Repeat the SOURCE_TYPE / SOURCE_LABEL / SOURCE_CONTENT / SOURCE_END block for each item.
-If nothing was introduced, output: SOURCE_TYPE: none"""
+Repeat the block for each item. If the final SET response contains nothing qualifying, output: SOURCE_TYPE: none"""
 
 
 def format_convo_for_haiku(messages: list, max_chars: int = 3000) -> str:
     """Flatten conversation history to a readable text block, tags stripped."""
     lines = []
     for m in messages:
-        role = "Person" if m["role"] == "user" else "TES"
+        role = "Person" if m["role"] == "user" else "SET"
         content = re.sub(r'\[QUESTION:.*?\]', '', m["content"], flags=re.DOTALL)
         content = re.sub(r'\[SOURCE:.*?\]',   '', content,      flags=re.DOTALL).strip()
         lines.append(f"{role}: {content}")
-    return "\n\n".join(lines)[:max_chars]
+    text = "\n\n".join(lines)
+    return text[-max_chars:] if len(text) > max_chars else text
 
 def parse_response(raw: str) -> dict:
     """Strip structured tags from Claude's reply and extract them separately."""
@@ -204,11 +211,23 @@ def chat():
     # ── Main response (Sonnet) ────────────────────────────────────────────────
     # system prompt is cached -- saves ~80-90% of input token cost from turn 2 onward.
     # Only the last MAX_HISTORY messages are sent to cap growing context costs.
+    # Strip technical tags from history so Sonnet doesn't see prior [SOURCE:] tags
+    # and interpret them as "sourcing already done" -- which caused it to stop tagging.
+    def strip_tags(text: str) -> str:
+        text = re.sub(r'\[QUESTION:.*?\]', '', text, flags=re.DOTALL)
+        text = re.sub(r'\[SOURCE:.*?\]',   '', text, flags=re.DOTALL)
+        return text.strip()
+
+    clean_history = [
+        {"role": m["role"], "content": strip_tags(m["content"])}
+        for m in convo["messages"][-MAX_HISTORY:]
+    ]
+
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1024,
+        max_tokens=1536,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=convo["messages"][-MAX_HISTORY:],
+        messages=clean_history,
     )
     raw_text = response.content[0].text
     parsed   = parse_response(raw_text)
@@ -324,14 +343,9 @@ def upload_session():
         prev_anchor = anchor_match.group(1).strip()
 
     returning_prompt = (
-        "You are TES -- the Theology Exploration System. "
+        "You are SET -- the Systematic Exploration of Theology. "
         "A user is returning from a previous session. "
-        "Here is their previous session recap:\n\n"
-        + content[:2000]
-        + "\n\nWrite a brief, warm returning-session opening (2-3 sentences): "
-        "recap the key tension or question from last time, then ask one reflection prompt. "
-        "Do not use headers or bullet points. Plain conversational text only."
-    )
+      )
 
     greeting_resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -350,6 +364,6 @@ def upload_session():
     return jsonify({"greeting": greeting, "node": node, "anchor": prev_anchor})
 
 if __name__ == "__main__":
-    print(f"TES running --> http://localhost:5000")
+    print(f"SET running --> http://localhost:5000")
     print(f"Nodes loaded: {len(NODES)}")
     app.run(debug=True, port=5000)
