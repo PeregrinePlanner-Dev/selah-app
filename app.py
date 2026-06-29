@@ -367,3 +367,42 @@ if __name__ == "__main__":
     print(f"SET running --> http://localhost:5000")
     print(f"Nodes loaded: {len(NODES)}")
     app.run(debug=True, port=5000)
+ting}],
+        "node":   node,
+        "anchor": prev_anchor,
+        "turn":   0,
+    }
+
+    return jsonify({"greeting": greeting, "node": node, "anchor": prev_anchor})
+
+if __name__ == "__main__":
+    print(f"SET running --> http://localhost:5000")
+    print(f"Nodes loaded: {len(NODES)}")
+    app.run(debug=True, port=5000)
+      "Here is their previous session recap:\n\n"
+        + content[:2000]
+        + "\n\nWrite a brief, warm returning-session opening (2-3 sentences): "
+        "recap the key tension or question from last time, then ask one reflection prompt. "
+        "Do not use headers or bullet points. Plain conversational text only."
+    )
+
+    greeting_resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        messages=[{"role": "user", "content": returning_prompt}],
+    )
+    greeting = greeting_resp.content[0].text.strip()
+
+    conversations[session_id] = {
+        "messages": [{"role": "assistant", "content": greeting}],
+        "node":   node,
+        "anchor": prev_anchor,
+        "turn":   0,
+    }
+
+    return jsonify({"greeting": greeting, "node": node, "anchor": prev_anchor})
+
+if __name__ == "__main__":
+    print(f"TES running --> http://localhost:5000")
+    print(f"Nodes loaded: {len(NODES)}")
+    app.run(debug=True, port=5000)
