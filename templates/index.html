@@ -682,7 +682,29 @@ async function uploadSession(event) {
 
   // Show the returning-session greeting in chat
   addBubble("assistant", data.greeting);
+
+  // Restore sources from the recap file
   sourceItems = [];
+  const sourcesMatch = text.match(/=== Sources Cited ===([\s\S]*?)$/);
+  if (sourcesMatch) {
+    const blocks = sourcesMatch[1].trim().split(/\n\n+/);
+    blocks.forEach(block => {
+      const lines = block.trim().split('\n');
+      if (lines.length < 2) return;
+      const header = lines[0]; // e.g. "Scripture — Matthew 6:33 (NIV)"
+      const content = lines.slice(1).join(' ').trim();
+      const typeMatch = header.match(/^(Scripture|Theologian)\s+—\s+(.+)$/);
+      if (typeMatch && content) {
+        sourceItems.push({
+          type:    typeMatch[1].toLowerCase() === 'scripture' ? 'scripture' : 'theologian',
+          label:   typeMatch[2].trim(),
+          content: content
+        });
+      }
+    });
+    renderSources();
+  }
+
   event.target.value = ""; // reset file input
 }
 </script>
