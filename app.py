@@ -342,10 +342,21 @@ def upload_session():
     if anchor_match:
         prev_anchor = anchor_match.group(1).strip()
 
+    # Extract last few exchanges to seed Sonnet with prior context
+    prior_context = ""
+    convo_match = re.search(r"=== Conversation ===(.*?)(?:=== Sources Cited ===|\Z)", content, re.DOTALL)
+    if convo_match:
+        prior_context = convo_match.group(1).strip()[-3000:]
+
     returning_prompt = (
-        "You are SET -- the Systematic Exploration of Theology. "
-        "A user is returning from a previous session. "
-      )
+        "A person is returning to a theology conversation. "
+        "Here is their previous session recap:\n\n"
+        + f"Node: {node}\n\nSession Anchor: {prev_anchor}\n\n"
+        + (f"Last exchanges:\n{prior_context[-800:]}" if prior_context else "")
+        + "\n\nWrite a brief, warm returning-session opening of 2-3 sentences only. "
+        "Name the specific tension or question they left unresolved, then ask one focused reflection prompt. "
+        "No headers. No bullet points. No numbered lists. Plain conversational prose only."
+    )
 
     greeting_resp = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -354,8 +365,19 @@ def upload_session():
     )
     greeting = greeting_resp.content[0].text.strip()
 
+    # Seed messages with prior context so Sonnet knows the prior session
+    seed_messages = []
+    if prev_anchor:
+        seed_messages.append({
+            "role": "user",
+            "content": f"[Returning session. Prior context: Node={node}. Last anchor: {prev_anchor}]"
+        })
+        seed_messages.append({"role": "assistant", "content": greeting})
+    else:
+        seed_messages.append({"role": "assistant", "content": greeting})
+
     conversations[session_id] = {
-        "messages": [{"role": "assistant", "content": greeting}],
+        "messages": seed_messages,
         "node":   node,
         "anchor": prev_anchor,
         "turn":   0,
