@@ -126,9 +126,9 @@ CHIP_1: [Short thing the person might naturally say next, 4-7 words, user-voice]
 CHIP_2: [Different angle or follow-up, 4-7 words]
 CHIP_3: [Another direction they might take, 4-7 words]
 
-Now look ONLY at the final SET response (ignore all Person turns and all earlier SET turns).
-List every Scripture passage SET directly quoted (with text) AND every named theologian argument SET introduced.
-Do not include: verses only mentioned by the Person, verses SET merely referenced without quoting, or unnamed/implicit theological arguments.
+Now look ONLY at the final Selah response (ignore all Person turns and all earlier Selah turns).
+List every Scripture passage Selah directly quoted (with text) AND every named theologian argument Selah introduced.
+Do not include: verses only mentioned by the Person, verses Selah merely referenced without quoting, or unnamed/implicit theological arguments.
 
 Use this exact format for each item found:
 
@@ -137,14 +137,14 @@ SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Theologian Name (dates)]
 SOURCE_CONTENT: [exact quoted text] OR [the argument in 2-3 sentences]
 SOURCE_END
 
-Repeat the block for each item. If the final SET response contains nothing qualifying, output: SOURCE_TYPE: none"""
+Repeat the block for each item. If the final Selah response contains nothing qualifying, output: SOURCE_TYPE: none"""
 
 
 def format_convo_for_haiku(messages: list, max_chars: int = 3000) -> str:
     """Flatten conversation history to a readable text block, tags stripped."""
     lines = []
     for m in messages:
-        role = "Person" if m["role"] == "user" else "SET"
+        role = "Person" if m["role"] == "user" else "Selah"
         content = re.sub(r'\[QUESTION:.*?\]', '', m["content"], flags=re.DOTALL)
         content = re.sub(r'\[SOURCE:.*?\]',   '', content,      flags=re.DOTALL).strip()
         lines.append(f"{role}: {content}")
@@ -424,6 +424,6 @@ def upload_session():
     return jsonify({"greeting": greeting, "node": node, "anchor": prev_anchor})
 
 if __name__ == "__main__":
-    print(f"SET running --> http://localhost:5000")
+    print(f"Selah running --> http://localhost:5000")
     print(f"Nodes loaded: {len(NODES)}")
     app.run(debug=True, port=5000)
