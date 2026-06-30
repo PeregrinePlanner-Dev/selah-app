@@ -518,10 +518,23 @@ function updateChips(chips) {
 
 function updatePrompt(question) { /* unused — chips replace this */ }
 
+function normalizeLabel(label) {
+  // Strip parenthetical notes, dates, trailing qualifiers; lowercase for comparison
+  return label
+    .replace(/\(.*?\)/g, '')          // remove (NIV), (354-430), (referenced...) etc.
+    .replace(/\s*(referenced|implied|implicit|unnamed).*$/i, '')
+    .toLowerCase().trim();
+}
+
 function addSource(source) {
   if (!source) return;
-  // Deduplicate by label
-  if (sourceItems.some(s => s.label === source.label)) return;
+  // Skip empty or "none" entries
+  const lbl = (source.label || '').trim().toLowerCase();
+  const cnt = (source.content || '').trim().toLowerCase();
+  if (!lbl || lbl.includes('none') || cnt.includes('none identified') || !cnt) return;
+  // Deduplicate by normalized label
+  const norm = normalizeLabel(source.label);
+  if (sourceItems.some(s => normalizeLabel(s.label) === norm)) return;
   sourceItems.unshift(source);   // newest first
   renderSources();
 }

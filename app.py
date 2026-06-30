@@ -268,7 +268,12 @@ def chat():
                 type_m    = re.search(r'SOURCE_TYPE:\s*(\S+)',                              block)
                 label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                              block)
                 content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
-                if type_m and type_m.group(1).strip() not in ("none", "") and label_m and content_m:
+                t_val = type_m.group(1).strip().lower()   if type_m    else ""
+                l_val = label_m.group(1).strip().lower()  if label_m   else ""
+                c_val = content_m.group(1).strip().lower() if content_m else ""
+                if (type_m and t_val not in ("none", "")
+                        and label_m and l_val not in ("none", "none identified", "")
+                        and content_m and c_val not in ("none", "none identified", "")):
                     sources.append({
                         "type":    type_m.group(1).strip(),
                         "label":   label_m.group(1).strip(),
