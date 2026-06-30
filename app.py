@@ -342,20 +342,34 @@ def upload_session():
     if anchor_match:
         prev_anchor = anchor_match.group(1).strip()
 
-    # Extract last few exchanges to seed Sonnet with prior context
-    prior_context = ""
+    # Parse conversation into message pairs from the recap
+    seed_messages = []
     convo_match = re.search(r"=== Conversation ===(.*?)(?:=== Sources Cited ===|\Z)", content, re.DOTALL)
     if convo_match:
-        prior_context = convo_match.group(1).strip()[-3000:]
+        convo_text = convo_match.group(1).strip()
+        # Split on speaker labels and rebuild as role/content pairs
+        turns = re.split(r'\n(?=You:\n|Selah:\n)', convo_text)
+        for turn in turns:
+            turn = turn.strip()
+            if turn.startswith("You:\n"):
+                seed_messages.append({"role": "user", "content": turn[5:].strip()})
+            elif turn.startswith("Selah:\n"):
+                seed_messages.append({"role": "assistant", "content": turn[7:].strip()})
+        # Keep only last 8 messages (4 exchanges) to stay within token budget
+        seed_messages = seed_messages[-8:]
+
+    last_exchanges = "\n\n".join(
+        f"{'Person' if m['role']=='user' else 'Selah'}: {m['content']}"
+        for m in seed_messages[-4:]
+    )
 
     returning_prompt = (
         "A person is returning to a theology conversation. "
-        "Here is their previous session recap:\n\n"
-        + f"Node: {node}\n\nSession Anchor: {prev_anchor}\n\n"
-        + (f"Last exchanges:\n{prior_context[-800:]}" if prior_context else "")
-        + "\n\nWrite a brief, warm returning-session opening of 2-3 sentences only. "
-        "Name the specific tension or question they left unresolved, then ask one focused reflection prompt. "
-        "No headers. No bullet points. No numbered lists. Plain conversational prose only."
+        f"Node: {node}. Session anchor: {prev_anchor}\n\n"
+        f"Last exchanges:\n{last_exchanges}\n\n"
+        "Write a warm returning-session opening of 2-3 sentences only. "
+        "Reference the specific tension they left unresolved, then ask one focused reflection prompt. "
+        "No headers. No bullet points. No numbered lists. Plain prose only."
     )
 
     greeting_resp = client.messages.create(
@@ -365,16 +379,8 @@ def upload_session():
     )
     greeting = greeting_resp.content[0].text.strip()
 
-    # Seed messages with prior context so Sonnet knows the prior session
-    seed_messages = []
-    if prev_anchor:
-        seed_messages.append({
-            "role": "user",
-            "content": f"[Returning session. Prior context: Node={node}. Last anchor: {prev_anchor}]"
-        })
-        seed_messages.append({"role": "assistant", "content": greeting})
-    else:
-        seed_messages.append({"role": "assistant", "content": greeting})
+    # Append greeting after the seeded history
+    seed_messages.append({"role": "assistant", "content": greeting})
 
     conversations[session_id] = {
         "messages": seed_messages,
