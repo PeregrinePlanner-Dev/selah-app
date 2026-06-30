@@ -342,33 +342,60 @@ def upload_session():
     if anchor_match:
         prev_anchor = anchor_match.group(1).strip()
 
-    # Parse conversation into message pairs from the recap
-    seed_messages = []
+    # Parse full conversation into message pairs
+    all_messages = []
     convo_match = re.search(r"=== Conversation ===(.*?)(?:=== Sources Cited ===|\Z)", content, re.DOTALL)
     if convo_match:
         convo_text = convo_match.group(1).strip()
-        # Split on speaker labels and rebuild as role/content pairs
         turns = re.split(r'\n(?=You:\n|Selah:\n)', convo_text)
         for turn in turns:
             turn = turn.strip()
             if turn.startswith("You:\n"):
-                seed_messages.append({"role": "user", "content": turn[5:].strip()})
+                all_messages.append({"role": "user", "content": turn[5:].strip()})
             elif turn.startswith("Selah:\n"):
-                seed_messages.append({"role": "assistant", "content": turn[7:].strip()})
-        # Keep only last 8 messages (4 exchanges) to stay within token budget
-        seed_messages = seed_messages[-8:]
+                all_messages.append({"role": "assistant", "content": turn[7:].strip()})
 
-    last_exchanges = "\n\n".join(
+    # Build full transcript text for Haiku to summarize
+    full_transcript = "\n\n".join(
         f"{'Person' if m['role']=='user' else 'Selah'}: {m['content']}"
-        for m in seed_messages[-4:]
+        for m in all_messages
     )
 
+    # Have Haiku generate a context brief capturing personal details and key tensions
+    context_prompt = (
+        "Read this theology conversation carefully and write a compact CONTEXT BRIEF "
+        "that a returning conversation partner would need to serve this person well.\n\n"
+        "Include:\n"
+        "- Key personal details shared (life situation, age, relationships, history, wounds named)\n"
+        "- The specific struggles, fears, or unresolved tensions they voiced\n"
+        "- The theological themes explored and how they connected to the person's life\n"
+        "- The exact question or tension where the conversation ended\n"
+        "- Anything they said that carries particular emotional or spiritual weight\n\n"
+        "Write in plain prose, 150-200 words. This is for internal context only — not shown to the user.\n\n"
+        f"CONVERSATION:\n{full_transcript[:6000]}"
+    )
+
+    context_resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=400,
+        messages=[{"role": "user", "content": context_prompt}],
+    )
+    context_brief = context_resp.content[0].text.strip()
+
+    # Last 6 exchanges (12 messages) for conversational thread
+    recent_messages = all_messages[-12:]
+
+    # Build greeting using context brief + last exchanges
+    last_exchanges = "\n\n".join(
+        f"{'Person' if m['role']=='user' else 'Selah'}: {m['content']}"
+        for m in all_messages[-4:]
+    )
     returning_prompt = (
-        "A person is returning to a theology conversation. "
-        f"Node: {node}. Session anchor: {prev_anchor}\n\n"
+        f"Context brief from prior session:\n{context_brief}\n\n"
         f"Last exchanges:\n{last_exchanges}\n\n"
         "Write a warm returning-session opening of 2-3 sentences only. "
-        "Reference the specific tension they left unresolved, then ask one focused reflection prompt. "
+        "Reference the specific tension or question they left unresolved, then ask one focused reflection prompt. "
+        "Do NOT mention how much time has passed — you don't know. "
         "No headers. No bullet points. No numbered lists. Plain prose only."
     )
 
@@ -379,8 +406,13 @@ def upload_session():
     )
     greeting = greeting_resp.content[0].text.strip()
 
-    # Append greeting after the seeded history
-    seed_messages.append({"role": "assistant", "content": greeting})
+    # Seed: hidden context brief, then last 6 exchanges, then greeting
+    seed_messages = (
+        [{"role": "user",      "content": f"[SESSION CONTEXT — not shown to user:\n{context_brief}]"},
+         {"role": "assistant", "content": "Understood. I have the full context from the prior session."}]
+        + recent_messages
+        + [{"role": "assistant", "content": greeting}]
+    )
 
     conversations[session_id] = {
         "messages": seed_messages,
