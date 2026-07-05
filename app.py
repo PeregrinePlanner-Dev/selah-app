@@ -90,11 +90,12 @@ Do not mention these tags in your conversational reply -- they are stripped befo
 
 For each Scripture passage you directly quoted AND each named theologian's argument you introduced THIS turn, append one tag:
 [SOURCE:scripture|Book Chapter:Verse (Translation)|Full quoted text]
-[SOURCE:theologian|Theologian Name (dates)|The core argument in 2-4 sentences]
+[SOURCE:theologian|Theologian Name (dates)|A compact 2-4 sentence SUMMARY for the citation panel]
 
 Rules:
 - Scripture: only tag verses you actually quoted with text, not verses merely mentioned or referenced in passing.
 - Theologian: only tag when you cite a specific named theologian (e.g., Augustine, Calvin, Barth). Do NOT tag your own arguments or unnamed "implicit" theological reasoning.
+- IMPORTANT: the SOURCE tag's 2-4 sentence summary is a compact citation for the side panel ONLY. It is separate from, and must never replace or shorten, your actual conversational engagement with the theologian's argument. Your conversational reply itself should still give the full 2-4 paragraphs of real substance described in the Theologian Engine section above -- write that first, in full, then add this short tag afterward as a pointer back to it.
 - You may include multiple SOURCE tags per turn.
 - Only tag content first introduced in THIS response — never re-tag from prior turns.
 - If you introduced nothing new this turn, omit SOURCE tags entirely.
@@ -346,7 +347,7 @@ def chat():
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1536,
+        max_tokens=2048,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         messages=clean_history,
     )
