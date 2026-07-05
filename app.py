@@ -33,7 +33,7 @@ MAX_HISTORY = 8
 ROUTING = [
     (["racism", "racial", "race and", "race in", "sexuality", "lgbtq", "gender identity",
       "social justice", "immigration", "climate"],            "Social Ethics"),
-    (["baptism", "communion", "eucharist", "sacrament", "lord's supper", "lords supper"], "Sacraments and Ordinances"),
+    (["baptis", "communion", "eucharist", "sacrament", "lord's supper", "lords supper"], "Sacraments and Ordinances"),
     (["vocation", "calling", "my job", "my career", "my work", "does god care about my"],
                                                               "Vocation and Work"),
     (["miracle", "healing", "cessation", "supernatural"],    "Miracles"),
@@ -152,25 +152,42 @@ def format_convo_for_haiku(messages: list, max_chars: int = 3000) -> str:
     return text[-max_chars:] if len(text) > max_chars else text
 
 def parse_response(raw: str) -> dict:
-    """Strip structured tags from Claude's reply and extract them separately."""
+    """Strip structured tags from Claude's reply and extract them separately.
+
+    IMPORTANT: SOURCE tags must be collected from the ORIGINAL raw text, before any
+    truncation. RESPONSE_FORMAT instructs the model to emit [QUESTION: ...] first and
+    [SOURCE: ...] tags after it -- truncating on the QUESTION tag's position before
+    searching for SOURCE tags silently discards every source Sonnet ever tags. (Found
+    2026-07-05: this masked Sonnet's own source tagging entirely; the app was running
+    on the Haiku fallback extraction exclusively.)
+    """
     question = ""
     sources  = []
 
-    q_match = re.search(r'\[QUESTION:\s*(.*?)\]', raw, re.DOTALL)
-    if q_match:
-        question = q_match.group(1).strip()
-        raw = raw[:q_match.start()].strip()
-
-    # Collect ALL source tags, then strip them from the reply
+    # Collect ALL source tags from the full raw text first, regardless of tag order.
     for m in re.finditer(r'\[SOURCE:(scripture|theologian)\|(.*?)\|(.*?)\]', raw, re.DOTALL):
         sources.append({
             "type":    m.group(1),
             "label":   m.group(2).strip(),
             "content": m.group(3).strip(),
         })
-    raw = re.sub(r'\[SOURCE:(scripture|theologian)\|.*?\|.*?\]', '', raw, flags=re.DOTALL).strip()
 
-    return {"reply": raw.strip(), "question": question, "sources": sources}
+    q_match = re.search(r'\[QUESTION:\s*(.*?)\]', raw, re.DOTALL)
+    if q_match:
+        question = q_match.group(1).strip()
+
+    # The reply is everything before the first technical tag (QUESTION or SOURCE),
+    # whichever comes first -- not just before QUESTION.
+    tag_starts = []
+    if q_match:
+        tag_starts.append(q_match.start())
+    first_source_match = re.search(r'\[SOURCE:(scripture|theologian)\|', raw)
+    if first_source_match:
+        tag_starts.append(first_source_match.start())
+    cut = min(tag_starts) if tag_starts else len(raw)
+    reply = raw[:cut].strip()
+
+    return {"reply": reply, "question": question, "sources": sources}
 
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
