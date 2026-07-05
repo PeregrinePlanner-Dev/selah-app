@@ -1,6 +1,8 @@
 import os
 import re
 import uuid
+from collections import defaultdict
+from datetime import date
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from anthropic import Anthropic
@@ -189,6 +191,44 @@ def parse_response(raw: str) -> dict:
 
     return {"reply": reply, "question": question, "sources": sources}
 
+# ── Anonymous abuse/cost cap ───────────────────────────────────────────────────
+# Free tier has no accounts, so this is IP + calendar-day based -- not tied to
+# identity, nothing persisted beyond today's count, purely a guard against
+# runaway/bot API cost. Sized to be invisible to any real single user; only
+# trips on genuine automated abuse. Decided 2026-07-05 (Session 20 roadmap
+# item) -- see DEVELOPMENT_ROADMAP.md, Infrastructure section.
+DAILY_TURN_CAP = int(os.environ.get("DAILY_TURN_CAP", "400"))
+
+usage_tracker: dict = defaultdict(dict)  # {ip: {"YYYY-MM-DD": count}}
+
+RATE_LIMIT_MESSAGE = (
+    "Selah's seen a lot of company today, so replies from this connection are "
+    "paused until tomorrow to keep things running smoothly for everyone. "
+    "Thanks for your patience -- come back soon."
+)
+
+def get_client_ip() -> str:
+    """Real client IP behind Render's proxy, falling back to remote_addr."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+def over_daily_cap(ip: str) -> bool:
+    """True if this IP has hit today's cap. Increments the counter as a side
+    effect when under the cap -- call exactly once per billable API call
+    (i.e. once per /chat request, once per /upload_session request), not
+    once per underlying Anthropic call."""
+    today = date.today().isoformat()
+    ip_usage = usage_tracker[ip]
+    for d in list(ip_usage.keys()):      # keep only today's entry -- self-cleaning
+        if d != today:
+            del ip_usage[d]
+    if ip_usage.get(today, 0) >= DAILY_TURN_CAP:
+        return True
+    ip_usage[today] = ip_usage.get(today, 0) + 1
+    return False
+
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
 
@@ -207,6 +247,17 @@ def chat():
 
     if not message:
         return jsonify({"error": "empty message"}), 400
+
+    if over_daily_cap(get_client_ip()):
+        return jsonify({
+            "reply":    RATE_LIMIT_MESSAGE,
+            "question": "",
+            "sources":  [],
+            "node":     "",
+            "anchor":   "",
+            "chips":    [],
+            "turn":     0,
+        })
 
     if session_id not in conversations:
         conversations[session_id] = {
@@ -351,6 +402,13 @@ def upload_session():
     data       = request.json
     session_id = data.get("session_id")
     content    = data.get("content", "")
+
+    if over_daily_cap(get_client_ip()):
+        return jsonify({
+            "greeting": RATE_LIMIT_MESSAGE,
+            "node":     "",
+            "anchor":   "",
+        })
 
     node = "Grace"
     node_match = re.search(r"Node:\s*(.+)", content)
