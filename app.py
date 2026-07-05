@@ -273,7 +273,17 @@ conversations: dict = {}
 
 @app.route("/")
 def index():
+    # Once ministry.selahexploringtheology.com DNS points at this same Render
+    # service, requests arriving on that host serve the landing page instead
+    # of the main app -- no separate hosting/service needed. Until DNS is
+    # live, preview at /ministry on the existing domain.
+    if request.host.startswith("ministry."):
+        return render_template("ministry.html")
     return render_template("index.html", nodes=NODE_NAMES)
+
+@app.route("/ministry")
+def ministry():
+    return render_template("ministry.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
