@@ -116,4 +116,4 @@ Smyth was one of the founders of the English Baptist tradition and the first art
 
 ---
 
-*Node: Ecclesiology — v
+*Node: Ecclesiology — v1. Built 2026-06-16.*

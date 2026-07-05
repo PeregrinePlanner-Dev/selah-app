@@ -116,4 +116,3 @@ The most significant evangelical open theist and the target of the ETS investiga
 ---
 
 *Node: Theology Proper — v1. Built 2026-06-16.*
-  

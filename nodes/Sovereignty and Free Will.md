@@ -116,4 +116,4 @@ The most philosophically sophisticated defender of Calvinist compatibilism. *Fre
 
 ---
 
-*Node: Sovereignty & Free Will — v
+*Node: Sovereignty & Free Will — v1. Built 2026-06-16.*

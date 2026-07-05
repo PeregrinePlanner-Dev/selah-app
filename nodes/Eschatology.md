@@ -118,4 +118,4 @@ The originator of dispensational premillennialism and the rapture doctrine. Darb
 
 ---
 
-*Node: Eschato
+*Node: Eschatology — v1. Built 2026-06-16.*

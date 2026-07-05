@@ -114,4 +114,4 @@ The most thorough evangelical NT scholar on the historical resurrection. His *Th
 
 ---
 
-*Node: Resurrection — v
+*Node: Resurrection — v1. Built 2026-06-16.*

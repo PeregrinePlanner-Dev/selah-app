@@ -125,4 +125,13 @@ Lloyd-Jones addresses the specific failure mode in sanctification that Owen, Wil
 *Where thinking about sanctification characteristically goes wrong.*
 
 - **Perfectionism** — setting an impossible standard that produces despair rather than aspiration; the goal becomes a weapon rather than a horizon
-- **Passivity** — "let go and let God"; waiting for transformation without engaging the means the Spirit works through; misapplied justifica
+- **Passivity** — "let go and let God"; waiting for transformation without engaging the means the Spirit works through; misapplied justification logic
+- **Legalism** — treating sanctification as performance for God's approval; re-introduces works as the ground of relationship; produces either pride (I'm succeeding) or despair (I'm failing)
+- **Moralism** — behavior modification without heart transformation; sin is managed rather than killed; external compliance without the root being addressed
+- **Privatization** — treating holiness as purely interior and individual; missing Bonhoeffer's insistence on its concrete social form; "spiritual" that costs nothing publicly
+- **Comparison-based sanctification** — measuring progress against other believers rather than Christ; always produces either pride or despair; the standard is wrong
+- **Confusing justification and sanctification** — treating each failure in sanctification as a threat to standing before God; re-introduces anxiety about justification by routing it through performance in sanctification
+
+---
+
+*Node: Sanctification — v1. Built 2026-06-16.*

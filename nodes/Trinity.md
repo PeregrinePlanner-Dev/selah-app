@@ -114,4 +114,3 @@ The most prominent Social Trinitarian theologian. *The Trinity and the Kingdom* 
 ---
 
 *Node: Trinity — v1. Built 2026-06-16.*
-    

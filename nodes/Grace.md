@@ -127,4 +127,4 @@ Grace as the dismantling of the performance trap. Keller's cultural contribution
 
 ---
 
-*Node: Grace — v1. Built 2026-06-16. Reference content to be built separately for UI source mat
+*Node: Grace — v1. Built 2026-06-16. Reference content to be built separately for UI source material panel.*

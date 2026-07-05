@@ -132,4 +132,4 @@ Introduces the concept of "costly grace" vs. "cheap grace" — a diagnostic on t
 
 ---
 
-*Node: Faith — v1. Built 2026-06-16
+*Node: Faith — v1. Built 2026-06-16.*

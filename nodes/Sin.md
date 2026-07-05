@@ -129,4 +129,4 @@ Brings the corporate and structural dimension that classical Reformed hamartiolo
 
 ---
 
-*Node: Sin (Hamartiology) — v
+*Node: Sin (Hamartiology) — v1. Built 2026-06-16.*

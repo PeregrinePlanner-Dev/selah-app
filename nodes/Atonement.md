@@ -139,4 +139,4 @@ Brings the resurrection back to the center of atonement theology and embeds the 
 
 ---
 
-*Node: Atonement — v
+*Node: Atonement — v1. Built 2026-06-16.*

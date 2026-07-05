@@ -146,4 +146,4 @@ The cost of the church's silence. Bonhoeffer's witness — resigning from the Ge
 
 ---
 
-*Node: Social Ethics — v
+*Node: Social Ethics — v1. Built 2026-06-18.*

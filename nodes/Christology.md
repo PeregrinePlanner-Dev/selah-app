@@ -125,4 +125,21 @@ The most important Christological theologian of the 20th century. Barth places C
 - **"How can one person be both fully God and fully human — doesn't one cancel the other?"** — the hypostatic union directly; Chalcedon's four negatives; holding the mystery without resolving it
 - **"Wasn't Jesus just a great teacher / enlightened human / prophet?"** — the low Christology entry; the internal logic of the gospels (the "I AM" claims, Thomas's confession); Lewis's *Lord, Liar, or Lunatic* as an entry-level framework, but the Nicene exegetical case is the more substantive one
 - **"What does it mean that God became human?"** — the incarnation entry; Athanasius's exchange principle; wonder rather than problem; what the permanent incarnation implies for the material world
-- **Scholars:** Chalcedon's limits and what it doesn't explain; kenotic theology and its problems; Barth's christocentric structure; the historical Jesus debat
+- **Scholars:** Chalcedon's limits and what it doesn't explain; kenotic theology and its problems; Barth's christocentric structure; the historical Jesus debates; Cyril vs. Nestorius and the *communicatio idiomatum*
+
+---
+
+## Failure Modes
+
+*Where thinking about Christology characteristically goes wrong.*
+
+- **Functional Arianism** — affirming full divinity doctrinally while treating Jesus as a secondary divine being in practice; worship and prayer directed to the Father as "real God" with Jesus as intermediary
+- **Functional Docetism** — affirming the humanity doctrinally while treating every human moment of Jesus as performance; the hunger, anguish, and limited knowledge become diplomatic theater rather than genuine experience
+- **Divine costume Christology** — God dressed in human clothing; the humanity is real enough to make the cross possible but not real enough to make the temptations real, the growth real, or the grief real
+- **Therapeutic reduction** — "Jesus was fully human, which means he struggled just like we do" taken to mean he was *only* human; the full humanity used to evacuate the divinity
+- **The two-Christs error** — holding the divine and human in such tension that there is functionally a divine self (omniscient, omnipotent, sovereign) and a human self (limited, suffering, dying) as two separate persons wearing the same name
+- **Speculative resolution** — attempting to explain the mechanics of the hypostatic union rather than inhabiting the mystery Chalcedon defined; the union is bounded, not resolved
+
+---
+
+*Node: Christology — v1. Built 2026-06-16.*

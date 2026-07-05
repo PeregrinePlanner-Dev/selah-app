@@ -144,4 +144,4 @@ Collins founded BioLogos to articulate and defend evolutionary creationism — t
 
 ---
 
-*Node: Crea
+*Node: Creation — v1. Built 2026-06-16.*

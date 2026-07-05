@@ -131,4 +131,4 @@ The Reformation's most important voice on vocation. Luther's key move: the pries
 
 ---
 
-*Node: Vocation & Work — v
+*Node: Vocation & Work — v1. Built 2026-06-18.*

@@ -114,4 +114,4 @@ Her *God and the Rhetoric of Sexuality* (1978) is the most careful literary read
 
 ---
 
-*Node: Anthropo
+*Node: Anthropology — v1. Built 2026-06-16.*
