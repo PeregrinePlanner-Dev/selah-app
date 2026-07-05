@@ -285,6 +285,10 @@ def index():
 def ministry():
     return render_template("ministry.html")
 
+@app.route("/legal")
+def legal():
+    return render_template("legal.html")
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data       = request.json
