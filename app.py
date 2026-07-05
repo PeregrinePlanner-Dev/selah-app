@@ -2,7 +2,7 @@ import os
 import re
 import uuid
 from collections import defaultdict
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from anthropic import Anthropic
@@ -192,16 +192,39 @@ def parse_response(raw: str) -> dict:
     return {"reply": reply, "question": question, "sources": sources}
 
 # ── Anonymous abuse/cost cap ───────────────────────────────────────────────────
-# Free tier has no accounts, so this is IP + calendar-day based -- not tied to
-# identity, nothing persisted beyond today's count, purely a guard against
-# runaway/bot API cost. Sized to be invisible to any real single user; only
-# trips on genuine automated abuse. Decided 2026-07-05 (Session 20 roadmap
-# item) -- see DEVELOPMENT_ROADMAP.md, Infrastructure section.
-DAILY_TURN_CAP = int(os.environ.get("DAILY_TURN_CAP", "400"))
+# Free tier has no accounts, so this is IP-based -- not tied to identity,
+# nothing persisted beyond the current minute/day, purely a guard against
+# runaway/bot API cost. Two dimensions, not one:
+#
+#   1. Burst/rate limit (per IP per minute) -- this is the REAL abuse signal.
+#      Genuine automated abuse is characterized by request RATE, not just total
+#      volume. A shared connection with many real people on it at once -- e.g. a
+#      youth group meeting where a leader's login/network serves a whole room --
+#      is paced by human typing speed and won't trip this even though many
+#      distinct people are using it. (Raised 2026-07-05, Session 20: the original
+#      flat daily-only cap didn't account for exactly this "one identifier, many
+#      real humans" shape, which the congregation/youth-group access model
+#      creates by design.)
+#   2. Daily cap (per IP) -- a looser backstop against slow, sustained abuse that
+#      deliberately stays under the burst threshold but runs for hours.
+#
+# Once real Pro/church accounts exist, authenticated institutional traffic should
+# be metered against that organization's own subscription cap (see
+# usage_records/conversations_cap in Selah_Pro_Infrastructure_Plan.md) instead of
+# this anonymous IP limiter -- this block is a free/anonymous-tier safety net
+# only, not meant to apply once someone is on a paid, authenticated plan.
+# Decided 2026-07-05 (Session 20 roadmap item) -- see DEVELOPMENT_ROADMAP.md.
+MINUTE_RATE_CAP = int(os.environ.get("MINUTE_RATE_CAP", "30"))
+DAILY_TURN_CAP  = int(os.environ.get("DAILY_TURN_CAP", "1200"))
 
-usage_tracker: dict = defaultdict(dict)  # {ip: {"YYYY-MM-DD": count}}
+minute_tracker: dict = defaultdict(dict)  # {ip: {"YYYY-MM-DDTHH:MM": count}}
+usage_tracker:  dict = defaultdict(dict)  # {ip: {"YYYY-MM-DD": count}}
 
-RATE_LIMIT_MESSAGE = (
+RATE_LIMIT_MESSAGE_BURST = (
+    "Selah's getting a lot of messages from this connection all at once -- "
+    "give it just a moment and try again."
+)
+RATE_LIMIT_MESSAGE_DAILY = (
     "Selah's seen a lot of company today, so replies from this connection are "
     "paused until tomorrow to keep things running smoothly for everyone. "
     "Thanks for your patience -- come back soon."
@@ -214,20 +237,34 @@ def get_client_ip() -> str:
         return xff.split(",")[0].strip()
     return request.remote_addr or "unknown"
 
-def over_daily_cap(ip: str) -> bool:
-    """True if this IP has hit today's cap. Increments the counter as a side
-    effect when under the cap -- call exactly once per billable API call
-    (i.e. once per /chat request, once per /upload_session request), not
-    once per underlying Anthropic call."""
-    today = date.today().isoformat()
-    ip_usage = usage_tracker[ip]
-    for d in list(ip_usage.keys()):      # keep only today's entry -- self-cleaning
+def check_rate_limit(ip: str) -> str | None:
+    """Returns None if this request is allowed (and increments both counters as
+    a side effect), or a reason string ('burst' or 'daily') if it should be
+    blocked. Call exactly once per billable API call (i.e. once per /chat
+    request, once per /upload_session request), not once per underlying
+    Anthropic call."""
+    now    = datetime.utcnow()
+    today  = now.date().isoformat()
+    minute = now.strftime("%Y-%m-%dT%H:%M")
+
+    ip_day = usage_tracker[ip]
+    for d in list(ip_day.keys()):        # keep only today's entry -- self-cleaning
         if d != today:
-            del ip_usage[d]
-    if ip_usage.get(today, 0) >= DAILY_TURN_CAP:
-        return True
-    ip_usage[today] = ip_usage.get(today, 0) + 1
-    return False
+            del ip_day[d]
+
+    ip_minute = minute_tracker[ip]
+    for m in list(ip_minute.keys()):     # keep only the current minute's entry
+        if m != minute:
+            del ip_minute[m]
+
+    if ip_minute.get(minute, 0) >= MINUTE_RATE_CAP:
+        return "burst"
+    if ip_day.get(today, 0) >= DAILY_TURN_CAP:
+        return "daily"
+
+    ip_minute[minute] = ip_minute.get(minute, 0) + 1
+    ip_day[today]     = ip_day.get(today, 0) + 1
+    return None
 
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
@@ -248,9 +285,11 @@ def chat():
     if not message:
         return jsonify({"error": "empty message"}), 400
 
-    if over_daily_cap(get_client_ip()):
+    limit_hit = check_rate_limit(get_client_ip())
+    if limit_hit:
+        msg = RATE_LIMIT_MESSAGE_BURST if limit_hit == "burst" else RATE_LIMIT_MESSAGE_DAILY
         return jsonify({
-            "reply":    RATE_LIMIT_MESSAGE,
+            "reply":    msg,
             "question": "",
             "sources":  [],
             "node":     "",
@@ -403,9 +442,11 @@ def upload_session():
     session_id = data.get("session_id")
     content    = data.get("content", "")
 
-    if over_daily_cap(get_client_ip()):
+    limit_hit = check_rate_limit(get_client_ip())
+    if limit_hit:
+        msg = RATE_LIMIT_MESSAGE_BURST if limit_hit == "burst" else RATE_LIMIT_MESSAGE_DAILY
         return jsonify({
-            "greeting": RATE_LIMIT_MESSAGE,
+            "greeting": msg,
             "node":     "",
             "anchor":   "",
         })
