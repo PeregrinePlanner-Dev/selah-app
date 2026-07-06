@@ -33,6 +33,10 @@ MAX_HISTORY = 8
 
 # ── Keyword routing ───────────────────────────────────────────────────────────
 ROUTING = [
+    (["heresy", "heretic", "heretical", "false teacher", "false teachers", "false prophet",
+      "false prophets", "false doctrine", "apostasy", "apostate", "falling away",
+      "great apostasy", "arianism", "testing the spirits", "test the spirits",
+      "discernment ministry", "contend for the faith"],       "Heresy False Teachers and the Great Apostasy"),
     (["racism", "racial", "race and", "race in", "sexuality", "lgbtq", "gender identity",
       "social justice", "immigration", "climate"],            "Social Ethics"),
     (["baptis", "baptiz", "communion", "eucharist", "sacrament", "lord's supper", "lords supper"], "Sacraments and Ordinances"),
