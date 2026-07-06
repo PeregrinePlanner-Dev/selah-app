@@ -426,6 +426,14 @@
 
 <script>
 const sessionId = crypto.randomUUID();
+// Maps internal node keys (file stems, e.g. "Heresy False Teachers and the Great
+// Apostasy") to clean display titles (e.g. "Heresy, False Teachers & the Great
+// Apostasy") for the node badge -- falls back to the raw key if a node is missing
+// from the map for any reason, so the badge never breaks, just looks slightly rough.
+const NODE_DISPLAY_NAMES = {{ node_display_names | tojson }};
+function nodeDisplayName(key) {
+  return (key && NODE_DISPLAY_NAMES[key]) || key || "No topic yet";
+}
 let isLoading      = false;
 let sourceItems    = [];  // accumulates across turns
 let sessionStarted = false;
@@ -588,7 +596,7 @@ async function sendMessage(text, forceNode) {
     addSources(data.sources);
 
     if (data.node) {
-      document.getElementById("node-badge").textContent = data.node;
+      document.getElementById("node-badge").textContent = nodeDisplayName(data.node);
     }
   } catch (err) {
     addBubble("assistant", "Something went wrong — check the terminal.");
@@ -657,6 +665,8 @@ async function newConversation() {
     `<span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>`;
   document.getElementById("node-badge").textContent = "No topic yet";
   document.getElementById("chat-input").placeholder = "Ask anything — a question, a doubt, a topic…";
+  // (badge reset to the literal "No topic yet" placeholder here, not via nodeDisplayName(),
+  // since there's no node key at all yet -- this is the pre-routing empty state)
   sessionStarted = false;
   sourceItems = [];
 }
@@ -689,7 +699,7 @@ async function uploadSession(event) {
   const data = await res.json();
 
   if (data.node) {
-    document.getElementById("node-badge").textContent = data.node;
+    document.getElementById("node-badge").textContent = nodeDisplayName(data.node);
   }
   if (data.anchor) updateAnchor(data.anchor);
 

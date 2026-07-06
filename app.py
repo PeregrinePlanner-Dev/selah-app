@@ -22,8 +22,19 @@ PROMPT_DIR = BASE_DIR / "prompt"
 MASTER_PROMPT = (PROMPT_DIR / "TES_Master_Prompt_v1.md").read_text(encoding="utf-8")
 
 NODES = {}
+NODE_DISPLAY_NAMES = {}
 for f in sorted(NODES_DIR.glob("*.md")):
-    NODES[f.stem] = f.read_text(encoding="utf-8")
+    text = f.read_text(encoding="utf-8")
+    NODES[f.stem] = text
+    # Derive a clean display name from the file's own H1 (e.g. "# Node: Heresy, False
+    # Teachers & the Great Apostasy" -> "Heresy, False Teachers & the Great Apostasy"),
+    # stripping any parenthetical subtitle. Falls back to the raw stem if no H1 is found.
+    # This keeps the node badge showing a proper title instead of the internal file-stem
+    # key (e.g. "Heresy False Teachers and the Great Apostasy" with no punctuation) --
+    # raised 2026-07-06 after Rick flagged the badge as confusing without context.
+    first_line = text.splitlines()[0] if text else ""
+    m = re.match(r'^#\s*(?:Node:\s*)?(.+?)(?:\s*\([^)]*\))?\s*$', first_line)
+    NODE_DISPLAY_NAMES[f.stem] = m.group(1).strip() if m else f.stem
 NODE_NAMES = sorted(NODES.keys())
 
 # ── Conversation history cap ───────────────────────────────────────────────────
@@ -288,7 +299,7 @@ def index():
     # live, preview at /ministry on the existing domain.
     if request.host.startswith("ministry."):
         return render_template("ministry.html")
-    return render_template("index.html", nodes=NODE_NAMES)
+    return render_template("index.html", nodes=NODE_NAMES, node_display_names=NODE_DISPLAY_NAMES)
 
 @app.route("/ministry")
 def ministry():
