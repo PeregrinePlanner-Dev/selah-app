@@ -271,7 +271,11 @@
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
     <button class="help-btn" onclick="openHelp()">How to use Selah</button>
+    <!-- node-badge commented out 2026-07-06 per Rick: redundant once you've picked or
+         typed the topic yourself -- you already know what you're talking about. Kept
+         in place, not deleted, in case a real use for it turns up later.
     <span class="node-badge" id="node-badge">No topic yet</span>
+    -->
   </div>
 </header>
 
@@ -601,7 +605,8 @@ async function sendMessage(text, forceNode) {
     addSources(data.sources);
 
     if (data.node) {
-      document.getElementById("node-badge").textContent = nodeDisplayName(data.node);
+      const badge = document.getElementById("node-badge");
+      if (badge) badge.textContent = nodeDisplayName(data.node); // badge commented out for now
     }
   } catch (err) {
     addBubble("assistant", "Something went wrong — check the terminal.");
@@ -673,7 +678,8 @@ async function newConversation() {
   }
   document.getElementById("source-body").innerHTML =
     `<span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>`;
-  document.getElementById("node-badge").textContent = "No topic yet";
+  const badgeReset = document.getElementById("node-badge");
+  if (badgeReset) badgeReset.textContent = "No topic yet"; // badge commented out for now
   document.getElementById("chat-input").placeholder = "Ask anything — a question, a doubt, a topic…";
   // (badge reset to the literal "No topic yet" placeholder here, not via nodeDisplayName(),
   // since there's no node key at all yet -- this is the pre-routing empty state)
@@ -709,7 +715,8 @@ async function uploadSession(event) {
   const data = await res.json();
 
   if (data.node) {
-    document.getElementById("node-badge").textContent = nodeDisplayName(data.node);
+    const badgeUpload = document.getElementById("node-badge");
+    if (badgeUpload) badgeUpload.textContent = nodeDisplayName(data.node); // badge commented out for now
   }
   if (data.anchor) updateAnchor(data.anchor);
 
