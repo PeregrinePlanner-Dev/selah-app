@@ -287,6 +287,9 @@
       </div>
     </div>
 
+    <!-- Reflection Prompts card -- commented out 2026-07-06 per Rick: chips generated
+         from the conversation weren't proving useful. Left in place, not deleted, so
+         it can be turned back on later without rebuilding it.
     <div class="card prompts-card">
       <div class="card-label prompts-label">Reflection Prompts</div>
       <div class="prompts-body" id="prompts-body">
@@ -295,6 +298,7 @@
         <button class="prompt-chip" onclick="sendChip(this, 'Tell me more')">Tell me more</button>
       </div>
     </div>
+    -->
 
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
@@ -519,6 +523,7 @@ function sendChip(btn, text) {
 function updateChips(chips) {
   if (!chips || chips.length === 0) return;
   const el = document.getElementById("prompts-body");
+  if (!el) return; // Reflection Prompts card is commented out for now
   el.innerHTML = chips
     .map(c => `<button class="prompt-chip" onclick="sendChip(this, ${JSON.stringify(c)})">${esc(c)}</button>`)
     .join("");
@@ -657,10 +662,15 @@ async function newConversation() {
     `<div class="msg assistant"><div class="msg-bubble">Welcome. What would you like to explore?</div></div>`;
   document.getElementById("anchor-body").innerHTML =
     `<span class="anchor-placeholder">Your session summary will build here as you explore.</span>`;
-  document.getElementById("prompts-body").innerHTML =
-    `<button class="prompt-chip" onclick="sendChip(this, 'I have a question about this')">I have a question about this</button>
-     <button class="prompt-chip" onclick="sendChip(this, 'I\\'m not sure where to start')">I'm not sure where to start</button>
-     <button class="prompt-chip" onclick="sendChip(this, 'Tell me more')">Tell me more</button>`;
+  const promptsBody = document.getElementById("prompts-body");
+  if (promptsBody) {
+    // Reflection Prompts card is commented out for now -- this element won't exist
+    // in the DOM until it's turned back on, so guard the reset instead of erroring.
+    promptsBody.innerHTML =
+      `<button class="prompt-chip" onclick="sendChip(this, 'I have a question about this')">I have a question about this</button>
+       <button class="prompt-chip" onclick="sendChip(this, 'I\\'m not sure where to start')">I'm not sure where to start</button>
+       <button class="prompt-chip" onclick="sendChip(this, 'Tell me more')">Tell me more</button>`;
+  }
   document.getElementById("source-body").innerHTML =
     `<span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>`;
   document.getElementById("node-badge").textContent = "No topic yet";
