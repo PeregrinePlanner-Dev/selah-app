@@ -93,6 +93,7 @@ def signup():
     session["sb_access_token"] = result.session.access_token
     session["sb_refresh_token"] = result.session.refresh_token
     session["sb_email"] = email
+    session["sb_user_id"] = result.user.id
     return redirect(url_for("pro.pro_home"))
 
 
@@ -112,6 +113,7 @@ def login():
     session["sb_access_token"] = result.session.access_token
     session["sb_refresh_token"] = result.session.refresh_token
     session["sb_email"] = email
+    session["sb_user_id"] = result.user.id
     return redirect(url_for("pro.pro_home"))
 
 
@@ -120,4 +122,17 @@ def logout():
     session.pop("sb_access_token", None)
     session.pop("sb_refresh_token", None)
     session.pop("sb_email", None)
+    session.pop("sb_user_id", None)
     return redirect(url_for("pro.pro_home"))
+
+
+def get_user_supabase() -> Client:
+    """Build a Supabase client scoped to the CURRENTLY LOGGED-IN user's own
+    access token (not the bare anon client from get_supabase() above), so RLS
+    policies evaluate auth.uid() as that real user. Constructed fresh per
+    request since Flask is stateless between requests -- there is no
+    connection to reuse. Shared here so pro_chat.py (and anything else
+    Pro-side) doesn't duplicate this logic."""
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb.postgrest.auth(session["sb_access_token"])
+    return sb
