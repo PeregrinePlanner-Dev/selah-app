@@ -1,0 +1,123 @@
+"""Selah for Ministry — Pro auth blueprint.
+
+Kept as a separate module, registered onto the existing Flask app, rather than
+folded into app.py directly -- the free tool's routes (/, /chat, /export,
+/upload_session) must stay completely untouched by this work. Everything
+Pro-specific lives here and is additive only.
+
+Session handling: on successful login/signup, the Supabase session's access
+token and refresh token are stored in Flask's signed session cookie (requires
+app.secret_key to be set in app.py). This is a lightweight MVP pattern --
+tokens live in a signed-but-not-encrypted cookie -- adequate for this phase
+since RLS is the real security boundary (a stolen cookie only grants access
+Supabase's own policies already allow that user), but worth revisiting if
+Pro ever handles more sensitive data than it does today.
+"""
+
+import os
+from functools import wraps
+
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
+from supabase import create_client, Client
+
+pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+
+_supabase_client: Client | None = None
+
+
+def get_supabase() -> Client:
+    """Lazy singleton -- avoids constructing a client at import time if env
+    vars aren't set yet (e.g. during local dev without a .env filled in)."""
+    global _supabase_client
+    if _supabase_client is None:
+        if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+            raise RuntimeError(
+                "SUPABASE_URL / SUPABASE_ANON_KEY not set -- Pro auth routes "
+                "cannot function without them. Set both as environment "
+                "variables (see .env.example)."
+            )
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    return _supabase_client
+
+
+def login_required(view):
+    """Route decorator -- redirects to /pro (login screen) if no valid
+    session is present. Does not itself re-verify the token against Supabase
+    on every request in this first pass -- that's a known simplification,
+    noted for the next hardening pass once this is live."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("sb_access_token"):
+            return redirect(url_for("pro.pro_home"))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+@pro_bp.route("/")
+def pro_home():
+    """Login/signup screen if not authenticated; otherwise a placeholder
+    logged-in landing spot. This is intentionally bare-bones -- the real
+    Selah for Ministry UI (branding, session history, export) is a separate,
+    later build. This route exists to prove the auth plumbing works end to
+    end, nothing more."""
+    if session.get("sb_access_token"):
+        return render_template("pro_placeholder.html", email=session.get("sb_email", ""))
+    return render_template("pro_login.html", error=request.args.get("error", ""))
+
+
+@pro_bp.route("/signup", methods=["POST"])
+def signup():
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+
+    if not email or not password:
+        return redirect(url_for("pro.pro_home", error="Email and password are required."))
+
+    try:
+        result = get_supabase().auth.sign_up({"email": email, "password": password})
+    except Exception as e:
+        return redirect(url_for("pro.pro_home", error=f"Signup failed: {e}"))
+
+    # If email confirmation is required (Supabase default), there may be no
+    # session yet -- send the user back with a clear message rather than
+    # silently failing to log them in.
+    if result.session is None:
+        return redirect(url_for(
+            "pro.pro_home",
+            error="Account created -- check your email to confirm before logging in."
+        ))
+
+    session["sb_access_token"] = result.session.access_token
+    session["sb_refresh_token"] = result.session.refresh_token
+    session["sb_email"] = email
+    return redirect(url_for("pro.pro_home"))
+
+
+@pro_bp.route("/login", methods=["POST"])
+def login():
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+
+    if not email or not password:
+        return redirect(url_for("pro.pro_home", error="Email and password are required."))
+
+    try:
+        result = get_supabase().auth.sign_in_with_password({"email": email, "password": password})
+    except Exception as e:
+        return redirect(url_for("pro.pro_home", error="Login failed -- check your email and password."))
+
+    session["sb_access_token"] = result.session.access_token
+    session["sb_refresh_token"] = result.session.refresh_token
+    session["sb_email"] = email
+    return redirect(url_for("pro.pro_home"))
+
+
+@pro_bp.route("/logout", methods=["POST"])
+def logout():
+    session.pop("sb_access_token", None)
+    session.pop("sb_refresh_token", None)
+    session.pop("sb_email", None)
+    return redirect(url_for("pro.pro_home"))

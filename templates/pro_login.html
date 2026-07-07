@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah for Ministry — Sign In</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5; color: #111827; line-height: 1.6;
+  }
+  .site-header {
+    background: #2f6b66; color: white;
+    padding: 16px 24px;
+  }
+  .site-header .brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+  .wrap { max-width: 420px; margin: 60px auto; padding: 0 20px; }
+  .card { background: white; border-radius: 12px; padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  h1 { font-size: 1.3rem; margin-bottom: 6px; color: #1f2937; }
+  .sub { color: #6b7280; font-size: 0.85rem; margin-bottom: 20px; }
+  .error { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; }
+  label { display: block; font-size: 0.82rem; color: #374151; margin-bottom: 4px; font-weight: 600; }
+  input[type="email"], input[type="password"] {
+    width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 0.95rem; margin-bottom: 14px;
+  }
+  button {
+    width: 100%; padding: 11px; border: none; border-radius: 8px;
+    background: #2f6b66; color: white; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #26564f; }
+  .toggle { text-align: center; margin-top: 16px; font-size: 0.85rem; color: #6b7280; }
+  .toggle a { color: #2f6b66; text-decoration: none; cursor: pointer; }
+  form.hidden { display: none; }
+  .note { font-size: 0.78rem; color: #9ca3af; margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">Selah for Ministry</div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <div id="login-panel">
+      <h1>Sign in</h1>
+      <div class="sub">Auth plumbing test — not the finished Pro experience yet.</div>
+      <form method="POST" action="/pro/login">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" name="email" required>
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" name="password" required>
+        <button type="submit">Sign In</button>
+      </form>
+      <div class="toggle">No account yet? <a onclick="toggle()">Create one</a></div>
+    </div>
+
+    <div id="signup-panel" style="display:none;">
+      <h1>Create account</h1>
+      <div class="sub">Auth plumbing test — not the finished Pro experience yet.</div>
+      <form method="POST" action="/pro/signup">
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" name="email" required>
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" name="password" required minlength="6">
+        <button type="submit">Create Account</button>
+      </form>
+      <div class="toggle">Already have an account? <a onclick="toggle()">Sign in</a></div>
+    </div>
+
+    <div class="note">Free tier remains unchanged and unaffected by any of this.</div>
+  </div>
+</div>
+
+<script>
+function toggle() {
+  document.getElementById('login-panel').style.display =
+    document.getElementById('login-panel').style.display === 'none' ? 'block' : 'none';
+  document.getElementById('signup-panel').style.display =
+    document.getElementById('signup-panel').style.display === 'none' ? 'block' : 'none';
+}
+</script>
+
+</body>
+</html>

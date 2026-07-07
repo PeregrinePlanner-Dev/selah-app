@@ -8,10 +8,18 @@ from flask import Flask, render_template, request, jsonify
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+from pro_auth import pro_bp
+
 load_dotenv()
 
 app    = Flask(__name__)
 client = Anthropic()
+
+# Selah for Ministry (Pro) auth -- additive only, registered as a separate
+# blueprint under /pro/*. The free tool's existing routes below are
+# untouched by this. Added 2026-07-07.
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-change-me")
+app.register_blueprint(pro_bp)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent
