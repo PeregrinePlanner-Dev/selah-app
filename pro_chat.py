@@ -17,12 +17,12 @@ import os
 import re
 from datetime import date
 
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, render_template
 
 from engine import (
-    NODES, MAX_HISTORY, route_to_node, build_system_prompt,
-    parse_response, format_convo_for_haiku, ANCHOR_CHIPS_QUERY,
-    strip_tags, client as anthropic_client,
+    NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
+    build_system_prompt, parse_response, format_convo_for_haiku,
+    ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -263,9 +263,8 @@ def pro_chat():
 @pro_chat_bp.route("/sessions", methods=["GET"])
 @login_required
 def list_sessions():
-    """Bare list of the logged-in user's own sessions -- proves persistence
-    works end to end. Not the real session-history UI, which is a separate,
-    later build."""
+    """List of the logged-in user's own sessions, newest first -- backs the
+    session-history panel in the real Pro UI (pro_app.html)."""
     sb = get_user_supabase()
     resp = (
         sb.table("planning_sessions")
@@ -284,3 +283,46 @@ def list_sessions():
         for row in resp.data
     ]
     return jsonify({"sessions": sessions})
+
+
+@pro_chat_bp.route("/sessions/<session_id>", methods=["GET"])
+@login_required
+def get_session(session_id):
+    """Full transcript for one session -- lets the UI resume a past
+    conversation instead of just showing it existed. RLS scopes this to the
+    caller's own rows automatically; a foreign session_id simply returns
+    no rows, not another user's data."""
+    sb = get_user_supabase()
+    resp = (
+        sb.table("planning_sessions")
+        .select("id, session_data, turn_count, updated_at")
+        .eq("id", session_id)
+        .limit(1)
+        .execute()
+    )
+    if not resp.data:
+        return jsonify({"error": "session not found"}), 404
+    row = resp.data[0]
+    convo = row["session_data"] or _empty_convo()
+    return jsonify({
+        "id": row["id"],
+        "messages": convo.get("messages", []),
+        "node": convo.get("node"),
+        "anchor": convo.get("anchor"),
+        "turn": row["turn_count"],
+    })
+
+
+@pro_chat_bp.route("/app")
+@login_required
+def pro_app():
+    """The real Selah for Ministry chat UI -- account-aware, session-history
+    backed, no donate link, no upload/download file dance. Renders here
+    (not in pro_auth.py) since it needs NODES/NODE_DISPLAY_NAMES from the
+    shared engine, which pro_chat.py already imports."""
+    return render_template(
+        "pro_app.html",
+        nodes=NODE_NAMES,
+        node_display_names=NODE_DISPLAY_NAMES,
+        email=session.get("sb_email", ""),
+    )

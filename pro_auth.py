@@ -81,13 +81,12 @@ def login_required(view):
 
 @pro_bp.route("/")
 def pro_home():
-    """Login/signup screen if not authenticated; otherwise a placeholder
-    logged-in landing spot. This is intentionally bare-bones -- the real
-    Selah for Ministry UI (branding, session history, export) is a separate,
-    later build. This route exists to prove the auth plumbing works end to
-    end, nothing more."""
+    """Login/signup screen if not authenticated; otherwise straight into the
+    real Selah for Ministry chat UI. Updated 2026-07-07 -- pro_app.html now
+    exists (pro_chat.pro_app), so the earlier placeholder landing spot is no
+    longer needed."""
     if session.get("sb_access_token"):
-        return render_template("pro_placeholder.html", email=session.get("sb_email", ""))
+        return redirect(url_for("pro_chat.pro_app"))
     return render_template("pro_login.html", error=request.args.get("error", ""))
 
 

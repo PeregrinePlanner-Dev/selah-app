@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah for Ministry</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: #2f6b66; color: white;
+    padding: 12px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0;
+  }
+  .header-title { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.02em; }
+  .header-sub   { font-size: 0.69rem; opacity: 0.80; margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .account-email { font-size: 0.75rem; opacity: 0.85; }
+  .help-btn, .signout-btn {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+    color: white; border-radius: 5px; padding: 4px 10px;
+    font-size: 0.72rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em;
+    transition: background .15s;
+  }
+  .help-btn:hover, .signout-btn:hover { background: rgba(255,255,255,0.22); }
+
+  /* ── Layout ── */
+  .app-grid {
+    display: flex; flex: 1; gap: 8px; padding: 8px;
+    min-height: 0; overflow: hidden;
+  }
+  .col-left   { width: 23%; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .col-chat   { flex: 1;    display: flex; flex-direction: column; min-height: 0; }
+  .col-right  { width: 28%; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+  /* ── Card base ── */
+  .card {
+    background: white; border-radius: 8px; border: 1px solid #e2e4e9;
+    padding: 12px 13px; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .card-label {
+    font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; margin-bottom: 8px; flex-shrink: 0;
+  }
+
+  /* ── Left: Session Anchor ── */
+  .anchor-card  { flex: 0 0 auto; max-height: 30%; border-color: #bfdbfe; background: #eff6ff; min-height: 0; }
+  .anchor-label { color: #1d4ed8; }
+  .anchor-body  {
+    font-size: 0.75rem; line-height: 1.65; color: #374151;
+    overflow-y: auto; flex: 1;
+  }
+  .anchor-body strong { font-weight: 600; color: #1e3a8a; }
+  .anchor-placeholder { color: #93c5fd; font-style: italic; font-size: 0.75rem; }
+
+  /* ── Left: Previous Sessions ── */
+  .sessions-card  { flex: 1; border-color: #ede9fe; background: #faf9ff; min-height: 0; }
+  .sessions-label { color: #6d28d9; }
+  .sessions-body  { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .session-item {
+    display: block; width: 100%; text-align: left;
+    background: white; border: 1px solid #e9d5ff;
+    border-radius: 8px; padding: 7px 10px;
+    font-size: 0.72rem; color: #4c1d95; cursor: pointer;
+    font-family: inherit; line-height: 1.4;
+    transition: background .15s;
+  }
+  .session-item:hover { background: #f5f3ff; }
+  .session-item.active { border-color: #7c3aed; background: #f5f3ff; }
+  .session-item .session-node { font-weight: 700; margin-bottom: 2px; }
+  .session-item .session-anchor { color: #6b7280; font-size: 0.68rem; }
+  .sessions-placeholder { color: #c4b5fd; font-style: italic; font-size: 0.72rem; }
+
+  /* ── Left: Action Buttons ── */
+  .actions-card  { flex-shrink: 0; }
+  .actions-label { color: #6b7280; }
+  .action-btn {
+    display: block; width: 100%; text-align: left;
+    border: 1px solid #e5e7eb; border-radius: 6px;
+    background: white; padding: 7px 10px; margin-bottom: 6px;
+    font-size: 0.75rem; color: #374151; cursor: pointer;
+    transition: background .15s;
+    position: relative;
+  }
+  .action-btn:last-child { margin-bottom: 0; }
+  .action-btn:hover { background: #f9fafb; }
+  .action-btn .tip {
+    display: none; position: fixed;
+    width: 210px; background: #1f2937; color: #f9fafb;
+    font-size: 0.7rem; line-height: 1.4; padding: 7px 10px;
+    border-radius: 5px; z-index: 9999; pointer-events: none;
+    white-space: normal; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .action-btn:hover .tip { display: block; }
+
+  /* ── Chat ── */
+  .chat-card  { flex: 1; min-height: 0; }
+  .chat-label { color: #374151; }
+  .chat-messages {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    gap: 10px; padding-right: 2px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 90%; }
+  .msg.user      { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .msg-bubble {
+    border-radius: 12px; padding: 9px 13px;
+    font-size: 0.875rem; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .msg-bubble      { background: #2f6b66; color: white; border-bottom-right-radius: 3px; }
+  .msg.assistant .msg-bubble { background: #f3f4f6; color: #111827; border-bottom-left-radius: 3px; }
+
+  .typing { display: none; align-self: flex-start; }
+  .typing .msg-bubble { background: #f3f4f6; color: #9ca3af; font-style: italic; font-size: 0.8125rem; }
+  .typing.show { display: flex; }
+
+  .chat-input-row { margin-top: 10px; display: flex; gap: 7px; flex-shrink: 0; }
+  .chat-input {
+    flex: 1; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 9px 13px; font-size: 0.875rem; resize: none;
+    font-family: inherit; line-height: 1.5;
+    min-height: 42px; max-height: 110px; outline: none;
+  }
+  .chat-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+  .send-btn {
+    background: #2f6b66; color: white; border: none;
+    border-radius: 8px; padding: 9px 18px; font-size: 0.875rem;
+    cursor: pointer; font-weight: 600; flex-shrink: 0;
+  }
+  .send-btn:hover    { background: #234f4b; }
+  .send-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+  /* ── Right: Source Material ── */
+  .source-card  { flex: 1; min-height: 0; border-color: #e8e9a0; background: #fafde5; }
+  .source-label { color: #5a5900; }
+  .source-body  { overflow-y: auto; flex: 1; }
+  .source-placeholder { color: #b8b96a; font-style: italic; font-size: 0.75rem; }
+
+  .source-item {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e8e9a0;
+  }
+  .source-item:last-child { border-bottom: none; margin-bottom: 0; }
+  .source-type {
+    font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; margin-bottom: 4px;
+  }
+  .source-type.scripture  { color: #1d4ed8; }
+  .source-type.theologian { color: #7c3aed; }
+  .source-ref {
+    font-size: 0.75rem; font-weight: 600; color: #1f2937; margin-bottom: 6px;
+  }
+  .source-text {
+    font-size: 0.75rem; line-height: 1.65; color: #374151;
+    font-style: italic;
+  }
+  .source-text.theologian { font-style: normal; }
+
+  /* ── Right: Switch Topic ── */
+  .topic-card  { flex-shrink: 0; }
+  .topic-label { color: #374151; }
+  select {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 6px 8px; font-size: 0.75rem; color: #374151; background: white;
+    margin-bottom: 6px;
+  }
+  .go-btn {
+    width: 100%; background: #2f6b66; color: white; border: none;
+    border-radius: 6px; padding: 7px; font-size: 0.75rem; cursor: pointer;
+  }
+  .go-btn:hover { background: #234f4b; }
+
+  /* ── Footer ── */
+  .app-footer {
+    flex-shrink: 0;
+    background: #f8faff; border-top: 2px solid #dbeafe;
+    padding: 9px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.78rem; color: #6b7280;
+  }
+  .app-footer a { color: #2f6b66; text-decoration: none; font-weight: 600; transition: color .15s; }
+  .app-footer a:hover { color: #2563eb; text-decoration: underline; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+  /* ── How to Use Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 12px;
+    width: 500px; max-width: 93vw; max-height: 87vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-header {
+    background: #2f6b66; color: white;
+    padding: 16px 20px; border-radius: 12px 12px 0 0;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0;
+  }
+  .modal-header h2 { font-size: 1rem; font-weight: 700; }
+  .modal-close {
+    background: none; border: none; color: white;
+    font-size: 1.4rem; cursor: pointer; opacity: 0.75;
+    line-height: 1; padding: 0 3px;
+  }
+  .modal-close:hover { opacity: 1; }
+  .modal-body { padding: 20px 22px; }
+  .modal-section { margin-bottom: 20px; }
+  .modal-section:last-child { margin-bottom: 0; }
+  .modal-section-title {
+    font-size: 0.59rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700; color: #9ca3af; margin-bottom: 9px;
+  }
+  .modal-intro {
+    font-size: 0.84rem; line-height: 1.68; color: #374151;
+  }
+  .modal-intro strong { color: #111827; }
+  .action-explain {
+    display: flex; gap: 11px; margin-bottom: 12px; align-items: flex-start;
+  }
+  .action-explain:last-child { margin-bottom: 0; }
+  .action-icon {
+    font-size: 1rem; flex-shrink: 0; width: 22px; text-align: center; margin-top: 2px;
+  }
+  .action-name {
+    font-size: 0.82rem; font-weight: 600; color: #111827; margin-bottom: 2px;
+  }
+  .action-desc {
+    font-size: 0.775rem; line-height: 1.56; color: #4b5563;
+  }
+  .modal-divider {
+    border: none; border-top: 1px solid #e5e7eb; margin: 18px 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <div class="header-title">Selah for Ministry</div>
+    <div class="header-sub">Exploring Theology</div>
+  </div>
+  <div class="header-right">
+    <span class="account-email">{{ email }}</span>
+    <button class="help-btn" onclick="openHelp()">How to use</button>
+    <form method="POST" action="/pro/logout" style="margin:0;">
+      <button type="submit" class="signout-btn">Sign Out</button>
+    </form>
+  </div>
+</header>
+
+<div class="app-grid">
+
+  <!-- LEFT: Anchor · Previous Sessions · Actions -->
+  <div class="col-left">
+
+    <div class="card anchor-card">
+      <div class="card-label anchor-label">Session Anchor</div>
+      <div class="anchor-body" id="anchor-body">
+        <span class="anchor-placeholder">Your session summary will build here as you explore.</span>
+      </div>
+    </div>
+
+    <div class="card sessions-card">
+      <div class="card-label sessions-label">Your Sessions</div>
+      <div class="sessions-body" id="sessions-body">
+        <span class="sessions-placeholder">Loading…</span>
+      </div>
+    </div>
+
+    <div class="card actions-card">
+      <div class="card-label actions-label">Actions</div>
+      <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
+      <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
+    </div>
+
+  </div>
+
+  <!-- CENTER: Chat -->
+  <div class="col-chat">
+    <div class="card chat-card">
+      <div class="card-label chat-label">Conversation</div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg assistant">
+          <div class="msg-bubble">Welcome back. What would you like to explore?</div>
+        </div>
+      </div>
+      <div class="typing" id="typing">
+        <div class="msg-bubble">Selah is thinking…</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea
+          id="chat-input"
+          class="chat-input"
+          placeholder="Ask anything — a question, a doubt, a topic…"
+          rows="1"
+          autocomplete="off"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Switch Topic · Source Material -->
+  <div class="col-right">
+
+    <div class="card topic-card">
+      <div class="card-label topic-label">Switch Topic</div>
+      <select id="node-select">
+        <option value="">— choose a topic —</option>
+
+        <optgroup label="── Starting Points ──">
+          <option value="Grace">Grace — God's unearned favor</option>
+          <option value="Sin">Sin — what went wrong and why</option>
+          <option value="Faith">Faith — what it means to believe</option>
+        </optgroup>
+
+        <optgroup label="── Salvation ──">
+          <option value="Justification">Justification — being declared righteous</option>
+          <option value="Sanctification">Sanctification — growing in holiness</option>
+          <option value="Regeneration">Regeneration — what it means to be born again</option>
+          <option value="Atonement">Atonement — how the cross saves</option>
+          <option value="Law and Gospel">Law & Gospel — command and grace</option>
+        </optgroup>
+
+        <optgroup label="── God ──">
+          <option value="Theology Proper">Theology Proper — the nature of God</option>
+          <option value="Trinity">Trinity — one God, three persons</option>
+          <option value="Sovereignty and Free Will">Sovereignty & Free Will — election and human freedom</option>
+        </optgroup>
+
+        <optgroup label="── Jesus, Spirit & Scripture ──">
+          <option value="Christology">Christology — who Jesus is</option>
+          <option value="Holy Spirit">Holy Spirit — the Spirit's person and work</option>
+          <option value="Scripture and Revelation">Scripture & Revelation — how God speaks</option>
+        </optgroup>
+
+        <optgroup label="── Humanity & Creation ──">
+          <option value="Anthropology">Anthropology — what it means to be human</option>
+          <option value="Creation">Creation — God made everything, and why it matters</option>
+        </optgroup>
+
+        <optgroup label="── The Church ──">
+          <option value="Ecclesiology">Ecclesiology — what the church is</option>
+          <option value="Sacraments and Ordinances">Sacraments & Ordinances — baptism and communion</option>
+          <option value="Covenant Theology">Covenant Theology — how the Bible's story fits together</option>
+        </optgroup>
+
+        <optgroup label="── Life with God ──">
+          <option value="Prayer">Prayer — talking with God</option>
+          <option value="Assurance">Assurance — can I know I'm saved?</option>
+          <option value="Miracles">Miracles — does God still act?</option>
+        </optgroup>
+
+        <optgroup label="── Hard Questions ──">
+          <option value="Suffering and Providence">Suffering & Providence — why God allows it</option>
+          <option value="Problem of Evil">Problem of Evil — the philosophical challenge</option>
+          <option value="Angels Demons and Spiritual Warfare">Angels, Demons & Spiritual Warfare</option>
+        </optgroup>
+
+        <optgroup label="── Mission ──">
+          <option value="Evangelism and Mission">Evangelism & Mission — the gospel, the Great Commission, and why it matters</option>
+        </optgroup>
+
+        <optgroup label="── Faith & Culture ──">
+          <option value="Vocation and Work">Vocation & Work — does God care about my job?</option>
+          <option value="Social Ethics">Social Ethics — justice, sexuality, race, and the church</option>
+        </optgroup>
+
+        <optgroup label="── Last Things ──">
+          <option value="Resurrection">Resurrection — the empty tomb and what it means</option>
+          <option value="Eschatology">Eschatology — end times and what comes after</option>
+        </optgroup>
+
+      </select>
+      <button class="go-btn" onclick="switchNode()">Go →</button>
+    </div>
+
+    <div class="card source-card">
+      <div class="card-label source-label">Source Material</div>
+      <div class="source-body" id="source-body">
+        <span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer class="app-footer">
+  <span><a href="/legal">Terms &amp; Privacy</a></span>
+</footer>
+
+<script>
+// Unlike the free tool, currentSessionId starts null -- it's a real
+// planning_sessions row id, assigned by the server on the FIRST /pro/chat
+// call, not a client-generated UUID. Resuming a past session (clicking it
+// in "Your Sessions") sets this to that session's real id instead.
+let currentSessionId = null;
+const NODE_DISPLAY_NAMES = {{ node_display_names | tojson }};
+function nodeDisplayName(key) {
+  return (key && NODE_DISPLAY_NAMES[key]) || key || "No topic yet";
+}
+let isLoading      = false;
+let sourceItems    = [];  // accumulates across turns; not persisted across a resumed session (see note in loadSession)
+let sessionStarted = false;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 110) + "px";
+}
+
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function scrollChat() {
+  const el = document.getElementById("chat-messages");
+  el.scrollTop = el.scrollHeight;
+}
+
+function setLoading(on) {
+  isLoading = on;
+  document.getElementById("send-btn").disabled = on;
+  document.getElementById("typing").classList.toggle("show", on);
+  scrollChat();
+}
+
+function esc(str) {
+  const lines = str.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g,"<em>$1</em>");
+
+    if (/^---+$/.test(line.trim())) {
+      out.push('<hr style="border:none;border-top:1px solid #d1d5db;margin:6px 0;">');
+    } else if (/^>\s/.test(line)) {
+      out.push('<span style="display:block;border-left:3px solid #9ca3af;padding-left:10px;margin:4px 0;color:#374151;font-style:italic;">'
+        + line.replace(/^>\s/, '') + '</span>');
+    } else {
+      out.push(line);
+    }
+  }
+  return out.join("<br>");
+}
+
+function addBubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = `msg ${role}`;
+  wrap.innerHTML = `<div class="msg-bubble">${esc(text)}</div>`;
+  document.getElementById("chat-messages").appendChild(wrap);
+  scrollChat();
+}
+
+// ── Button tooltips (fixed position to escape overflow:hidden containers) ──
+document.querySelectorAll('.action-btn').forEach(btn => {
+  const tip = btn.querySelector('.tip');
+  if (!tip) return;
+  btn.addEventListener('mouseenter', e => {
+    const r = btn.getBoundingClientRect();
+    tip.style.top  = (r.bottom + 6) + 'px';
+    tip.style.left = r.left + 'px';
+  });
+});
+
+// ── Update panels ──────────────────────────────────────────────────────────
+function updateAnchor(text) {
+  if (!text) return;
+  const el = document.getElementById("anchor-body");
+  el.innerHTML = esc(text);
+}
+
+function normalizeLabel(label) {
+  return label
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s*(referenced|implied|implicit|unnamed).*$/i, '')
+    .toLowerCase().trim();
+}
+
+function addSource(source) {
+  if (!source) return;
+  const lbl = (source.label || '').trim().toLowerCase();
+  const cnt = (source.content || '').trim().toLowerCase();
+  if (!lbl || lbl.includes('none') || cnt.includes('none identified') || !cnt) return;
+  const norm = normalizeLabel(source.label);
+  if (sourceItems.some(s => normalizeLabel(s.label) === norm)) return;
+  sourceItems.unshift(source);
+  renderSources();
+}
+
+function addSources(sources) {
+  if (!sources || !sources.length) return;
+  sources.forEach(s => addSource(s));
+}
+
+function renderSources() {
+  const el = document.getElementById("source-body");
+  if (sourceItems.length === 0) {
+    el.innerHTML = `<span class="source-placeholder">Scripture passages and theologian arguments introduced in the conversation will appear here.</span>`;
+    return;
+  }
+  el.innerHTML = sourceItems.map(s => `
+    <div class="source-item">
+      <div class="source-type ${s.type}">${s.type === "scripture" ? "Scripture" : "Theologian"}</div>
+      <div class="source-ref">${esc(s.label)}</div>
+      <div class="source-text ${s.type}">${esc(s.content)}</div>
+    </div>
+  `).join("");
+}
+
+// ── Send message ───────────────────────────────────────────────────────────
+async function sendMessage(text, forceNode) {
+  const input   = document.getElementById("chat-input");
+  const message = text || input.value.trim();
+  if (!message || isLoading) return;
+
+  addBubble("user", message);
+  input.value = "";
+  input.style.height = "auto";
+  if (!sessionStarted) {
+    sessionStarted = true;
+    input.placeholder = "";
+  }
+  setLoading(true);
+
+  try {
+    const body = { message };
+    if (currentSessionId) body.session_id = currentSessionId;
+    if (forceNode) body.node = forceNode;
+
+    const res  = await fetch("/pro/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (data.session_id) currentSessionId = data.session_id;
+
+    addBubble("assistant", data.reply);
+    updateAnchor(data.anchor);
+    addSources(data.sources);
+    loadSessionList(); // refresh the list so this session's updated_at/anchor move to the top
+  } catch (err) {
+    addBubble("assistant", "Something went wrong — please try again.");
+  } finally {
+    setLoading(false);
+    const inp = document.getElementById("chat-input");
+    inp.value = "";
+    inp.style.height = "auto";
+    inp.focus();
+  }
+}
+
+// ── Switch topic ───────────────────────────────────────────────────────────
+function switchNode() {
+  const sel  = document.getElementById("node-select");
+  const node = sel.value;
+  if (!node) return;
+  sourceItems = [];
+  renderSources();
+  sendMessage(`I'd like to explore: ${node}`, node);
+  sel.value = "";
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────
+const TALLY_URL = "https://tally.so/r/Y5qNAv";
+
+function openFeedback() {
+  window.open(TALLY_URL, "_blank", "noopener");
+}
+
+// ── New conversation ───────────────────────────────────────────────────────
+// Purely client-side -- there's no in-memory dict to clear server-side.
+// A fresh planning_sessions row is created automatically the next time a
+// message is sent, since currentSessionId is reset to null here.
+function newConversation() {
+  currentSessionId = null;
+  document.getElementById("chat-messages").innerHTML =
+    `<div class="msg assistant"><div class="msg-bubble">Welcome back. What would you like to explore?</div></div>`;
+  document.getElementById("anchor-body").innerHTML =
+    `<span class="anchor-placeholder">Your session summary will build here as you explore.</span>`;
+  sourceItems = [];
+  renderSources();
+  document.getElementById("chat-input").placeholder = "Ask anything — a question, a doubt, a topic…";
+  sessionStarted = false;
+}
+
+// ── Session history panel ──────────────────────────────────────────────────
+function formatSessionDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · "
+      + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  } catch (e) { return ""; }
+}
+
+async function loadSessionList() {
+  try {
+    const res = await fetch("/pro/sessions");
+    const data = await res.json();
+    const el = document.getElementById("sessions-body");
+    if (!data.sessions || data.sessions.length === 0) {
+      el.innerHTML = `<span class="sessions-placeholder">Your past conversations will appear here.</span>`;
+      return;
+    }
+    el.innerHTML = data.sessions.map(s => `
+      <button class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
+        <div class="session-node">${esc(nodeDisplayName(s.node))}</div>
+        <div class="session-anchor">${esc((s.anchor || '').slice(0, 70))}${(s.anchor||'').length > 70 ? '…' : ''}</div>
+        <div class="session-anchor">${formatSessionDate(s.updated_at)} · ${s.turn_count} turn${s.turn_count === 1 ? '' : 's'}</div>
+      </button>
+    `).join("");
+  } catch (e) {
+    document.getElementById("sessions-body").innerHTML =
+      `<span class="sessions-placeholder">Couldn't load your sessions.</span>`;
+  }
+}
+
+// Resuming a past session restores the visible transcript and anchor/topic,
+// but NOT the Source Material panel -- sources aren't persisted per session
+// today, only messages/node/anchor/turn count. New sources still populate
+// normally as the resumed conversation continues.
+async function loadSession(id) {
+  if (isLoading) return;
+  try {
+    const res = await fetch(`/pro/sessions/${id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    currentSessionId = data.id;
+    sourceItems = [];
+    renderSources();
+
+    const chatEl = document.getElementById("chat-messages");
+    chatEl.innerHTML = "";
+    (data.messages || []).forEach(m => {
+      if (m.role === "user") addBubble("user", m.content);
+      else addBubble("assistant", m.content.replace(/\[QUESTION:[\s\S]*?\]/g, "").replace(/\[SOURCE:[\s\S]*?\]/g, "").trim());
+    });
+    if (chatEl.children.length === 0) {
+      addBubble("assistant", "Welcome back. What would you like to explore?");
+    }
+
+    updateAnchor(data.anchor || "");
+    if (!data.anchor) {
+      document.getElementById("anchor-body").innerHTML =
+        `<span class="anchor-placeholder">Your session summary will build here as you explore.</span>`;
+    }
+    sessionStarted = true;
+    document.getElementById("chat-input").placeholder = "";
+    loadSessionList();
+  } catch (e) {
+    // leave the current view as-is on failure
+  }
+}
+
+// ── Help modal ────────────────────────────────────────────────────────────
+function openHelp() {
+  document.getElementById("help-modal").classList.add("show");
+}
+function closeHelp() {
+  document.getElementById("help-modal").classList.remove("show");
+}
+function closeHelpModal(e) {
+  if (e.target === document.getElementById("help-modal")) closeHelp();
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeHelp();
+});
+
+// ── Init ────────────────────────────────────────────────────────────────
+loadSessionList();
+</script>
+
+<!-- ── How to Use Modal ── -->
+<div class="modal-overlay" id="help-modal" onclick="closeHelpModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>How to Use Selah for Ministry</h2>
+      <button class="modal-close" onclick="closeHelp()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-section">
+        <div class="modal-section-title">The Idea</div>
+        <p class="modal-intro">Selah is a Hebrew word meaning <em>pause</em> — a signal to stop, sit with what you've just heard, and let it sink in. This tool is built on that same rhythm: not to give you all the answers at once, but to take you one layer deeper at a time.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">Your Sessions Are Saved Automatically</div>
+        <p class="modal-intro">Unlike the free tool, every conversation here is saved to your account as you go — no downloading or uploading files. The <strong>Your Sessions</strong> panel on the left lists your past conversations; click one to pick up right where you left off.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">The Layout</div>
+        <p class="modal-intro">The <strong>left panel</strong> holds your Session Anchor — a running summary of what you've covered — and Your Sessions. The <strong>center</strong> is the conversation. The <strong>right panel</strong> shows Scripture passages and theologian arguments as they surface, so you can revisit them without scrolling back. Use <strong>Switch Topic</strong> to move into a different area of theology.</p>
+      </div>
+
+      <hr class="modal-divider">
+
+      <div class="modal-section">
+        <div class="modal-section-title">Actions</div>
+
+        <div class="action-explain">
+          <div class="action-icon">↺</div>
+          <div>
+            <div class="action-name">New Conversation</div>
+            <div class="action-desc">Starts a fresh conversation on a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
+          <div class="action-icon">✉</div>
+          <div>
+            <div class="action-name">Send Feedback</div>
+            <div class="action-desc">Something felt off theologically, or a response didn't land right? This opens a short form. We want to know.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
