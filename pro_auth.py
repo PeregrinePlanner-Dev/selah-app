@@ -24,8 +24,31 @@ pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 _supabase_client: Client | None = None
+_service_client: Client | None = None
+
+
+def get_service_client() -> Client:
+    """Client authenticated with the service role key -- bypasses RLS
+    entirely. Deliberately kept separate from get_user_supabase() and used
+    ONLY for usage_records (the cap-enforcement table): a user's own
+    RLS-scoped token must never be able to read-then-write its own usage
+    counter, the same way the free tool's anonymous rate limiter isn't
+    something a client request can reset. Never expose this key to a
+    browser -- it belongs in a server-side env var only."""
+    global _service_client
+    if _service_client is None:
+        if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+            raise RuntimeError(
+                "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set -- the "
+                "usage-cap gate cannot function without them. Set both as "
+                "environment variables (see .env.example). Get the service "
+                "role key from the Supabase dashboard: Settings -> API."
+            )
+        _service_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    return _service_client
 
 
 def get_supabase() -> Client:

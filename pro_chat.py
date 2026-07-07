@@ -6,12 +6,16 @@ and response parsing -- conversational behavior is identical to the free
 tool, only where the conversation state lives is different. Added 2026-07-07
 as the first real use of the planning_sessions table built the same day.
 
-Deliberately minimal for this pass: no cap-check gate yet (that's the next
-task), no export/citation formatting yet -- just proving persistent,
-account-scoped sessions work end to end.
+Cap-check gate added the same day: usage_records is checked BEFORE the
+Anthropic call, using the service-role client (never the user's own RLS-scoped
+token -- a user's own client must never be able to read-then-reset its own
+usage counter). No export/citation formatting yet -- that's a separate,
+later build.
 """
 
+import os
 import re
+from datetime import date
 
 from flask import Blueprint, request, jsonify, session
 
@@ -20,13 +24,86 @@ from engine import (
     parse_response, format_convo_for_haiku, ANCHOR_CHIPS_QUERY,
     strip_tags, client as anthropic_client,
 )
-from pro_auth import login_required, get_user_supabase
+from pro_auth import login_required, get_user_supabase, get_service_client
 
 pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
+
+# Conservative placeholder caps until real tiers/pricing are live on Stripe --
+# every current signup lands on tier_slug='free' via the auto-provisioning
+# trigger, so this exists purely to protect against runaway API cost during
+# this pre-launch phase, not as a finished pricing decision. Override via env
+# var for the default tier; adjust the dict directly as real tiers launch.
+TIER_CONVERSATION_CAPS = {
+    "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "30")),
+    "beta": 100,
+    "individual": 200,
+    "church": 200,
+    "seminary": 200,
+    "berea": 200,
+}
+DEFAULT_CAP = TIER_CONVERSATION_CAPS["free"]
+
+CAP_HIT_MESSAGE = (
+    "You've reached this month's conversation limit for your current plan. "
+    "It resets at the start of next month."
+)
 
 
 def _empty_convo() -> dict:
     return {"messages": [], "node": None, "anchor": "", "turn": 0}
+
+
+def _billing_month_today() -> str:
+    """First of the current month, as an ISO date string -- matches
+    usage_records.billing_month's scoping (per org, per module, per
+    calendar month)."""
+    today = date.today()
+    return today.replace(day=1).isoformat()
+
+
+def _check_and_reserve_usage(organization_id: str, tier_slug: str) -> bool:
+    """Returns True if this turn is allowed to proceed, False if the org has
+    hit its monthly cap. Reserves the turn (increments conversations_used)
+    as part of the same call when allowed, using the service-role client --
+    this table is never written through the user's own token.
+
+    Known simplification: check-then-write is two round trips, not one
+    atomic operation, so a burst of near-simultaneous requests from the same
+    org could slightly overshoot the cap under real concurrent load. Fine at
+    today's volume; worth revisiting (e.g. a single atomic SQL update) before
+    real scale, same spirit as the free tool's existing rate-limit caveats."""
+    svc = get_service_client()
+    billing_month = _billing_month_today()
+    cap = TIER_CONVERSATION_CAPS.get(tier_slug, DEFAULT_CAP)
+
+    existing = (
+        svc.table("usage_records")
+        .select("id, conversations_used, conversations_cap, hard_cap")
+        .eq("organization_id", organization_id)
+        .is_("module_slug", "null")
+        .eq("billing_month", billing_month)
+        .limit(1)
+        .execute()
+    )
+
+    if existing.data:
+        row = existing.data[0]
+        if row["hard_cap"] and row["conversations_used"] >= row["conversations_cap"]:
+            return False
+        svc.table("usage_records").update({
+            "conversations_used": row["conversations_used"] + 1,
+        }).eq("id", row["id"]).execute()
+        return True
+    else:
+        svc.table("usage_records").insert({
+            "organization_id": organization_id,
+            "module_slug": None,
+            "billing_month": billing_month,
+            "conversations_used": 1,
+            "conversations_cap": cap,
+            "hard_cap": True,
+        }).execute()
+        return True
 
 
 @pro_chat_bp.route("/chat", methods=["POST"])
@@ -46,6 +123,30 @@ def pro_chat():
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
     organization_id = profile_resp.data[0]["organization_id"]
+
+    sub_resp = (
+        sb.table("subscriptions")
+        .select("tier_slug")
+        .eq("organization_id", organization_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    )
+    tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
+
+    # Cap-check gate -- BEFORE the Anthropic call, never after. Uses the
+    # service-role client internally; never checked or written via the
+    # user's own token.
+    if not _check_and_reserve_usage(organization_id, tier_slug):
+        return jsonify({
+            "reply": CAP_HIT_MESSAGE,
+            "question": "",
+            "sources": [],
+            "node": "",
+            "anchor": "",
+            "chips": [],
+            "turn": 0,
+        })
 
     if session_db_id:
         row_resp = (
