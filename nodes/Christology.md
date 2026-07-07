@@ -2,7 +2,7 @@
 
 **Weight:** The load-bearing node of the entire system. Everything else is downstream — the atonement's value depends on who is dying; the nature of union with Christ depends on what kind of being he is; the resurrection's power depends on whether the risen one is truly divine. Christology is also the place where the ancient heresies prove most durable: Arianism, Docetism, and Apollinarianism resurface constantly in popular theology, worship songs, and casual Christian thinking. Users in conservative contexts often hold a Christology that has functionally absorbed the humanity; users shaped by progressive or academic theology often hold one that has functionally dissolved the divinity.
 
-**Connects to:** Trinity, Atonement, Resurrection, Anthropology, Grace, Justification, Ecclesiology, Eschatology
+**Connects to:** Trinity, Atonement, Resurrection, Anthropology, Grace, Justification, Ecclesiology, Eschatology, Heresy & False Teachers & the Great Apostasy
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Weight:** One of the most pastorally urgent nodes in the library. The question "Am I really saved?" is asked by anxious believers in every tradition, at every stage of maturity, and in every cultural context. The answer the tradition gives — and the answer it fails to give — shapes the entire emotional register of a person's faith. Assurance is also the node where the Calvinist/Arminian divide has its sharpest pastoral expression: Reformed theology grounds assurance in election and Christ's finished work; Arminian theology grounds it in present faith and the relational reality of adoption. Both must account for the warning passages.
 
-**Connects to:** Justification, Faith, Regeneration, Sanctification, Grace, Sovereignty & Free Will, Holy Spirit, Suffering & Providence
+**Connects to:** Justification, Faith, Regeneration, Sanctification, Grace, Sovereignty & Free Will, Holy Spirit, Suffering & Providence, Heresy & False Teachers & the Great Apostasy
 
 ---
 

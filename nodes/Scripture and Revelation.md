@@ -2,7 +2,7 @@
 
 **Weight:** The epistemological foundation of the entire system. Every other node draws from Scripture; the doctrine of Scripture determines how that drawing is done. Get this node wrong and the rest of the library warps — either toward a rationalism that treats Scripture as raw data to be managed, or toward an experience-ism that treats it as subordinate to what the Spirit is saying today. This node also determines how the TES bot engages Scripture: with what authority, read by what method, and interpreted within what framework.
 
-**Connects to:** Theology Proper, Trinity, Holy Spirit, Christology, Covenant Theology, Anthropology, Miracles
+**Connects to:** Theology Proper, Trinity, Holy Spirit, Christology, Covenant Theology, Anthropology, Miracles, Heresy & False Teachers & the Great Apostasy
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Weight:** The most speculative and internally contested area of evangelical theology, and simultaneously the one that most directly shapes present ethics and mission. What you expect God to do with the world determines what you do with the world now. The millennium debates have divided evangelical Protestants into three camps with radically different expectations; the rapture/tribulation debates have produced an entire parallel culture of prophecy books and charts. Beneath the spectacular disagreements about sequence and schedule lies a set of convictions about which the tradition is largely unified: Christ will return, the dead will rise, there will be judgment, and God will make all things new.
 
-**Connects to:** Resurrection, Christology, Sovereignty & Free Will, Anthropology, Ecclesiology, Problem of Evil, Suffering & Providence, Vocation & Work, Social Ethics
+**Connects to:** Resurrection, Christology, Sovereignty & Free Will, Anthropology, Ecclesiology, Problem of Evil, Suffering & Providence, Vocation & Work, Social Ethics, Heresy & False Teachers & the Great Apostasy
 
 ---
 
@@ -103,6 +103,7 @@ The originator of dispensational premillennialism and the rapture doctrine. Darb
 - **"Is hell real — how can a loving God send people there forever?"** — the nature of hell; ECT, annihilationism, and universalism; divine justice and love
 - **"What will heaven be like?"** — the new creation entry; renovation vs. replacement; embodied communal life in God's presence
 - **"Does the end-times stuff in Revelation really mean what the charts say?"** — the genre of apocalyptic; the millennium; reading Revelation
+- **"Is the great falling-away/apostasy in 2 Thessalonians 2 happening now?"** — routes to the dedicated **Heresy, False Teachers & the Great Apostasy** node, which holds the full dispensational/futurist vs. amillennial/ongoing-reality debate on this text; this node's millennium debate above is the closest analog for how the disagreement works
 - **Scholars:** The millennium debate; Darby and dispensationalism's origins; Ladd's "already/not yet"; Wright on new creation; hell's alternatives
 
 ---

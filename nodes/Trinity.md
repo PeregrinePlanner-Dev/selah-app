@@ -2,7 +2,7 @@
 
 **Weight:** The doctrine that defines Christian theism and distinguishes it from every other monotheism. The Trinity is not a speculative addition to the biblical witness but its organizing center — God is the one who is Father, Son, and Holy Spirit in eternal relation. Every other doctrine draws from it: Christology requires it (the Son is fully God without displacing the Father); Atonement requires it (God was in Christ reconciling the world to himself); Pneumatology requires it (the Spirit is God at work in the world, not a divine energy). Trinitarian collapse is one of the most common theological failures in contemporary worship and preaching.
 
-**Connects to:** Christology, Holy Spirit, Theology Proper, Atonement, Ecclesiology, Prayer, Grace
+**Connects to:** Christology, Holy Spirit, Theology Proper, Atonement, Ecclesiology, Prayer, Grace, Heresy & False Teachers & the Great Apostasy
 
 ---
 
