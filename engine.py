@@ -146,9 +146,11 @@ Here is a theology conversation:
 Return your response in this EXACT format -- nothing before or after:
 
 ANCHOR: [2-3 sentences about what is being explored and what has actually surfaced. \
-Topic-focused -- do not say "the user." Do not infer motivation, emotion, or backstory \
-unless the person stated it explicitly. Only describe what appeared in the conversation. \
-Under 65 words.]
+Topic-focused -- lead with the topic or question itself as the subject (e.g. "The \
+conversation explores..." or "Christ's dual nature surfaces as..."), never with "the \
+user" or "the person" as the subject of the first sentence. Do not infer motivation, \
+emotion, or backstory unless stated explicitly. Only describe what appeared in the \
+conversation. Under 65 words.]
 CHIP_1: [Short thing the person might naturally say next, 4-7 words, user-voice]
 CHIP_2: [Different angle or follow-up, 4-7 words]
 CHIP_3: [Another direction they might take, 4-7 words]
