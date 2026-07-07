@@ -119,10 +119,20 @@ def pro_chat():
 
     sb = get_user_supabase()
 
-    profile_resp = sb.table("profiles").select("organization_id").limit(1).execute()
+    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
     organization_id = profile_resp.data[0]["organization_id"]
+
+    # Comped seats (Rick's own account, the pastor-friend beta tester/marketer)
+    # bypass the usage cap entirely, regardless of tier_slug. This is a manual
+    # profiles.seat_status flag set directly in Supabase (never through Stripe),
+    # checked here before the cap-check gate rather than folded into the
+    # subscriptions/tier system -- deliberately kept separate so that whenever
+    # Stripe billing sync gets built, it never needs special-case logic for
+    # comped accounts: they simply never have Stripe fields populated and
+    # this check short-circuits before billing status is ever consulted.
+    is_comped = profile_resp.data[0].get("seat_status") == "comped"
 
     sub_resp = (
         sb.table("subscriptions")
@@ -136,8 +146,9 @@ def pro_chat():
 
     # Cap-check gate -- BEFORE the Anthropic call, never after. Uses the
     # service-role client internally; never checked or written via the
-    # user's own token.
-    if not _check_and_reserve_usage(organization_id, tier_slug):
+    # user's own token. Comped seats skip this entirely -- no usage-record
+    # row is even written for them, since there's nothing to cap.
+    if not is_comped and not _check_and_reserve_usage(organization_id, tier_slug):
         return jsonify({
             "reply": CAP_HIT_MESSAGE,
             "question": "",
