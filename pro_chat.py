@@ -50,7 +50,17 @@ CAP_HIT_MESSAGE = (
 
 
 def _empty_convo() -> dict:
-    return {"messages": [], "node": None, "anchor": "", "turn": 0}
+    return {"messages": [], "node": None, "anchor": "", "turn": 0, "sources": []}
+
+
+def _normalize_source_label(label: str) -> str:
+    """Mirrors normalizeLabel() in pro_app.html -- strips parentheticals and
+    'referenced/implied/...' suffixes so the same citation introduced across
+    different turns (e.g. re-quoted, or tagged with slightly different
+    wording) doesn't get stored twice in the persisted sources list."""
+    label = re.sub(r'\(.*?\)', '', label)
+    label = re.sub(r'\s*(referenced|implied|implicit|unnamed).*$', '', label, flags=re.IGNORECASE)
+    return label.lower().strip()
 
 
 def _billing_month_today() -> str:
@@ -244,6 +254,18 @@ def pro_chat():
     except Exception as e:
         print(f"[PRO ANCHOR/CHIPS/SOURCE ERROR] {e}")
 
+    # Persist this turn's sources into the session so resuming a conversation
+    # (get_session) can restore the Source Material panel, not just the
+    # transcript and anchor. Deduped by normalized label -- same rule the
+    # frontend already uses for its own client-side accumulation.
+    convo.setdefault("sources", [])
+    existing_norms = {_normalize_source_label(s["label"]) for s in convo["sources"]}
+    for s in sources:
+        norm = _normalize_source_label(s["label"])
+        if norm and norm not in existing_norms:
+            convo["sources"].append(s)
+            existing_norms.add(norm)
+
     if session_db_id:
         sb.table("planning_sessions").update({
             "session_data": convo,
@@ -320,6 +342,7 @@ def get_session(session_id):
         "messages": convo.get("messages", []),
         "node": convo.get("node"),
         "anchor": convo.get("anchor"),
+        "sources": convo.get("sources", []),
         "turn": row["turn_count"],
     })
 

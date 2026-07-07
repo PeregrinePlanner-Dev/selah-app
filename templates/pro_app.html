@@ -641,10 +641,10 @@ async function loadSessionList() {
   }
 }
 
-// Resuming a past session restores the visible transcript and anchor/topic,
-// but NOT the Source Material panel -- sources aren't persisted per session
-// today, only messages/node/anchor/turn count. New sources still populate
-// normally as the resumed conversation continues.
+// Resuming a past session restores the visible transcript, anchor/topic,
+// and the Source Material panel (sources are persisted server-side in
+// session_data, deduped by normalized label -- see pro_chat.py). New
+// sources still populate normally as the resumed conversation continues.
 async function loadSession(id) {
   if (isLoading) return;
   try {
@@ -654,6 +654,7 @@ async function loadSession(id) {
 
     currentSessionId = data.id;
     sourceItems = [];
+    addSources(data.sources || []);
     renderSources();
 
     const chatEl = document.getElementById("chat-messages");
