@@ -92,6 +92,9 @@ The Jesuit originator of the middle knowledge solution. His *Concordia* (1588) a
 **Jonathan Edwards (1703–1758)**
 The most philosophically sophisticated defender of Calvinist compatibilism. *Freedom of the Will* (1754) is the definitive philosophical treatment: Edwards argues that libertarian free will is not only unnecessary for moral responsibility but is incoherent — an uncaused choice would be random, not free. Genuine freedom is doing what you want without external compulsion; the will always follows the strongest motive; God can sovereignly determine outcomes by determining the motives that govern choices. Edwards's philosophical precision makes his Reformed theology the hardest version to dismiss as simply running roughshod over human responsibility.
 
+**Roger Olson (1952–)**
+Contemporary Baptist theologian, the most prominent living academic defender of classical Arminianism, directly engaging the modern Calvinist resurgence (Piper, Sproul) from within evangelical life. Olson's first move is always correcting the caricature: classical Arminianism is a theology of grace alone, not human achievement — total depravity is fully affirmed, and prevenient grace, extended by God to all prior to any merit, is what restores the capacity to respond at all. What the person contributes is not a self-generated decision but the choice to exercise or resist a capacity that is itself entirely of grace. Olson presses what he considers Calvinism's most serious unresolved problem: if God meticulously determines every event including every sinful choice, no compatibilist distinction fully removes God from ultimate responsibility for evil. He reads the universal-salvation texts (1 Tim 2:4; 2 Pet 3:9) at face value, holding that Arminian conditional election sits more comfortably with Scripture's own language about God's character than a system that must heavily qualify what those texts plainly say.
+
 ---
 
 ## Entry Points

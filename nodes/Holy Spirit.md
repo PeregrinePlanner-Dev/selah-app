@@ -92,6 +92,9 @@ The Spirit's work as the engine of the entire Methodist movement. Wesley's disti
 **Gordon Fee (1934–2022)**
 New Testament scholar and ordained Assemblies of God minister — unusual combination in academic biblical studies. His commentary on 1 Corinthians and *God's Empowering Presence* (a study of the Spirit in Paul's letters) are the most exegetically rigorous defenses of continuationism in the evangelical tradition. Fee's argument: the Spirit in Paul is always experiential and present-tense — the Spirit is the power of the new age breaking into the present, and Paul expects his communities to be actively experiencing that power, not merely affirming it doctrinally. Cessationism, on Fee's reading, is an accommodation to Western rationalism that Paul would not recognize.
 
+**Amos Yong (1965–)**
+The most prolific contemporary Pentecostal theologian, supplying the systematic-theological complement to Fee's exegetical case. Yong takes charismatic experience — tongues, healing, prophecy — as genuine, valuable data for constructive theology, not embarrassing exceptions to be managed or explained away, while pairing this consistently with a serious emphasis on discernment of spirits (1 Cor 12:10; 1 John 4:1): the same experience that is theologically significant must also be tested. His "foundational pneumatology" starts theological reflection with the Spirit's universal presence in creation rather than routing every question through Christology first — a genuine, debated methodological choice that opens engagement with disability, science, and global majority-world Christian experience, though more cautious traditions press hard on whether it loosens pneumatology from clear Christological control.
+
 ---
 
 ## Entry Points
