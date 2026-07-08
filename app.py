@@ -124,6 +124,14 @@ def index():
 def ministry():
     return render_template("ministry.html")
 
+@app.route("/invite")
+def invite():
+    # Shareable invitation page for the free tool -- built 2026-07-08 at Rick's
+    # request after his pastor friend (Clark Cothern) asked for something he
+    # could send to his congregation and pastoral network. Additive only, no
+    # existing route touched.
+    return render_template("invite.html")
+
 @app.route("/legal")
 def legal():
     return render_template("legal.html")
