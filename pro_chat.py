@@ -87,6 +87,46 @@ def _normalize_source_label(label: str) -> str:
     return label.lower().strip()
 
 
+# Matches engine.parse_response()'s own SOURCE-tag regex exactly -- reused
+# here (rather than imported) since this operates on a LIST of historical
+# messages, not a single raw response.
+_SOURCE_TAG_RE = re.compile(r'\[SOURCE:(scripture|theologian)\|(.*?)\|(.*?)\]', re.DOTALL)
+
+
+def _backfill_sources_from_history(convo: dict) -> list:
+    """Reconstructs a session's sources list from its raw message history.
+
+    Sessions started before source persistence existed (2026-07-08,
+    8b375bc) -- or any session whose only citations were introduced before
+    that fix went live -- have an empty or missing convo['sources'] even
+    though every [SOURCE:type|label|content] tag the model ever emitted is
+    still sitting verbatim in convo['messages']: strip_tags() only removes
+    these when a message is sent back to the model as history, never in the
+    persisted record itself. Found 2026-07-08 after a Teaching Outline
+    generation correctly pulled real citations straight from the transcript
+    text while the Source Material panel stayed empty on the same resumed
+    session -- confirming the raw tags were there all along, just never
+    backfilled into the dedicated sources list. Dedupes the same way a live
+    turn does (first-seen wins, oldest turn first)."""
+    sources = []
+    seen = set()
+    for m in convo.get("messages", []):
+        if m.get("role") != "assistant":
+            continue
+        for match in _SOURCE_TAG_RE.finditer(m.get("content", "")):
+            label = match.group(2).strip()
+            norm = _normalize_source_label(label)
+            if not norm or norm in seen:
+                continue
+            seen.add(norm)
+            sources.append({
+                "type": match.group(1),
+                "label": label,
+                "content": match.group(3).strip(),
+            })
+    return sources
+
+
 def _billing_month_today() -> str:
     """First of the current month, as an ISO date string -- matches
     usage_records.billing_month's scoping (per org, per module, per
@@ -457,6 +497,20 @@ def get_session(session_id):
         return jsonify({"error": "session not found"}), 404
     row = resp.data[0]
     convo = row["session_data"] or _empty_convo()
+
+    # Backfill sources for sessions that predate persistence (or whose only
+    # citations were introduced before that fix went live) -- see
+    # _backfill_sources_from_history() docstring. Only runs when the list is
+    # genuinely empty, and persists the result so this is a one-time cost
+    # per session, not repeated on every resume.
+    if not convo.get("sources") and convo.get("messages"):
+        backfilled = _backfill_sources_from_history(convo)
+        if backfilled:
+            convo["sources"] = backfilled
+            sb.table("planning_sessions").update({
+                "session_data": convo,
+            }).eq("id", session_id).execute()
+
     return jsonify({
         "id": row["id"],
         "messages": convo.get("messages", []),
