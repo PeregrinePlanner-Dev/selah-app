@@ -114,11 +114,12 @@ Do not mention these tags in your conversational reply -- they are stripped befo
 
 For each Scripture passage you directly quoted AND each named theologian's argument you introduced THIS turn, append one tag:
 [SOURCE:scripture|Book Chapter:Verse (Translation)|Full quoted text]
-[SOURCE:theologian|Theologian Name (dates)|A compact 2-4 sentence SUMMARY for the citation panel]
+[SOURCE:theologian|Theologian Name (dates), Title of the specific work the argument is drawn from|A compact 2-4 sentence SUMMARY for the citation panel]
 
 Rules:
 - Scripture: only tag verses you actually quoted with text, not verses merely mentioned or referenced in passing.
 - Theologian: only tag when you cite a specific named theologian (e.g., Augustine, Calvin, Barth). Do NOT tag your own arguments or unnamed "implicit" theological reasoning.
+- IMPORTANT -- academic accuracy: a theologian's name and dates alone are not a citation. Always name the actual book, treatise, sermon, or other work the argument is drawn from (e.g. "Augustine (354–430), Confessions", "Calvin (1509–1564), Institutes of the Christian Religion 3.21", "Barth (1886–1968), Church Dogmatics II/2"), even when you are paraphrasing rather than quoting directly. Include a specific book/chapter/section locator only when you are genuinely confident of it -- naming the correct work with no locator is far better than a precise-looking but fabricated one. If you are only confident of the theologian's broader body of thought and not a specific work, say so plainly (e.g. "Calvin (1509–1564), a recurring theme across his writings") rather than inventing a title.
 - IMPORTANT: the SOURCE tag's 2-4 sentence summary is a compact citation for the side panel ONLY. It is separate from, and must never replace or shorten, your actual conversational engagement with the theologian's argument. Your conversational reply itself should still give the full 2-4 paragraphs of real substance described in the Theologian Engine section above -- write that first, in full, then add this short tag afterward as a pointer back to it.
 - You may include multiple SOURCE tags per turn.
 - Only tag content first introduced in THIS response — never re-tag from prior turns.
@@ -162,7 +163,7 @@ Do not include: verses only mentioned by the Person, verses Selah merely referen
 Use this exact format for each item found:
 
 SOURCE_TYPE: scripture OR theologian
-SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Theologian Name (dates)]
+SOURCE_LABEL: [Book Chapter:Verse (Translation)] OR [Theologian Name (dates), Title of the specific work the argument is drawn from -- name an actual book/treatise/sermon even when paraphrasing, e.g. "Calvin (1509–1564), Institutes of the Christian Religion"; only add a chapter/section locator if genuinely confident of it, and say "a recurring theme across his writings" instead of a title if you can't identify a specific work]
 SOURCE_CONTENT: [exact quoted text] OR [the argument in 2-3 sentences]
 SOURCE_END
 
@@ -253,8 +254,11 @@ abstract. Use only what was actually discussed.]
 CITATIONS:
 [Every source below, formatted as a clean reference list: Scripture as \
 "Book Chapter:Verse (Translation) -- quoted text", theologians as \
-"Name (dates) -- the argument, in 1-2 sentences". If no sources were \
-provided, write "No sources were tagged in this conversation."]
+"Name (dates), Title of the specific work -- the argument, in 1-2 sentences". \
+Preserve whatever work/title attribution is already present in the source \
+below exactly as given -- do not drop it, and do not invent a more precise \
+locator than what's provided. If no sources were provided, write "No \
+sources were tagged in this conversation."]
 
 DISCUSSION QUESTIONS:
 [4-6 questions suited to a teaching or small-group setting, grounded \
