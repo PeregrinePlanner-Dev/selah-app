@@ -227,8 +227,8 @@ def strip_tags(text: str) -> str:
     text = re.sub(r'\[SOURCE:.*?\]',   '', text, flags=re.DOTALL)
     return text.strip()
 
-# ── Prep Doc generation (Selah for Ministry) ───────────────────────────────
-# First real "mode" beyond ordinary chat -- a structured teaching artifact
+# ── Prep Doc / Session Recap generation (Selah for Ministry) ───────────────
+# First real "mode" beyond ordinary chat -- a structured recap artifact
 # synthesized from a saved conversation, not a raw transcript. Added 2026-07-08
 # as the first build toward ministry.html's pitched features, chosen because
 # the roadmap already scoped its architecture: a swappable instruction block
@@ -236,48 +236,54 @@ def strip_tags(text: str) -> str:
 # Lives here (not pro_chat.py) so it's available to any future caller of the
 # shared engine, matching the project's "never duplicate the engine" rule --
 # only the route/gating around it is Pro-specific.
-PREP_DOC_INSTRUCTIONS = """\
-You are turning a theology conversation into a structured teaching document \
-for a pastor, small-group leader, or teacher to actually use -- not a \
-transcript, a usable artifact.
+#
+# Section picker added 2026-07-08 after Rick asked for a checkbox popup
+# (Text Summary / Source Material / Citations / Discussion Questions) so
+# someone who just wants a personal record isn't stuck with a full teaching
+# doc. Source Material and Citations are rendered PROGRAMMATICALLY straight
+# from the stored sources list rather than asking the model to reproduce
+# them -- the quoted text and citation labels are already exactly right
+# (verbatim from the conversation / the accuracy work done the same day),
+# so having a second Sonnet call re-transcribe them only adds a chance of
+# drift or paraphrase with no upside. The Sonnet call is used ONLY for the
+# two sections that genuinely require synthesis (Text Summary, Discussion
+# Questions) and is skipped entirely if neither is selected -- cheaper AND
+# more accurate for a citations-only or source-only recap.
+RECAP_SECTION_KEYS = ("summary", "source_material", "citations", "discussion_questions")
 
-Produce, in this exact order:
+_RECAP_TITLE_BLOCK = "TITLE: [a short, specific title naming the actual topic explored]"
 
-TITLE: [a short, specific title naming the actual topic explored]
-
-OUTLINE:
+_RECAP_SUMMARY_BLOCK = """\
+SUMMARY:
 [3-6 headed sections, each with a 2-4 sentence explanation, covering the \
 real theological ground actually covered in the conversation below, in the \
 order it naturally builds -- not a generic outline of the topic in the \
-abstract. Use only what was actually discussed.]
+abstract. Use only what was actually discussed.]"""
 
-CITATIONS:
-[Every source below, formatted as a clean reference list: Scripture as \
-"Book Chapter:Verse (Translation) -- quoted text", theologians as \
-"Name (dates), Title of the specific work -- the argument, in 1-2 sentences". \
-Preserve whatever work/title attribution is already present in the source \
-below exactly as given -- do not drop it, and do not invent a more precise \
-locator than what's provided. If no sources were provided, write "No \
-sources were tagged in this conversation."]
-
+_RECAP_DISCUSSION_QUESTIONS_BLOCK = """\
 DISCUSSION QUESTIONS:
-[4-6 questions suited to a teaching or small-group setting, grounded \
-specifically in the tensions and questions that actually surfaced in this \
-conversation -- not generic questions that could apply to any conversation \
-about this topic.]
+[4-6 questions suited to a teaching or small-group setting, or personal \
+reflection if this isn't for teaching, grounded specifically in the \
+tensions and questions that actually surfaced in this conversation -- not \
+generic questions that could apply to any conversation about this topic.]"""
+
+RECAP_LLM_INSTRUCTIONS = """\
+You are turning a theology conversation into part of a structured recap \
+document -- for a pastor, small-group leader, or teacher to actually use, \
+or simply a personal record of what was explored. Not a transcript.
+
+Produce ONLY the section(s) below, in this exact order, and nothing else:
+
+{section_instructions}
 
 Conversation transcript:
 
 {convo_text}
-
-Sources introduced during this conversation:
-
-{sources_text}
 """
 
 
 def format_full_convo(messages: list) -> str:
-    """Like format_convo_for_haiku but untruncated -- Prep Doc synthesis is a
+    """Like format_convo_for_haiku but untruncated -- recap synthesis is a
     one-shot call over the whole conversation, not an ongoing dialogue turn,
     so there's no MAX_HISTORY-style reason to cut it down."""
     lines = []
@@ -287,30 +293,120 @@ def format_full_convo(messages: list) -> str:
     return "\n\n".join(lines)
 
 
-def format_sources_for_prep_doc(sources: list) -> str:
+def format_source_material_section(sources: list) -> str:
+    """Renders the Source Material section directly from the stored sources
+    list -- no LLM involved, so the quoted Scripture text and theologian
+    argument summaries in the recap are guaranteed identical to what was
+    actually tagged during the conversation, never re-paraphrased by a
+    second model call."""
     if not sources:
-        return "(none)"
+        return "No sources were tagged in this conversation."
     lines = []
     for s in sources:
         kind = "Scripture" if s.get("type") == "scripture" else "Theologian"
-        lines.append(f"{kind} -- {s.get('label', '')}: {s.get('content', '')}")
-    return "\n".join(lines)
+        lines.append(f"{kind}: {s.get('label', '')}\n{s.get('content', '')}")
+    return "\n\n".join(lines)
 
 
-def generate_prep_doc(node_name: str, messages: list, sources: list) -> str:
-    """One-shot Sonnet call synthesizing a conversation into a structured
-    teaching document. Deliberately NOT part of the conversational turn
-    pipeline -- no QUESTION/SOURCE tags to parse, no history truncation,
-    just a direct prompt-in, text-out generation over the full transcript."""
-    convo_text = format_full_convo(messages)
-    sources_text = format_sources_for_prep_doc(sources)
-    prompt = PREP_DOC_INSTRUCTIONS.format(convo_text=convo_text, sources_text=sources_text)
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text.strip()
+def format_citations_section(sources: list) -> str:
+    """Renders a clean, formal bibliography-style reference list -- labels
+    only, no quoted content -- directly from the stored sources list.
+    Deliberately separate from Source Material (which includes the actual
+    quoted/summarized content): this section exists purely for traceability,
+    the same academic-accuracy concern behind requiring theologian sources
+    to name their originating work in the first place."""
+    if not sources:
+        return "No sources were tagged in this conversation."
+    return "\n".join(f"- {s.get('label', '')}" for s in sources)
+
+
+def _parse_recap_llm_output(raw: str, want_summary: bool, want_discussion: bool) -> dict:
+    """Extracts whichever of TITLE / SUMMARY / DISCUSSION QUESTIONS are
+    present in the model's output. TITLE is always requested and expected;
+    the other two are only parsed if they were actually asked for, so a
+    missing section never gets misread as empty content for the wrong
+    reason."""
+    result = {"title": "", "summary": "", "discussion_questions": ""}
+
+    title_m = re.search(r'TITLE:\s*(.+?)(?=\n\nSUMMARY:|\n\nDISCUSSION QUESTIONS:|\Z)', raw, re.DOTALL)
+    if title_m:
+        result["title"] = title_m.group(1).strip()
+
+    if want_summary:
+        summary_m = re.search(r'SUMMARY:\s*(.+?)(?=\n\nDISCUSSION QUESTIONS:|\Z)', raw, re.DOTALL)
+        if summary_m:
+            result["summary"] = summary_m.group(1).strip()
+
+    if want_discussion:
+        dq_m = re.search(r'DISCUSSION QUESTIONS:\s*(.+)', raw, re.DOTALL)
+        if dq_m:
+            result["discussion_questions"] = dq_m.group(1).strip()
+
+    return result
+
+
+def _assemble_recap_doc(title: str, summary: str, source_material: str, citations: str,
+                         discussion_questions: str, sections: list) -> str:
+    parts = [f"TITLE: {title}"]
+    if "summary" in sections:
+        parts.append(f"SUMMARY:\n{summary}")
+    if "source_material" in sections:
+        parts.append(f"SOURCE MATERIAL:\n{source_material}")
+    if "citations" in sections:
+        parts.append(f"CITATIONS:\n{citations}")
+    if "discussion_questions" in sections:
+        parts.append(f"DISCUSSION QUESTIONS:\n{discussion_questions}")
+    return "\n\n---\n\n".join(parts)
+
+
+def generate_prep_doc(node_name: str, messages: list, sources: list, sections: list | None = None) -> str:
+    """Synthesizes a saved conversation into a structured recap document,
+    including only the requested sections. `sections` defaults to all four
+    (RECAP_SECTION_KEYS) for backward compatibility with any caller that
+    doesn't pass it. A Sonnet call is made ONLY if 'summary' and/or
+    'discussion_questions' is requested -- Source Material and Citations
+    never touch the model at all (see format_source_material_section() /
+    format_citations_section() docstrings)."""
+    if not sections:
+        sections = list(RECAP_SECTION_KEYS)
+    sections = [s for s in sections if s in RECAP_SECTION_KEYS] or list(RECAP_SECTION_KEYS)
+
+    want_summary = "summary" in sections
+    want_discussion = "discussion_questions" in sections
+    fallback_title = f"{NODE_DISPLAY_NAMES.get(node_name, node_name)} — Session Recap"
+
+    if want_summary or want_discussion:
+        section_instructions = _RECAP_TITLE_BLOCK
+        if want_summary:
+            section_instructions += "\n\n" + _RECAP_SUMMARY_BLOCK
+        if want_discussion:
+            section_instructions += "\n\n" + _RECAP_DISCUSSION_QUESTIONS_BLOCK
+
+        convo_text = format_full_convo(messages)
+        prompt = RECAP_LLM_INSTRUCTIONS.format(
+            section_instructions=section_instructions, convo_text=convo_text
+        )
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        parsed = _parse_recap_llm_output(raw, want_summary, want_discussion)
+        title = parsed["title"] or fallback_title
+        summary = parsed["summary"]
+        discussion_questions = parsed["discussion_questions"]
+    else:
+        # Neither section needing synthesis was requested (e.g. just Source
+        # Material and/or Citations) -- no reason to call the model at all.
+        title = fallback_title
+        summary = ""
+        discussion_questions = ""
+
+    source_material = format_source_material_section(sources) if "source_material" in sections else ""
+    citations = format_citations_section(sources) if "citations" in sections else ""
+
+    return _assemble_recap_doc(title, summary, source_material, citations, discussion_questions, sections)
 
 
 # ── Translation comparison ("Noticing When the Words Themselves Matter") ──

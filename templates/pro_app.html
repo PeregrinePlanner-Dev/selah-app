@@ -276,6 +276,20 @@
   .translation-text {
     font-size: 0.8rem; line-height: 1.6; color: #1f2937;
   }
+
+  /* ── Session Recap section-picker ── */
+  .recap-checkbox {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 0.82rem; color: #374151;
+    padding: 8px 2px; cursor: pointer;
+  }
+  .recap-checkbox input { cursor: pointer; width: 15px; height: 15px; flex-shrink: 0; }
+  .recap-generate-btn {
+    width: 100%; background: #2f6b66; color: white; border: none;
+    border-radius: 6px; padding: 9px; font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; margin-top: 14px;
+  }
+  .recap-generate-btn:hover { background: #234f4b; }
 </style>
 </head>
 <body>
@@ -315,7 +329,7 @@
 
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
-      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()"><span class="btn-label">📄 Create Session Recap</span><span class="tip">Turn this conversation into a structured recap — key points, properly attributed citations, and reflection questions — whether you're teaching from it or just want a record of what you explored.</span></button>
+      <button class="action-btn" id="prep-doc-btn" onclick="openRecapOptions()"><span class="btn-label">📄 Create Session Recap</span><span class="tip">Choose which sections to include — text summary, source material, citations, and/or discussion questions — then generate.</span></button>
       <button class="action-btn" onclick="openCoverage()">📊 What I've Explored<span class="tip">See which topics you've explored and which theologians have shaped the conversation so far, across all your sessions.</span></button>
       <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
       <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
@@ -634,16 +648,47 @@ function openFeedback() {
 }
 
 // ── Session Recap (internally "Prep Doc") ───────────────────────────────────
-// Generates a structured recap (title, outline, citations, reflection
-// questions) from the current saved session and downloads it as a .txt
-// file, same Blob-download pattern the free tool uses for its session
-// recap. Deliberately framed as a general-purpose recap rather than a
-// "teaching outline" -- renamed 2026-07-08 after Rick flagged the teaching
+// Generates a structured recap from the current saved session and downloads
+// it as a .txt file, same Blob-download pattern the free tool uses for its
+// session recap. Deliberately framed as a general-purpose recap rather than
+// a "teaching outline" -- renamed 2026-07-08 after Rick flagged the teaching
 // framing as unnecessarily narrow for anyone who just wants a detailed
-// record of what they explored, not something to teach from. Requires a
-// saved session (currentSessionId) -- there's nothing to create a recap
-// from before the first message is sent.
-async function generatePrepDoc() {
+// record of what they explored, not something to teach from.
+//
+// Section picker added 2026-07-08: rather than always generating all four
+// sections, openRecapOptions() shows a checkbox popup (Text Summary / Source
+// Material / Citations / Discussion Questions, all checked by default) and
+// confirmGenerateRecap() reads the checked boxes before calling
+// generatePrepDoc(sections). Requires a saved session (currentSessionId) --
+// there's nothing to create a recap from before the first message is sent.
+function openRecapOptions() {
+  if (!currentSessionId) {
+    alert("Start a conversation first — there's nothing to create a session recap from yet.");
+    return;
+  }
+  document.getElementById("recap-options-modal").classList.add("show");
+}
+function closeRecapOptions() {
+  document.getElementById("recap-options-modal").classList.remove("show");
+}
+function closeRecapOptionsModal(e) {
+  if (e.target === document.getElementById("recap-options-modal")) closeRecapOptions();
+}
+async function confirmGenerateRecap() {
+  const sections = [];
+  if (document.getElementById("recap-section-summary").checked) sections.push("summary");
+  if (document.getElementById("recap-section-source_material").checked) sections.push("source_material");
+  if (document.getElementById("recap-section-citations").checked) sections.push("citations");
+  if (document.getElementById("recap-section-discussion_questions").checked) sections.push("discussion_questions");
+  if (sections.length === 0) {
+    alert("Select at least one section to include.");
+    return;
+  }
+  closeRecapOptions();
+  await generatePrepDoc(sections);
+}
+
+async function generatePrepDoc(sections) {
   if (!currentSessionId) {
     alert("Start a conversation first — there's nothing to create a session recap from yet.");
     return;
@@ -665,7 +710,7 @@ async function generatePrepDoc() {
     const res = await fetch("/pro/prep_doc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: currentSessionId }),
+      body: JSON.stringify({ session_id: currentSessionId, sections }),
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -891,7 +936,7 @@ function renderTranslationCompare(data) {
 }
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); }
+  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); }
 });
 
 // ── Init ────────────────────────────────────────────────────────────────
@@ -935,7 +980,7 @@ loadSessionList();
           <div class="action-icon">📄</div>
           <div>
             <div class="action-name">Create Session Recap</div>
-            <div class="action-desc">Turns the current conversation into a structured recap — key points, properly attributed citations, and reflection questions — downloaded as a text file, whether you're teaching from it or just want a record of what you explored.</div>
+            <div class="action-desc">Opens a checklist so you choose exactly what goes in: a text summary, source material, citations, and/or discussion questions — then downloads the result as a text file, whether you're teaching from it or just want a record of what you explored.</div>
           </div>
         </div>
 
@@ -990,6 +1035,24 @@ loadSessionList();
     </div>
     <div class="modal-body" id="translation-body">
       <p class="modal-intro">Loading…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Session Recap Options Modal ── -->
+<div class="modal-overlay" id="recap-options-modal" onclick="closeRecapOptionsModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Session Recap</h2>
+      <button class="modal-close" onclick="closeRecapOptions()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro">Choose what to include:</p>
+      <label class="recap-checkbox"><input type="checkbox" id="recap-section-summary" checked> Text Summary</label>
+      <label class="recap-checkbox"><input type="checkbox" id="recap-section-source_material" checked> Source Material</label>
+      <label class="recap-checkbox"><input type="checkbox" id="recap-section-citations" checked> Citations</label>
+      <label class="recap-checkbox"><input type="checkbox" id="recap-section-discussion_questions" checked> Discussion Questions</label>
+      <button class="recap-generate-btn" onclick="confirmGenerateRecap()">Generate</button>
     </div>
   </div>
 </div>

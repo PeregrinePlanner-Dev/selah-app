@@ -23,7 +23,7 @@ from engine import (
     NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
     build_system_prompt, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
-    generate_prep_doc, generate_translation_comparison,
+    generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -414,9 +414,9 @@ def pro_chat():
 @pro_chat_bp.route("/prep_doc", methods=["POST"])
 @login_required
 def prep_doc():
-    """Generate a structured teaching document (outline, citations,
-    discussion questions) from a saved session -- the first real 'mode'
-    beyond ordinary chat. Added 2026-07-08 as the first build toward
+    """Generate a structured recap document (text summary, source material,
+    citations, discussion questions) from a saved session -- the first real
+    'mode' beyond ordinary chat. Added 2026-07-08 as the first build toward
     ministry.html's pitched features; reuses the roadmap's already-scoped
     swappable-instruction-block pattern (see generate_prep_doc() in
     engine.py) rather than inventing a one-off mechanism.
@@ -429,6 +429,22 @@ def prep_doc():
     session_db_id = data.get("session_id")
     if not session_db_id:
         return jsonify({"error": "session_id required"}), 400
+
+    # Section picker: the client sends whichever of RECAP_SECTION_KEYS the
+    # user checked (Text Summary / Source Material / Citations / Discussion
+    # Questions). None/omitted means "not specified" -> generate_prep_doc()
+    # falls back to all four for backward compatibility. An empty or
+    # entirely-invalid list is a real user error (every checkbox unchecked),
+    # not silently treated as "give me everything" -- that would be a
+    # surprising bait-and-switch after they deliberately unchecked things.
+    requested_sections = data.get("sections")
+    sections = None
+    if requested_sections is not None:
+        if not isinstance(requested_sections, list) or not requested_sections:
+            return jsonify({"error": "Select at least one section to include."}), 400
+        sections = [s for s in requested_sections if s in RECAP_SECTION_KEYS]
+        if not sections:
+            return jsonify({"error": "Select at least one section to include."}), 400
 
     sb = get_user_supabase()
 
@@ -471,6 +487,7 @@ def prep_doc():
         convo.get("node") or "Grace",
         convo["messages"],
         convo.get("sources", []),
+        sections=sections,
     )
     return jsonify({"doc": doc_text})
 
