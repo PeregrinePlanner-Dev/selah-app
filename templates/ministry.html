@@ -203,12 +203,6 @@
   </section>
 
   <section class="tight">
-    <h2>Coming soon</h2>
-    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Not built yet — listed honestly as what's next, not what's here.</p>
-    <ul class="soon-list" id="soon-list"></ul>
-  </section>
-
-  <section class="tight">
     <h2>Who it's for</h2>
     <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Not just the pulpit. Tap a role for detail — and this list keeps growing.</p>
     <div class="chip-row" id="role-chips"></div>
@@ -273,6 +267,12 @@
     </div>
   </section>
 
+  <section class="tight">
+    <h2>Coming soon</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Not built yet — listed honestly as what's next, not what's here.</p>
+    <ul class="soon-list" id="soon-list"></ul>
+  </section>
+
   <footer>
     Selah for Ministry is a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
   </footer>
@@ -314,14 +314,15 @@ const FEATURES = [
 ];
 
 // Not built yet. Kept in a visually distinct, non-clickable list on purpose
-// — never presented as if it's live today.
+// — never presented as if it's live today. Trimmed to 2 items 2026-07-08 per
+// Rick's call -- "A Quiet Hand on the Wheel" (drift-nudge) stays out of this
+// public-facing list for now; it's still tracked internally in
+// Selah_Pro_Build_Roadmap.md, just not pitched here yet.
 const SOON = [
   { title: "A Philosophy Layer",
     detail: "Approaching hard questions through history's great Christian philosophers, alongside the theologians already here. In progress." },
   { title: "Following the Spirit's Actual Work",
     detail: "Next week's questions grown from what actually happened in your last group meeting, not a generic script." },
-  { title: "A Quiet Hand on the Wheel",
-    detail: "A gentle, one-time nudge if a study drifts far past where it meant to go — never an alarm." },
 ];
 
 const ROLES = [
@@ -330,14 +331,14 @@ const ROLES = [
   { title: "Youth Leader", detail: "Shorter, higher-energy, doubt met at the right developmental stage." },
   { title: "Children's Ministry", detail: "Story over abstraction, and fast, sound answers to the unplanned hard questions kids actually ask." },
   { title: "Drama & Worship Arts", detail: "A doctrine turned into a scene brief or character arc, not a discussion guide." },
-  { title: "Worship & Music Leader", detail: "Catch theologically loose lyrics before Sunday, with sound alternatives ready." },
-  { title: "Pastoral Care & Counseling", detail: "Fast, sound grounding in the moment — not a long exploration." },
+  { title: "Worship & Music Leader", detail: "Catch theologically loose lyrics before Sunday, and talk through what would say it better." },
+  { title: "Pastoral Care & Counseling", detail: "A quick, theologically sound answer you can lean on in the moment — a hospital room or a crisis call, not a long back-and-forth." },
   { title: "Missions & Outreach", detail: "Prepare for cross-tradition conversations using Selah's existing interfaith material." },
   { title: "Elder / Board Training", detail: "Pressure-test a position or statement before it goes in front of the congregation." },
   { title: "Authors & Podcasters", detail: "Research and citation support for the content you're already creating." },
   { title: "Christian School Teachers", detail: "Age-appropriate depth for the classroom, with real sourcing behind it." },
   { title: "Seminary & Bible College", detail: "Course companion, exam prep, and cross-tradition fluency training for students." },
-  { title: "Chaplaincy", detail: "Hospital, military, prison contexts — held with even more care than the rest." },
+  { title: "Chaplaincy", detail: "Hospital, military, and prison settings — handled with the extra pastoral sensitivity these contexts call for." },
 ];
 
 function renderTiles() {
