@@ -3,3 +3,4 @@ anthropic
 python-dotenv
 gunicorn
 supabase
+stripe

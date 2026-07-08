@@ -24,13 +24,14 @@
   .header-sub   { font-size: 0.69rem; opacity: 0.80; margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
   .header-right { display: flex; align-items: center; gap: 10px; }
   .account-email { font-size: 0.75rem; opacity: 0.85; }
-  .help-btn, .signout-btn {
+  .help-btn, .signout-btn, .billing-btn {
     background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
     color: white; border-radius: 5px; padding: 4px 10px;
     font-size: 0.72rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em;
     transition: background .15s;
   }
-  .help-btn:hover, .signout-btn:hover { background: rgba(255,255,255,0.22); }
+  .help-btn:hover, .signout-btn:hover, .billing-btn:hover { background: rgba(255,255,255,0.22); }
+  .billing-btn:disabled { opacity: 0.6; cursor: default; }
 
   /* ── Layout ── */
   .app-grid {
@@ -328,6 +329,7 @@
   </div>
   <div class="header-right">
     <span class="account-email">{{ email }}</span>
+    <button class="billing-btn" id="billing-btn" onclick="handleBillingClick()" style="display:none;">Upgrade</button>
     <button class="help-btn" onclick="openHelp()">How to use</button>
     <form method="POST" action="/pro/logout" style="margin:0;">
       <button type="submit" class="signout-btn">Sign Out</button>
@@ -1105,8 +1107,57 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); closeDeleteSessionModal(); }
 });
 
+// ── Billing ────────────────────────────────────────────────────────────
+// Individual Pro only, self-serve -- Church/Org and the congregation
+// Member Add-On are a "contact us" sales motion on ministry.html, not a
+// checkout flow, so this button only ever offers/manages the Individual
+// plan. Added 2026-07-08 alongside pro_billing.py. Hidden by default and
+// only shown once loadBillingStatus() gets a real answer, so this stays
+// invisible rather than broken before Stripe keys are actually configured.
+let billingTierSlug = null;
+
+async function loadBillingStatus() {
+  try {
+    const res = await fetch("/pro/billing/status");
+    if (!res.ok) return;
+    const data = await res.json();
+    billingTierSlug = data.tier_slug;
+    const btn = document.getElementById("billing-btn");
+    const activePaid = data.tier_slug === "individual" && data.status !== "canceled";
+    btn.textContent = activePaid ? "Manage Billing" : "Upgrade";
+    btn.style.display = "inline-block";
+  } catch (e) {
+    // Billing not configured yet, or the request failed -- leave the
+    // button hidden rather than show something broken.
+  }
+}
+
+async function handleBillingClick() {
+  const btn = document.getElementById("billing-btn");
+  btn.disabled = true;
+  const activePaid = billingTierSlug === "individual";
+  const endpoint = activePaid ? "/pro/billing/portal" : "/pro/billing/checkout";
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: "monthly" }),
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+      return;
+    }
+    if (data.error) alert(data.error);
+  } catch (e) {
+    alert("Something went wrong reaching billing. Try again in a moment.");
+  }
+  btn.disabled = false;
+}
+
 // ── Init ────────────────────────────────────────────────────────────────
 loadSessionList();
+loadBillingStatus();
 </script>
 
 <!-- ── How to Use Modal ── -->
