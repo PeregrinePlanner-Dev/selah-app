@@ -288,7 +288,7 @@
 
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
-      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()">📄 Create Teaching Outline<span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
+      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()"><span class="btn-label">📄 Create Teaching Outline</span><span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
       <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
       <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
     </div>
@@ -607,9 +607,18 @@ async function generatePrepDoc() {
     return;
   }
   const btn = document.getElementById("prep-doc-btn");
-  const originalText = btn.textContent;
+  // Swap only the .btn-label span's text, NOT btn.textContent -- the button
+  // also contains a sibling <span class="tip"> (the hover tooltip), and
+  // .textContent recursively includes every descendant text node. Using
+  // btn.textContent here previously captured "label+tooltip text" concatenated
+  // as one string, then restored it as a single flat text node in the
+  // `finally` block -- destroying the .tip span entirely and leaving its text
+  // permanently visible inline with no way to hide it again. Found 2026-07-08
+  // from a live screenshot showing exactly that after a successful generation.
+  const label = btn.querySelector(".btn-label");
+  const originalText = label.textContent;
   btn.disabled = true;
-  btn.textContent = "Generating…";
+  label.textContent = "Generating…";
   try {
     const res = await fetch("/pro/prep_doc", {
       method: "POST",
@@ -632,7 +641,7 @@ async function generatePrepDoc() {
     alert("Something went wrong creating the teaching outline — please try again.");
   } finally {
     btn.disabled = false;
-    btn.textContent = originalText;
+    label.textContent = originalText;
   }
 }
 
