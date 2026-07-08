@@ -43,10 +43,37 @@ pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 # users. New figures keep the same cost-containment intent (still capped,
 # still not equal to the free tool's effectively-unlimited ceiling) but no
 # longer make creating a Pro account a worse deal than staying anonymous.
+#
+# "individual" recalculated 2026-07-08 (same day) once real pricing was
+# finalized ($9/mo intro, $12/mo regular, 2-year price-lock for existing
+# subscribers) -- this is the first tier_slug where a real bill has to be
+# covered by real revenue, unlike "beta" (pre-paying testers; that cost is
+# an acquisition expense, not a subscription this cap needs to protect).
+# Math, using the WORSE-CASE (lower, $9) revenue figure on purpose:
+#   $9 - Stripe's ~$0.30 + 2.9% fee (~$0.56) = ~$8.44 net per subscriber/mo
+#   Target: raw Anthropic cost stays at or under ~50% of net revenue even
+#   if a subscriber maxes out every single month -- "covering costs and a
+#   living, not a killing" (Rick's framing), but never a subscriber who can
+#   cost more than they pay.
+#   ~$8.44 * 0.5 = ~$4.22 monthly cost budget
+#   Per-turn cost, steady-state with prompt caching: ~$0.02-0.025 (2 calls/
+#   turn -- Sonnet reply + Haiku anchor/chips/source extraction; see
+#   Selah_Pro_Strategy_Brainstorm.md for the underlying per-token math)
+#   $4.22 / $0.02-0.025 = ~170-210 turns/month -> 200 is the number logged
+#   in Selah_Pro_Build_Roadmap.md's Session 24 stress-test entry.
+# "church"/"seminary"/"berea" are UNCHANGED and flagged as NOT YET SAFE:
+# they're still a flat number unrelated to how many seats an org actually
+# bought, which under real per-seat pricing (as low as $7/seat at the
+# 10-seat rate) could cost more than the org paid for a small purchase.
+# Not fixed here because seat-based purchasing/assignment isn't built yet
+# (Phase 3, still open per the roadmap) -- nobody can actually buy a seat
+# today, so there's no live financial exposure yet. Needs a per-seat-scaled
+# cap (roughly 150 turns/seat/month, pooled at the org level, by the same
+# stress-test math) before Church/Org seat purchasing goes live.
 TIER_CONVERSATION_CAPS = {
     "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "300")),
     "beta": 500,
-    "individual": 500,
+    "individual": 200,
     "church": 1500,
     "seminary": 1500,
     "berea": 1500,
