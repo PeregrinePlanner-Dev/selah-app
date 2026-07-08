@@ -290,6 +290,17 @@
     cursor: pointer; margin-top: 14px;
   }
   .recap-generate-btn:hover { background: #234f4b; }
+  .recap-status-text {
+    font-size: 0.85rem; color: #374151; text-align: center; padding: 22px 4px;
+  }
+  .recap-done-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .recap-done-actions button { flex: 1; width: auto; margin-top: 0; }
+  .recap-secondary-btn {
+    background: #e5e7eb; color: #374151; border: none;
+    border-radius: 6px; padding: 9px; font-size: 0.82rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .recap-secondary-btn:hover { background: #d1d5db; }
 </style>
 </head>
 <body>
@@ -661,19 +672,80 @@ function openFeedback() {
 // confirmGenerateRecap() reads the checked boxes before calling
 // generatePrepDoc(sections). Requires a saved session (currentSessionId) --
 // there's nothing to create a recap from before the first message is sent.
+//
+// In-modal progress + confirmation added 2026-07-08: the modal used to close
+// the instant Generate was clicked, leaving the whole download silent (no
+// feedback on where the file went, no way to view it without leaving the
+// app). Now the same modal stays open and swaps between three states --
+// picker / generating / done -- via showRecapView(). The "generating" state
+// rotates short status lines that mirror the actual steps (deliberately real,
+// not decorative -- kept plain on purpose per Rick's "no circuses yet" call;
+// revisit with something more engaging only if real long-thread testing
+// shows the wait is actually a problem). The "done" state offers an Open
+// button (reopens the same content in a new tab -- browsers give a page no
+// way to reopen a file it already sent to disk, so this is the closest real
+// equivalent) alongside the existing silent auto-download.
+let recapStatusLines = [];
+let recapStatusIndex = 0;
+let recapStatusTimer = null;
+let recapBlobUrl     = null;
+
+function showRecapView(view) {
+  document.getElementById("recap-picker-view").style.display     = view === "picker"     ? "block" : "none";
+  document.getElementById("recap-generating-view").style.display = view === "generating" ? "block" : "none";
+  document.getElementById("recap-done-view").style.display       = view === "done"       ? "block" : "none";
+}
+
 function openRecapOptions() {
   if (!currentSessionId) {
     alert("Start a conversation first — there's nothing to create a session recap from yet.");
     return;
   }
+  showRecapView("picker");
   document.getElementById("recap-options-modal").classList.add("show");
 }
 function closeRecapOptions() {
   document.getElementById("recap-options-modal").classList.remove("show");
+  stopRecapStatusRotation();
+  if (recapBlobUrl) {
+    URL.revokeObjectURL(recapBlobUrl);
+    recapBlobUrl = null;
+  }
 }
 function closeRecapOptionsModal(e) {
   if (e.target === document.getElementById("recap-options-modal")) closeRecapOptions();
 }
+
+function buildRecapStatusLines(sections) {
+  const lines = ["Reading through your conversation…"];
+  if (sections.includes("summary"))              lines.push("Drafting your summary…");
+  if (sections.includes("source_material"))       lines.push("Gathering your source material…");
+  if (sections.includes("citations"))              lines.push("Compiling your citations…");
+  if (sections.includes("discussion_questions"))   lines.push("Writing discussion questions…");
+  lines.push("Almost done…");
+  return lines;
+}
+
+function startRecapStatusRotation(sections) {
+  recapStatusLines = buildRecapStatusLines(sections);
+  recapStatusIndex = 0;
+  document.getElementById("recap-status-line").textContent = recapStatusLines[0];
+  stopRecapStatusRotation();
+  recapStatusTimer = setInterval(() => {
+    if (recapStatusIndex < recapStatusLines.length - 1) {
+      recapStatusIndex++;
+      document.getElementById("recap-status-line").textContent = recapStatusLines[recapStatusIndex];
+    }
+  }, 1600);
+}
+
+function stopRecapStatusRotation() {
+  if (recapStatusTimer) {
+    clearInterval(recapStatusTimer);
+    recapStatusTimer = null;
+  }
+}
+
 async function confirmGenerateRecap() {
   const sections = [];
   if (document.getElementById("recap-section-summary").checked) sections.push("summary");
@@ -684,7 +756,6 @@ async function confirmGenerateRecap() {
     alert("Select at least one section to include.");
     return;
   }
-  closeRecapOptions();
   await generatePrepDoc(sections);
 }
 
@@ -693,19 +764,8 @@ async function generatePrepDoc(sections) {
     alert("Start a conversation first — there's nothing to create a session recap from yet.");
     return;
   }
-  const btn = document.getElementById("prep-doc-btn");
-  // Swap only the .btn-label span's text, NOT btn.textContent -- the button
-  // also contains a sibling <span class="tip"> (the hover tooltip), and
-  // .textContent recursively includes every descendant text node. Using
-  // btn.textContent here previously captured "label+tooltip text" concatenated
-  // as one string, then restored it as a single flat text node in the
-  // `finally` block -- destroying the .tip span entirely and leaving its text
-  // permanently visible inline with no way to hide it again. Found 2026-07-08
-  // from a live screenshot showing exactly that after a successful generation.
-  const label = btn.querySelector(".btn-label");
-  const originalText = label.textContent;
-  btn.disabled = true;
-  label.textContent = "Generating…";
+  showRecapView("generating");
+  startRecapStatusRotation(sections);
   try {
     const res = await fetch("/pro/prep_doc", {
       method: "POST",
@@ -714,22 +774,35 @@ async function generatePrepDoc(sections) {
     });
     const data = await res.json();
     if (!res.ok || data.error) {
+      stopRecapStatusRotation();
       alert(data.error || "Something went wrong creating the session recap — please try again.");
+      showRecapView("picker");
       return;
     }
+
+    const filename = `Selah-Session-Recap-${new Date().toISOString().slice(0,10)}.txt`;
     const blob = new Blob([data.doc], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+    if (recapBlobUrl) URL.revokeObjectURL(recapBlobUrl);
+    recapBlobUrl = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `Selah-Session-Recap-${new Date().toISOString().slice(0,10)}.txt`;
+    a.href = recapBlobUrl;
+    a.download = filename;
     a.click();
-    URL.revokeObjectURL(url);
+
+    stopRecapStatusRotation();
+    document.getElementById("recap-done-text").textContent =
+      `Saved to your Downloads folder as ${filename}. Feel free to move it, rename it, or save a copy anywhere you'd like.`;
+    showRecapView("done");
   } catch (err) {
+    stopRecapStatusRotation();
     alert("Something went wrong creating the session recap — please try again.");
-  } finally {
-    btn.disabled = false;
-    label.textContent = originalText;
+    showRecapView("picker");
   }
+}
+
+function openRecapInNewTab() {
+  if (recapBlobUrl) window.open(recapBlobUrl, "_blank");
 }
 
 // ── New conversation ───────────────────────────────────────────────────────
@@ -980,7 +1053,7 @@ loadSessionList();
           <div class="action-icon">📄</div>
           <div>
             <div class="action-name">Create Session Recap</div>
-            <div class="action-desc">Opens a checklist so you choose exactly what goes in: a text summary, source material, citations, and/or discussion questions — then downloads the result as a text file, whether you're teaching from it or just want a record of what you explored.</div>
+            <div class="action-desc">Opens a checklist so you choose exactly what goes in: a text summary, source material, citations, and/or discussion questions — then downloads the result as a text file, with the option to open it right there for a quick look, whether you're teaching from it or just want a record of what you explored.</div>
           </div>
         </div>
 
@@ -1047,12 +1120,28 @@ loadSessionList();
       <button class="modal-close" onclick="closeRecapOptions()">×</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro">Choose what to include:</p>
-      <label class="recap-checkbox"><input type="checkbox" id="recap-section-summary" checked> Text Summary</label>
-      <label class="recap-checkbox"><input type="checkbox" id="recap-section-source_material" checked> Source Material</label>
-      <label class="recap-checkbox"><input type="checkbox" id="recap-section-citations" checked> Citations</label>
-      <label class="recap-checkbox"><input type="checkbox" id="recap-section-discussion_questions" checked> Discussion Questions</label>
-      <button class="recap-generate-btn" onclick="confirmGenerateRecap()">Generate</button>
+
+      <div id="recap-picker-view">
+        <p class="modal-intro">Choose what to include:</p>
+        <label class="recap-checkbox"><input type="checkbox" id="recap-section-summary" checked> Text Summary</label>
+        <label class="recap-checkbox"><input type="checkbox" id="recap-section-source_material" checked> Source Material</label>
+        <label class="recap-checkbox"><input type="checkbox" id="recap-section-citations" checked> Citations</label>
+        <label class="recap-checkbox"><input type="checkbox" id="recap-section-discussion_questions" checked> Discussion Questions</label>
+        <button class="recap-generate-btn" onclick="confirmGenerateRecap()">Generate</button>
+      </div>
+
+      <div id="recap-generating-view" style="display:none;">
+        <p class="recap-status-text" id="recap-status-line">Reading through your conversation…</p>
+      </div>
+
+      <div id="recap-done-view" style="display:none;">
+        <p class="modal-intro" id="recap-done-text"></p>
+        <div class="recap-done-actions">
+          <button class="recap-generate-btn" onclick="openRecapInNewTab()">Open</button>
+          <button class="recap-secondary-btn" onclick="closeRecapOptions()">Done</button>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
