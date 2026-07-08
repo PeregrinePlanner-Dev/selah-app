@@ -685,10 +685,22 @@ function openFeedback() {
 // button (reopens the same content in a new tab -- browsers give a page no
 // way to reopen a file it already sent to disk, so this is the closest real
 // equivalent) alongside the existing silent auto-download.
+//
+// Open-in-new-tab fix, 2026-07-08: originally window.open() pointed straight
+// at the download's own text/plain blob, which hands rendering entirely to
+// the browser's native plain-text viewer -- no CSS of ours reaches it, and on
+// live testing it rendered white-on-black (the browser's own dark-mode
+// default for that viewer). Fix: keep the actual downloaded file as plain
+// text (that part was never the problem), but build a SEPARATE, small
+// text/html blob -- our own light-background page wrapping the same text in
+// a <pre> -- for the Open button specifically, so the styling is actually
+// ours to control. recapDocText holds the raw text so this can be built
+// on demand.
 let recapStatusLines = [];
 let recapStatusIndex = 0;
 let recapStatusTimer = null;
 let recapBlobUrl     = null;
+let recapDocText     = "";
 
 function showRecapView(view) {
   document.getElementById("recap-picker-view").style.display     = view === "picker"     ? "block" : "none";
@@ -711,6 +723,7 @@ function closeRecapOptions() {
     URL.revokeObjectURL(recapBlobUrl);
     recapBlobUrl = null;
   }
+  recapDocText = "";
 }
 function closeRecapOptionsModal(e) {
   if (e.target === document.getElementById("recap-options-modal")) closeRecapOptions();
@@ -781,7 +794,8 @@ async function generatePrepDoc(sections) {
     }
 
     const filename = `Selah-Session-Recap-${new Date().toISOString().slice(0,10)}.txt`;
-    const blob = new Blob([data.doc], { type: "text/plain" });
+    recapDocText = data.doc;
+    const blob = new Blob([recapDocText], { type: "text/plain" });
     if (recapBlobUrl) URL.revokeObjectURL(recapBlobUrl);
     recapBlobUrl = URL.createObjectURL(blob);
 
@@ -802,7 +816,29 @@ async function generatePrepDoc(sections) {
 }
 
 function openRecapInNewTab() {
-  if (recapBlobUrl) window.open(recapBlobUrl, "_blank");
+  if (!recapDocText) return;
+  const escaped = recapDocText
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const viewHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Selah Session Recap</title>
+<style>
+  body {
+    background: #f8faff; color: #1f2937;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 700px; margin: 40px auto; padding: 0 24px 60px; line-height: 1.65;
+  }
+  pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 0.95rem; }
+</style></head>
+<body><pre>${escaped}</pre></body></html>`;
+  const viewBlob = new Blob([viewHtml], { type: "text/html" });
+  const viewUrl  = URL.createObjectURL(viewBlob);
+  window.open(viewUrl, "_blank");
+  // Not revoked here -- the new tab needs the URL to stay valid while it's
+  // open. Left for the browser to reclaim (or revoked on the next Open click
+  // via a fresh URL each time; the old one is simply abandoned, same
+  // trade-off recapBlobUrl already makes elsewhere in this file).
 }
 
 // ── New conversation ───────────────────────────────────────────────────────
