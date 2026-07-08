@@ -231,10 +231,33 @@ def pro_chat():
         for m in convo["messages"][-MAX_HISTORY:]
     ]
 
+    # The model only ever sees the last MAX_HISTORY messages -- fine for a
+    # single sitting, but on a resumed session (or any conversation longer
+    # than 8 turns) that means real continuity beyond what's in this window
+    # is visible in the UI's Session Anchor panel but invisible to the model
+    # itself. Added 2026-07-08: pass the persisted anchor (this turn's prior
+    # value, before it gets refreshed below) as its own system block so the
+    # model has a running sense of the conversation's arc, not just its own
+    # short-term window. Kept as a SEPARATE block from the node-based system
+    # prompt (which stays cache_control'd) rather than concatenated into it,
+    # so the large static prompt keeps its prompt-cache hit rate -- only this
+    # small, per-turn-changing block is sent fresh each time.
+    system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    if convo.get("anchor"):
+        system_blocks.append({
+            "type": "text",
+            "text": (
+                "Context from earlier in this ongoing conversation (the person "
+                "may be picking up a past session -- use this for continuity, "
+                "but respond naturally to their latest message below):\n"
+                f"{convo['anchor']}"
+            ),
+        })
+
     response = anthropic_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        system=system_blocks,
         messages=clean_history,
     )
     raw_text = response.content[0].text
