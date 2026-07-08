@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Selah for Ministry</title>
+<meta name="description" content="Selah for Ministry: real accounts, structured teaching prep, and continuity across your sermon or lesson prep, for pastors, leaders, and teachers.">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-FG9VBEVGZQ"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -33,24 +34,32 @@
   .site-header .back-link:hover { background: rgba(255,255,255,0.12); }
 
   /* ── Layout ── */
-  .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
-  section { padding: 44px 0; }
-  section.tight { padding: 28px 0; }
-  h1 { font-size: 1.9rem; font-weight: 700; color: #1f2937; letter-spacing: -0.01em; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 40px 0; }
+  section.tight { padding: 26px 0; }
+  h1 { font-size: 1.9rem; font-weight: 700; color: #1f2937; letter-spacing: -0.01em; margin-bottom: 14px; }
   h2 { font-size: 1.3rem; font-weight: 700; color: #1f2937; margin-bottom: 14px; }
   p  { color: #374151; margin-bottom: 12px; }
   .lede { font-size: 1.05rem; color: #1f2937; }
 
-  /* ── Hero / anchor quote ── */
-  .hero { padding-top: 48px; padding-bottom: 20px; text-align: left; }
+  /* ── Hero ── */
+  .hero { padding-top: 46px; padding-bottom: 12px; text-align: left; }
   .hero .eyebrow { color: #2f6b66; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
-  .anchor-quote {
-    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
-    padding: 18px 20px; margin: 22px 0; font-style: italic; color: #1e3a5f; font-size: 1rem;
+  .cta-btn-primary {
+    display: inline-block; margin-top: 16px; background: #2f6b66; color: white;
+    font-weight: 700; padding: 13px 28px; border-radius: 8px; text-decoration: none; font-size: 0.95rem;
   }
-  .anchor-quote .cite { display: block; margin-top: 8px; font-style: normal; font-size: 0.82rem; color: #4b6a86; }
+  .cta-btn-primary:hover { background: #234f4b; }
 
-  /* ── Feature / role grid ── */
+  /* ── Testimonial ── */
+  .testimonial-box {
+    background: white; border-left: 4px solid #2f6b66; border-radius: 6px;
+    padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .testimonial-quote { font-style: italic; color: #1f2937; font-size: 1rem; line-height: 1.65; margin-bottom: 12px; }
+  .testimonial-cite { font-style: normal; font-weight: 700; color: #2f6b66; font-size: 0.88rem; }
+
+  /* ── Feature grid (real, built features — clickable tiles) ── */
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
   .tile {
@@ -63,6 +72,14 @@
   .tile .tile-teaser { font-size: 0.82rem; color: #6b7280; }
   .tile .tile-title::after { content: " →"; color: #2f6b66; font-weight: 400; }
 
+  /* ── Coming soon (deliberately NOT tiles — visually distinct from what's real today) ── */
+  .soon-list { background: #fffaf0; border: 1px solid #fde3ad; border-radius: 10px; padding: 18px 20px; }
+  .soon-list li { margin-bottom: 12px; color: #374151; list-style: none; padding-left: 24px; position: relative; }
+  .soon-list li:last-child { margin-bottom: 0; }
+  .soon-list li::before { content: "◷"; color: #b45309; font-weight: 700; position: absolute; left: 0; }
+  .soon-list .soon-title { font-weight: 700; color: #1f2937; }
+  .soon-list .soon-detail { font-size: 0.88rem; color: #6b7280; }
+
   /* ── Role chips ── */
   .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
@@ -70,6 +87,44 @@
     padding: 7px 14px; font-size: 0.82rem; color: #065f46; cursor: pointer;
   }
   .chip:hover { background: #ecfdf5; }
+
+  /* ── Pricing ── */
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+  @media (max-width: 620px) { .price-grid { grid-template-columns: 1fr; } }
+  .price-card {
+    background: white; border: 1px solid #e2e4e9; border-radius: 12px;
+    padding: 22px 22px 20px; display: flex; flex-direction: column;
+  }
+  .price-card.wide { grid-column: 1 / -1; }
+  .price-card .price-name { font-weight: 700; font-size: 1.02rem; color: #1f2937; margin-bottom: 2px; }
+  .price-card .price-sub { font-size: 0.8rem; color: #6b7280; margin-bottom: 14px; }
+  .price-card .price-amount { font-size: 1.7rem; font-weight: 700; color: #2f6b66; line-height: 1.1; }
+  .price-card .price-amount .unit { font-size: 0.85rem; font-weight: 500; color: #6b7280; }
+  .price-card .price-note { font-size: 0.8rem; color: #6b7280; margin: 6px 0 14px; }
+  .price-card ul { padding-left: 0; margin-bottom: 14px; }
+  .price-card li { list-style: none; padding-left: 20px; position: relative; font-size: 0.88rem; color: #374151; margin-bottom: 7px; }
+  .price-card li::before { content: "✓"; color: #2f6b66; font-weight: 700; position: absolute; left: 0; }
+  .price-card .price-cta {
+    margin-top: auto; display: inline-block; text-align: center;
+    background: #2f6b66; color: white; font-weight: 700; padding: 10px 18px;
+    border-radius: 8px; text-decoration: none; font-size: 0.88rem;
+  }
+  .price-card .price-cta:hover { background: #234f4b; }
+  .price-card .price-cta.secondary { background: #f0fdf4; color: #065f46; border: 1px solid #a7f3d0; }
+  .price-card .price-cta.secondary:hover { background: #e6faee; }
+  .seat-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 0.88rem; }
+  .seat-table td { padding: 6px 0; color: #374151; }
+  .seat-table td:last-child { text-align: right; font-weight: 700; color: #1f2937; }
+  .seat-table tr + tr td { border-top: 1px solid #f0f1f3; }
+  .new-badge {
+    display: inline-block; background: #fef3c7; color: #92400e; font-size: 0.68rem;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
+  }
+  .trial-note {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 14px 18px; font-size: 0.88rem; color: #1e3a5f; margin-top: 16px;
+  }
 
   /* ── What doesn't change ── */
   .keep-list { background: #fafde5; border: 1px solid #e8e9a0; border-radius: 10px; padding: 18px 20px; }
@@ -119,7 +174,7 @@
 <header class="site-header">
   <div>
     <div class="brand">Selah for Ministry</div>
-    <div class="brand-sub">An early idea, still taking shape</div>
+    <div class="brand-sub">Real accounts. Built for teaching and prep.</div>
   </div>
   <a class="back-link" href="https://selahexploringtheology.com">← Selah (free)</a>
 </header>
@@ -129,29 +184,76 @@
   <section class="hero">
     <div class="eyebrow">For pastors, leaders, and teachers</div>
     <h1>Selah, built for the people who bring this to others.</h1>
-    <div class="anchor-quote">
-      "For the word of God is alive and active. Sharper than any double-edged sword, it penetrates even to dividing soul and spirit, joints and marrow; it judges the thoughts and attitudes of the heart."
-      <span class="cite">— Hebrews 4:12</span>
+    <p class="lede">The free tool stays exactly as it is — nothing about it changes. Selah for Ministry solves a different problem: not "help me understand this," but "help me bring this to other people well." A real account, conversations that pick up right where you left them, and a way to turn a study into something you can actually teach from.</p>
+    <a class="cta-btn-primary" href="/pro/">Start your free trial →</a>
+  </section>
+
+  <section class="tight">
+    <h2>Does Selah work?</h2>
+    <div class="testimonial-box">
+      <p class="testimonial-quote">"Selah – Exploring Theology has completely changed how I approach personal Bible study, sermon preparation, small group teaching preparation, and other ministry-related issues. My questions are met with cogent responses including appropriate Scriptures and wisdom from a library of Christian theologians and authors. Each response continues the conversation with additional questions to help me work my way through a topic. I highly recommend this effective ministry tool."</p>
+      <div class="testimonial-cite">— Clark Cothern, Pastor</div>
     </div>
-    <p class="lede">That verse is the whole reason Selah exists — free version, this one, doesn't matter. Selah for Ministry doesn't change what's free. It solves a different problem: not "help me understand this," but "help me bring this to other people well."</p>
   </section>
 
   <section class="tight">
-    <h2>What Selah already is</h2>
-    <p>Selah is free and open right now — no paywalls, nothing held back. Walk in through whatever door fits: grief, doubt, a question about creation, a hard verse. Once you're in, it goes as deep as you want, pulling from sixty-plus historic and contemporary Christian voices, fairly presented, real disagreements named honestly.</p>
-    <p>The clearest proof it's not just a nice idea: part of a Selah conversation recently found its way into an actual Sunday sermon, completely unprompted. That's the signal all of this is responding to.</p>
-  </section>
-
-  <section class="tight">
-    <h2>What this actually looks like</h2>
-    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Tap any card for more detail.</p>
+    <h2>What's real right now</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Tap any card for more detail. Everything below is built and live today.</p>
     <div class="grid" id="feature-grid"></div>
+  </section>
+
+  <section class="tight">
+    <h2>Coming soon</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Not built yet — listed honestly as what's next, not what's here.</p>
+    <ul class="soon-list" id="soon-list"></ul>
   </section>
 
   <section class="tight">
     <h2>Who it's for</h2>
     <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Not just the pulpit. Tap a role for detail — and this list keeps growing.</p>
     <div class="chip-row" id="role-chips"></div>
+  </section>
+
+  <section class="tight">
+    <h2>Plans &amp; pricing</h2>
+    <div class="price-grid">
+
+      <div class="price-card">
+        <div class="price-name">Individual Pro</div>
+        <div class="price-sub">For a leader or serious student, on your own</div>
+        <div class="price-amount">$9<span class="unit">/mo to start</span></div>
+        <div class="price-note">Locked at $9/mo for at least 2 years — the regular price is $12/mo, but early subscribers never get quietly bumped up. Prefer to pay yearly? $90/year (two months free).</div>
+        <ul>
+          <li>200 conversations a month included</li>
+          <li>Need more some months? +100 conversations for $8</li>
+          <li>Session Recap, Translation Compare, coverage tracking</li>
+          <li>14-day free trial — no card tricks, one reminder before it ends</li>
+        </ul>
+        <a class="price-cta" href="/pro/">Start free trial →</a>
+      </div>
+
+      <div class="price-card">
+        <div class="price-name">Church &amp; Ministry Team</div>
+        <div class="price-sub">Per-seat pricing for staff, elders, deacons, teachers</div>
+        <table class="seat-table">
+          <tr><td>1–4 seats</td><td>$10/seat/mo</td></tr>
+          <tr><td>5 seats</td><td>price of 4 (~$8/seat)</td></tr>
+          <tr><td>10 seats</td><td>price of 7 (~$7/seat)</td></tr>
+          <tr><td>11+ seats</td><td>Contact us</td></tr>
+        </table>
+        <a class="price-cta secondary" href="mailto:arrowroot56@gmail.com?subject=Selah%20for%20Ministry%20—%20Church%2FTeam%20plan&body=I'd%20like%20to%20set%20up%20Selah%20for%20our%20church%20staff.%20A%20bit%20about%20our%20context%3A%0A%0A">Talk to us about your team →</a>
+      </div>
+
+      <div class="price-card wide">
+        <div class="price-name">Congregation Member Add-On <span class="new-badge">New</span></div>
+        <div class="price-sub">Layered on top of a Church &amp; Ministry Team plan — extends real accounts and continuity to your whole congregation, not just staff</div>
+        <div class="price-amount">$4<span class="unit">/mo per member, introductory price</span></div>
+        <div class="price-note">100 conversations a month per member. Introductory pricing while we see whether this is genuinely useful to congregations — subject to change as we learn more.</div>
+        <a class="price-cta secondary" href="mailto:arrowroot56@gmail.com?subject=Selah%20for%20Ministry%20—%20Congregation%20member%20seats&body=I'd%20like%20to%20hear%20more%20about%20congregation%20member%20add-on%20seats.%20A%20bit%20about%20our%20context%3A%0A%0A">Ask us about member seats →</a>
+      </div>
+
+    </div>
+    <div class="trial-note">Every paid plan starts with a real trial, not a sales call. If you let it lapse, you'll get one honest reminder as it winds down — never a barrage of emails.</div>
   </section>
 
   <section class="tight">
@@ -165,16 +267,14 @@
 
   <section>
     <div class="cta-box">
-      <h2>Interested?</h2>
-      <p>This is still early — your reaction shapes what actually gets built. Tell us what you'd want first.</p>
-      <a class="cta-btn" href="mailto:arrowroot56@gmail.com?subject=Interested%20in%20Selah%20for%20Ministry&body=I'd%20like%20to%20hear%20more%20about%20Selah%20for%20Ministry.%20A%20bit%20about%20my%20context%3A%0A%0A">
-        Email us — let's talk
-      </a>
+      <h2>Ready to try it?</h2>
+      <p>Start a 14-day free trial — no card tricks, cancel anytime.</p>
+      <a class="cta-btn" href="/pro/">Start your free trial →</a>
     </div>
   </section>
 
   <footer>
-    Selah for Ministry is a planned companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. Nothing here is final. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
+    Selah for Ministry is a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
   </footer>
 
 </div>
@@ -191,25 +291,37 @@
 </div>
 
 <script>
+// Only genuinely built, shipped features go here — anything still on the
+// roadmap belongs in SOON below, never blended into this list. See
+// Selah_Free_vs_Pro_Functionality_Comparison.md for the audit this was
+// built from (2026-07-08).
 const FEATURES = [
-  { title: "Actually Holding Onto the Conversation",
-    teaser: "Long, deep studies don't quietly lose the thread.",
-    detail: "Here's something worth being honest about: in a long or deep conversation, Selah can already start losing track of what was said earlier — that's a real, current limitation, not a hypothetical. Selah for Ministry holds onto far more of a conversation's own memory, so a long study doesn't quietly drift from where it started, and picking things back up later doesn't mean starting over." },
-  { title: "Prep That Produces Something Usable",
-    teaser: "A structured outline, not a raw transcript.",
-    detail: "Instead of a raw transcript, a leader gets an outline ready to actually teach from — real citations, arguments properly attributed, discussion questions built right in instead of bolted on at the end." },
-  { title: "Following the Spirit's Actual Work",
-    teaser: "Built from what really happened in your group, not a generic script.",
-    detail: "Tell Selah what came up in your last group meeting — where people leaned in, where they got stuck, what never got resolved — and next week's questions grow straight out of that, instead of a script written for an audience that doesn't exist. That's letting a leader follow where the Spirit is actually working in their specific people." },
+  { title: "Pick Up Right Where You Left Off",
+    teaser: "Real accounts, sessions that survive redeploys and device changes.",
+    detail: "Every conversation lives in your own account, not a browser tab. Browse Your Sessions, and any past conversation resumes with the full transcript, running summary, and every source you've gathered — exactly where you left it." },
+  { title: "A Structured Recap, Not a Raw Transcript",
+    teaser: "Turn a conversation into something you can actually teach from.",
+    detail: "Generate a Session Recap and choose what you need: a plain-language summary, cited source material, a clean citation list, or ready-made discussion questions — any combination, in about ten seconds." },
   { title: "Noticing When the Words Themselves Matter",
-    teaser: "Multi-translation insight, only when it's theologically real.",
-    detail: "Pick a translation once, and Selah just stays there, quietly. But every so often a wording difference between translations really is the theological question in miniature — think Romans 3:25, or Isaiah 7:14. Selah brings the comparison forward right then — never constant background noise, only when it actually matters." },
+    teaser: "See how a verse renders across translations, and whether it matters.",
+    detail: "Pull up a reference across NIV, ESV, KJV, and NASB side by side, with a plain note on whether the wording difference is a real theological question or just a stylistic one." },
+  { title: "A Running Picture of What You've Covered",
+    teaser: "Which topics and theologians you've actually sat with, and what's still open.",
+    detail: "Across every session in your account, Selah keeps track of which doctrines you've explored and which theologians you've engaged, so ongoing study builds on itself instead of starting over." },
+  { title: "Deeper Memory Within a Conversation",
+    teaser: "Long studies hold their shape instead of losing the thread.",
+    detail: "Selah for Ministry carries a running sense of where a conversation has been, so a long or resumed study keeps its continuity instead of drifting from where it started." },
+];
+
+// Not built yet. Kept in a visually distinct, non-clickable list on purpose
+// — never presented as if it's live today.
+const SOON = [
+  { title: "A Philosophy Layer",
+    detail: "Approaching hard questions through history's great Christian philosophers, alongside the theologians already here. In progress." },
+  { title: "Following the Spirit's Actual Work",
+    detail: "Next week's questions grown from what actually happened in your last group meeting, not a generic script." },
   { title: "A Quiet Hand on the Wheel",
-    teaser: "A gentle nudge if a study drifts, never an alarm.",
-    detail: "If a study drifts well past what a leader meant to cover, Selah notices and says so plainly, once — the way a good co-teacher taps your arm, not an alarm going off. The leader always decides: keep going, or steer back." },
-  { title: "For Solo, Ongoing Study",
-    teaser: "A running picture of what's been covered, and what hasn't.",
-    detail: "A serious personal study currently lives entirely in your own head or notes. Selah for Ministry keeps a running picture instead — which questions you've actually explored, which theologians you've sat with, where the real gaps still are. Months of study building on each other, instead of starting over every time." },
+    detail: "A gentle, one-time nudge if a study drifts far past where it meant to go — never an alarm." },
 ];
 
 const ROLES = [
@@ -235,6 +347,11 @@ function renderTiles() {
        <div class="tile-title">${f.title}</div>
        <div class="tile-teaser">${f.teaser}</div>
      </button>`
+  ).join("");
+
+  const soon = document.getElementById("soon-list");
+  soon.innerHTML = SOON.map(s =>
+    `<li><div class="soon-title">${s.title}</div><div class="soon-detail">${s.detail}</div></li>`
   ).join("");
 
   const chips = document.getElementById("role-chips");
