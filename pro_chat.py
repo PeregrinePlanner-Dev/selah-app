@@ -654,6 +654,30 @@ def get_session(session_id):
     })
 
 
+@pro_chat_bp.route("/sessions/<session_id>", methods=["DELETE"])
+@login_required
+def delete_session(session_id):
+    """Permanently deletes one of the logged-in user's own sessions -- a real
+    hard delete, no soft-delete/archive tier (decided 2026-07-08: hiding a row
+    from the list without deleting it would need its own retrieval view to be
+    meaningful, which isn't worth the surface area; and once deleted, the
+    session is genuinely gone, not recoverable, matching the confirmation
+    copy the frontend shows before calling this).
+
+    Uses get_user_supabase() (the caller's own RLS-scoped token), same as
+    get_session() above -- RLS's 'users can delete their own sessions' policy
+    (user_id = auth.uid(), added 2026-07-08 alongside this route; it didn't
+    exist before, only INSERT/UPDATE/SELECT policies did) scopes this to the
+    caller's own rows automatically. Deleting someone else's session_id
+    simply matches zero rows, never another user's data -- this route never
+    needs an explicit ownership check of its own because the database enforces
+    it. Returns ok even if the row was already gone (deleting something
+    that's already deleted isn't an error from the client's point of view)."""
+    sb = get_user_supabase()
+    sb.table("planning_sessions").delete().eq("id", session_id).execute()
+    return jsonify({"ok": True})
+
+
 @pro_chat_bp.route("/app")
 @login_required
 def pro_app():

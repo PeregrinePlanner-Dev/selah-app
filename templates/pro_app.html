@@ -79,6 +79,22 @@
   .session-item .session-anchor { color: #6b7280; font-size: 0.68rem; }
   .sessions-placeholder { color: #c4b5fd; font-style: italic; font-size: 0.72rem; }
 
+  /* ── Session delete ── */
+  .session-item-wrap { position: relative; }
+  .session-item-wrap .session-item { padding-right: 26px; }
+  .session-delete-btn {
+    position: absolute; top: 5px; right: 5px;
+    background: none; border: none; cursor: pointer;
+    font-size: 0.72rem; color: #c4b5fd; padding: 3px 5px; line-height: 1;
+    border-radius: 4px;
+  }
+  .session-delete-btn:hover { color: #dc2626; background: #fef2f2; }
+  .session-delete-confirm-btn {
+    flex: 1; background: #dc2626; color: white; border: none;
+    border-radius: 6px; padding: 9px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  }
+  .session-delete-confirm-btn:hover { background: #b91c1c; }
+
   /* ── Left: Action Buttons ── */
   .actions-card  { flex-shrink: 0; }
   .actions-label { color: #6b7280; }
@@ -876,11 +892,16 @@ async function loadSessionList() {
       return;
     }
     el.innerHTML = data.sessions.map(s => `
-      <button class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
-        <div class="session-node">${esc(nodeDisplayName(s.node))}</div>
-        <div class="session-anchor">${esc((s.anchor || '').slice(0, 70))}${(s.anchor||'').length > 70 ? '…' : ''}</div>
-        <div class="session-anchor">${formatSessionDate(s.updated_at)} · ${s.turn_count} turn${s.turn_count === 1 ? '' : 's'}</div>
-      </button>
+      <div class="session-item-wrap">
+        <button class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
+          <div class="session-node">${esc(nodeDisplayName(s.node))}</div>
+          <div class="session-anchor">${esc((s.anchor || '').slice(0, 70))}${(s.anchor||'').length > 70 ? '…' : ''}</div>
+          <div class="session-anchor">${formatSessionDate(s.updated_at)} · ${s.turn_count} turn${s.turn_count === 1 ? '' : 's'}</div>
+        </button>
+        <button class="session-delete-btn" data-id="${s.id}" data-label="${escAttr(nodeDisplayName(s.node))}"
+                onclick="event.stopPropagation(); confirmDeleteSession(this.dataset.id, this.dataset.label)"
+                title="Delete this conversation">🗑</button>
+      </div>
     `).join("");
   } catch (e) {
     document.getElementById("sessions-body").innerHTML =
@@ -925,6 +946,42 @@ async function loadSession(id) {
   } catch (e) {
     // leave the current view as-is on failure
   }
+}
+
+// ── Delete session ─────────────────────────────────────────────────────────
+// Hard delete only, no archive/soft-delete tier -- decided 2026-07-08: hiding
+// a session from the list without actually deleting it would need its own
+// "show hidden sessions" retrieval view to be worth anything, which isn't
+// worth the surface area. The confirm popup says plainly that this is
+// permanent, because it actually is.
+let sessionPendingDelete = null;
+
+function confirmDeleteSession(id, label) {
+  sessionPendingDelete = id;
+  document.getElementById("delete-session-label").textContent = label || "this conversation";
+  document.getElementById("delete-session-modal").classList.add("show");
+}
+function closeDeleteSessionModal() {
+  document.getElementById("delete-session-modal").classList.remove("show");
+  sessionPendingDelete = null;
+}
+function closeDeleteSessionModalBg(e) {
+  if (e.target === document.getElementById("delete-session-modal")) closeDeleteSessionModal();
+}
+async function performDeleteSession() {
+  if (!sessionPendingDelete) return;
+  const id = sessionPendingDelete;
+  closeDeleteSessionModal();
+  try {
+    await fetch(`/pro/sessions/${id}`, { method: "DELETE" });
+  } catch (e) {
+    // best-effort -- the list refresh below shows the real current state
+    // either way, so a network hiccup here doesn't leave the UI lying
+  }
+  if (id === currentSessionId) {
+    newConversation();
+  }
+  loadSessionList();
 }
 
 // ── Help modal ────────────────────────────────────────────────────────────
@@ -1045,7 +1102,7 @@ function renderTranslationCompare(data) {
 }
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); }
+  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); closeDeleteSessionModal(); }
 });
 
 // ── Init ────────────────────────────────────────────────────────────────
@@ -1178,6 +1235,23 @@ loadSessionList();
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Session Confirm Modal ── -->
+<div class="modal-overlay" id="delete-session-modal" onclick="closeDeleteSessionModalBg(event)">
+  <div class="modal" style="width:420px;">
+    <div class="modal-header">
+      <h2>Delete this conversation?</h2>
+      <button class="modal-close" onclick="closeDeleteSessionModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro">This will permanently delete <strong id="delete-session-label"></strong> and everything in it. This can't be undone.</p>
+      <div class="recap-done-actions">
+        <button class="recap-secondary-btn" onclick="closeDeleteSessionModal()">Cancel</button>
+        <button class="session-delete-confirm-btn" onclick="performDeleteSession()">Delete</button>
+      </div>
     </div>
   </div>
 </div>
