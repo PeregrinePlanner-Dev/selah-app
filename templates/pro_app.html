@@ -315,8 +315,8 @@
 
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
-      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()"><span class="btn-label">📄 Create Teaching Outline</span><span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
-      <button class="action-btn" onclick="openCoverage()">📊 View My Coverage<span class="tip">See which topics you've explored and which theologians have shaped the conversation so far, across all your sessions.</span></button>
+      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()"><span class="btn-label">📄 Create Session Recap</span><span class="tip">Turn this conversation into a structured recap — key points, properly attributed citations, and reflection questions — whether you're teaching from it or just want a record of what you explored.</span></button>
+      <button class="action-btn" onclick="openCoverage()">📊 What I've Explored<span class="tip">See which topics you've explored and which theologians have shaped the conversation so far, across all your sessions.</span></button>
       <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
       <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
     </div>
@@ -633,15 +633,19 @@ function openFeedback() {
   window.open(TALLY_URL, "_blank", "noopener");
 }
 
-// ── Teaching Outline (internally "Prep Doc") ────────────────────────────────
-// Generates a structured teaching outline (title, outline, citations,
-// discussion questions) from the current saved session and downloads it as
-// a .txt file, same Blob-download pattern the free tool uses for its
-// session recap. Requires a saved session (currentSessionId) -- there's
-// nothing to create an outline from before the first message is sent.
+// ── Session Recap (internally "Prep Doc") ───────────────────────────────────
+// Generates a structured recap (title, outline, citations, reflection
+// questions) from the current saved session and downloads it as a .txt
+// file, same Blob-download pattern the free tool uses for its session
+// recap. Deliberately framed as a general-purpose recap rather than a
+// "teaching outline" -- renamed 2026-07-08 after Rick flagged the teaching
+// framing as unnecessarily narrow for anyone who just wants a detailed
+// record of what they explored, not something to teach from. Requires a
+// saved session (currentSessionId) -- there's nothing to create a recap
+// from before the first message is sent.
 async function generatePrepDoc() {
   if (!currentSessionId) {
-    alert("Start a conversation first — there's nothing to create a teaching outline from yet.");
+    alert("Start a conversation first — there's nothing to create a session recap from yet.");
     return;
   }
   const btn = document.getElementById("prep-doc-btn");
@@ -665,18 +669,18 @@ async function generatePrepDoc() {
     });
     const data = await res.json();
     if (!res.ok || data.error) {
-      alert(data.error || "Something went wrong creating the teaching outline — please try again.");
+      alert(data.error || "Something went wrong creating the session recap — please try again.");
       return;
     }
     const blob = new Blob([data.doc], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Selah-Teaching-Outline-${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = `Selah-Session-Recap-${new Date().toISOString().slice(0,10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert("Something went wrong creating the teaching outline — please try again.");
+    alert("Something went wrong creating the session recap — please try again.");
   } finally {
     btn.disabled = false;
     label.textContent = originalText;
@@ -930,15 +934,15 @@ loadSessionList();
         <div class="action-explain">
           <div class="action-icon">📄</div>
           <div>
-            <div class="action-name">Create Teaching Outline</div>
-            <div class="action-desc">Turns the current conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions — downloaded as a text file ready to actually use.</div>
+            <div class="action-name">Create Session Recap</div>
+            <div class="action-desc">Turns the current conversation into a structured recap — key points, properly attributed citations, and reflection questions — downloaded as a text file, whether you're teaching from it or just want a record of what you explored.</div>
           </div>
         </div>
 
         <div class="action-explain">
           <div class="action-icon">📊</div>
           <div>
-            <div class="action-name">View My Coverage</div>
+            <div class="action-name">What I've Explored</div>
             <div class="action-desc">Shows which topics you've explored and which theologians have surfaced, across every session — not just the current one.</div>
           </div>
         </div>
@@ -968,7 +972,7 @@ loadSessionList();
 <div class="modal-overlay" id="coverage-modal" onclick="closeCoverageModal(event)">
   <div class="modal">
     <div class="modal-header">
-      <h2>Your Coverage</h2>
+      <h2>What You've Explored</h2>
       <button class="modal-close" onclick="closeCoverage()">×</button>
     </div>
     <div class="modal-body" id="coverage-body">

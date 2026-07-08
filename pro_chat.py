@@ -68,7 +68,7 @@ CAP_HIT_MESSAGE = (
 PREP_DOC_MONTHLY_CAP = int(os.environ.get("PREP_DOC_MONTHLY_CAP", "10"))
 
 PREP_DOC_CAP_MESSAGE = (
-    "You've reached this month's Prep Doc limit for your current plan. "
+    "You've reached this month's session recap limit for your current plan. "
     "It resets at the start of next month."
 )
 
@@ -465,7 +465,7 @@ def prep_doc():
     convo = row_resp.data[0]["session_data"] or _empty_convo()
 
     if not convo.get("messages"):
-        return jsonify({"error": "Nothing to generate a Prep Doc from yet -- have a conversation first."}), 400
+        return jsonify({"error": "Nothing to create a session recap from yet -- have a conversation first."}), 400
 
     doc_text = generate_prep_doc(
         convo.get("node") or "Grace",
