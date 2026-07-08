@@ -23,7 +23,7 @@ from engine import (
     NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
     build_system_prompt, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
-    generate_prep_doc,
+    generate_prep_doc, generate_translation_comparison,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -71,6 +71,28 @@ PREP_DOC_CAP_MESSAGE = (
     "You've reached this month's Prep Doc limit for your current plan. "
     "It resets at the start of next month."
 )
+
+# Translation Compare is a lighter call than Prep Doc (no history, ~800
+# output tokens) but still its own Sonnet call per click, and unlike Prep
+# Doc it can plausibly get clicked many times per session (one per source in
+# the panel) rather than once at the end -- tracked under its own
+# module_slug so browsing translations doesn't eat into someone's ordinary
+# conversation allowance, same reasoning as PREP_DOC_MONTHLY_CAP above, just
+# a higher flat number to match its lighter, more casual use pattern.
+TRANSLATION_COMPARE_MONTHLY_CAP = int(os.environ.get("TRANSLATION_COMPARE_MONTHLY_CAP", "60"))
+
+TRANSLATION_COMPARE_CAP_MESSAGE = (
+    "You've reached this month's translation comparison limit for your "
+    "current plan. It resets at the start of next month."
+)
+
+# Sanity ceiling on the reference string itself -- this is a person clicking
+# a citation already surfaced in their own Source Material panel, not a free
+# text field, but the route still accepts whatever the client sends. A real
+# reference ("1 Corinthians 15:3-8 (NIV)") is always well under this; this
+# just caps prompt-injection-by-length and stray token cost from a
+# malformed request, the same spirit as validating any other client input.
+MAX_REFERENCE_LENGTH = 120
 
 
 def _empty_convo() -> dict:
@@ -451,6 +473,56 @@ def prep_doc():
         convo.get("sources", []),
     )
     return jsonify({"doc": doc_text})
+
+
+@pro_chat_bp.route("/compare_translation", methods=["POST"])
+@login_required
+def compare_translation():
+    """Renders one Scripture reference across NIV/ESV/KJV/NASB plus a short
+    note on whether the wording differences carry real theological weight --
+    "Noticing When the Words Themselves Matter." Added 2026-07-08 as the
+    second real 'mode' beyond ordinary chat, alongside Prep Doc.
+
+    Deliberately stateless: doesn't touch planning_sessions at all, doesn't
+    require a session_id, and isn't tied to whatever node is active -- a
+    reference is a reference regardless of which conversation it surfaced
+    in. Only the usage-cap gate needs the caller's organization_id."""
+    data = request.json or {}
+    reference = (data.get("reference") or "").strip()
+    if not reference:
+        return jsonify({"error": "reference required"}), 400
+    if len(reference) > MAX_REFERENCE_LENGTH:
+        return jsonify({"error": "reference too long"}), 400
+
+    sb = get_user_supabase()
+
+    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
+    if not profile_resp.data:
+        return jsonify({"error": "no profile found for this account"}), 400
+    organization_id = profile_resp.data[0]["organization_id"]
+    is_comped = profile_resp.data[0].get("seat_status") == "comped"
+
+    sub_resp = (
+        sb.table("subscriptions")
+        .select("tier_slug")
+        .eq("organization_id", organization_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    )
+    tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
+
+    if not is_comped and not _check_and_reserve_usage(
+        organization_id, tier_slug, module_slug="translation_compare", cap=TRANSLATION_COMPARE_MONTHLY_CAP
+    ):
+        return jsonify({"error": TRANSLATION_COMPARE_CAP_MESSAGE}), 429
+
+    result = generate_translation_comparison(reference)
+    return jsonify({
+        "reference": reference,
+        "translations": result["translations"],
+        "note": result["note"],
+    })
 
 
 @pro_chat_bp.route("/sessions", methods=["GET"])

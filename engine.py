@@ -307,3 +307,88 @@ def generate_prep_doc(node_name: str, messages: list, sources: list) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()
+
+
+# ── Translation comparison ("Noticing When the Words Themselves Matter") ──
+# Second real "mode" beyond ordinary chat, alongside Prep Doc. The engine
+# already surfaces a single translation per Scripture citation (whatever the
+# model happened to quote from) -- this gives a person a way to ask, for any
+# reference already surfaced in Source Material, "would a different
+# translation change what this argument rests on?" A one-shot Sonnet call,
+# same shape as generate_prep_doc(): no QUESTION/SOURCE tags, no
+# conversation history, just a direct prompt-in, text-out generation.
+# Added 2026-07-08.
+TRANSLATION_COMPARE_INSTRUCTIONS = """\
+A person exploring systematic theology wants to see how different English \
+translations render a specific Bible reference, and whether the differences \
+in wording actually change the theological weight of the passage or are \
+merely stylistic.
+
+Reference: {reference}
+
+Produce, in this exact order, for these four translations -- NIV, ESV, KJV, \
+NASB -- and nothing else:
+
+NIV: [the verse text in the NIV]
+ESV: [the verse text in the ESV]
+KJV: [the verse text in the KJV]
+NASB: [the verse text in the NASB]
+
+NOTE: [2-4 sentences identifying whether the translations genuinely diverge \
+in a way that matters theologically -- a different verb tense, a rendered-vs-\
+transliterated term, a clause attached to a different phrase -- and if so, \
+what is actually at stake in that difference. If the translations do not \
+meaningfully diverge, say so plainly rather than manufacturing a difference \
+where none exists. Never editorialize about which translation is "correct."]
+
+If the reference given is not a real, identifiable Bible passage, respond \
+with exactly:
+NIV: (reference not recognized)
+ESV: (reference not recognized)
+KJV: (reference not recognized)
+NASB: (reference not recognized)
+NOTE: This doesn't match a recognizable Bible reference -- please check the citation.
+"""
+
+
+def format_reference_for_lookup(reference: str) -> str:
+    """Strips a trailing '(Translation)' parenthetical off a stored source
+    label (e.g. 'John 3:16 (NIV)' -> 'John 3:16') so the comparison prompt
+    asks about the passage itself, not the one translation it happened to be
+    quoted in originally."""
+    return re.sub(r'\s*\([^)]*\)\s*$', '', reference).strip()
+
+
+_TRANSLATION_VERSIONS = ("NIV", "ESV", "KJV", "NASB")
+
+
+def parse_translation_comparison(raw: str) -> dict:
+    """Extracts the four translation lines and the closing NOTE from
+    generate_translation_comparison()'s raw output."""
+    translations = []
+    for version in _TRANSLATION_VERSIONS:
+        m = re.search(rf'^{version}:\s*(.+)$', raw, re.MULTILINE)
+        translations.append({
+            "version": version,
+            "text": m.group(1).strip() if m else "",
+        })
+    note_m = re.search(r'NOTE:\s*(.+)', raw, re.DOTALL)
+    note = note_m.group(1).strip() if note_m else ""
+    return {"translations": translations, "note": note}
+
+
+def generate_translation_comparison(reference: str) -> dict:
+    """One-shot Sonnet call rendering a single Scripture reference across
+    four major translations plus a short note on whether the wording
+    differences actually carry theological weight. Mirrors
+    generate_prep_doc()'s shape: no history, no tags, direct prompt-in,
+    parsed-text-out."""
+    clean_reference = format_reference_for_lookup(reference)
+    prompt = TRANSLATION_COMPARE_INSTRUCTIONS.format(reference=clean_reference)
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=800,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    return parse_translation_comparison(raw)

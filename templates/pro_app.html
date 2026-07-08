@@ -256,6 +256,26 @@
     font-size: 0.72rem; padding: 3px 10px; border-radius: 999px;
     margin: 0 4px 4px 0;
   }
+
+  /* ── Compare Translations (per-source link + modal) ── */
+  .compare-link {
+    display: inline-block; margin-top: 5px;
+    font-size: 0.68rem; color: #1d4ed8; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px;
+    background: none; border: none; padding: 0; font-family: inherit;
+  }
+  .compare-link:hover { color: #1e40af; }
+  .translation-row {
+    margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb;
+  }
+  .translation-row:last-child { border-bottom: none; margin-bottom: 0; }
+  .translation-version {
+    font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 700; color: #6b7280; margin-bottom: 3px;
+  }
+  .translation-text {
+    font-size: 0.8rem; line-height: 1.6; color: #1f2937;
+  }
 </style>
 </head>
 <body>
@@ -477,6 +497,15 @@ function esc(str) {
   return out.join("<br>");
 }
 
+// Escapes a string for safe embedding inside a double-quoted HTML attribute
+// (used for the Compare Translations button's data-ref, since a source
+// label could in principle contain a double quote or ampersand). Browsers
+// decode &quot;/&amp; back to " and & when the attribute is read via
+// element.dataset, so this round-trips cleanly.
+function escAttr(str) {
+  return String(str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
 function addBubble(role, text) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
@@ -537,6 +566,7 @@ function renderSources() {
       <div class="source-type ${s.type}">${s.type === "scripture" ? "Scripture" : "Theologian"}</div>
       <div class="source-ref">${esc(s.label)}</div>
       <div class="source-text ${s.type}">${esc(s.content)}</div>
+      ${s.type === "scripture" ? `<button class="compare-link" data-ref="${escAttr(s.label)}" onclick="openTranslationCompare(this.dataset.ref)">Compare Translations →</button>` : ""}
     </div>
   `).join("");
 }
@@ -803,8 +833,61 @@ function renderCoverage(data) {
   `;
 }
 
+// ── Compare Translations ("Noticing When the Words Themselves Matter") ─────
+// For any Scripture citation already surfaced in Source Material, renders
+// the same reference across NIV/ESV/KJV/NASB plus a short note on whether
+// the wording differences actually change the theological weight of the
+// passage. One-shot backend call (POST /pro/compare_translation) -- not
+// tied to the active session, since a reference is a reference regardless
+// of which conversation it surfaced in. Added 2026-07-08.
+async function openTranslationCompare(reference) {
+  const modal = document.getElementById("translation-modal");
+  const body = document.getElementById("translation-body");
+  document.getElementById("translation-modal-title").textContent = reference;
+  body.innerHTML = `<p class="modal-intro">Loading…</p>`;
+  modal.classList.add("show");
+  try {
+    const res = await fetch("/pro/compare_translation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      body.innerHTML = `<p class="modal-intro">${esc(data.error || "Couldn't load translations — please try again.")}</p>`;
+      return;
+    }
+    renderTranslationCompare(data);
+  } catch (e) {
+    body.innerHTML = `<p class="modal-intro">Couldn't load translations — please try again.</p>`;
+  }
+}
+function closeTranslationCompare() {
+  document.getElementById("translation-modal").classList.remove("show");
+}
+function closeTranslationModal(e) {
+  if (e.target === document.getElementById("translation-modal")) closeTranslationCompare();
+}
+function renderTranslationCompare(data) {
+  const body = document.getElementById("translation-body");
+  const rows = (data.translations || []).map(t => `
+    <div class="translation-row">
+      <div class="translation-version">${esc(t.version)}</div>
+      <div class="translation-text">${esc(t.text || "—")}</div>
+    </div>
+  `).join("");
+  body.innerHTML = `
+    <div class="modal-section">${rows}</div>
+    <hr class="modal-divider">
+    <div class="modal-section">
+      <div class="modal-section-title">Why It Matters</div>
+      <p class="modal-intro">${esc(data.note || "No notable differences.")}</p>
+    </div>
+  `;
+}
+
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeHelp(); closeCoverage(); }
+  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); }
 });
 
 // ── Init ────────────────────────────────────────────────────────────────
@@ -836,7 +919,7 @@ loadSessionList();
 
       <div class="modal-section">
         <div class="modal-section-title">The Layout</div>
-        <p class="modal-intro">The <strong>left panel</strong> holds your Session Anchor — a running summary of what you've covered — and Your Sessions. The <strong>center</strong> is the conversation. The <strong>right panel</strong> shows Scripture passages and theologian arguments as they surface, so you can revisit them without scrolling back. Use <strong>Switch Topic</strong> to move into a different area of theology.</p>
+        <p class="modal-intro">The <strong>left panel</strong> holds your Session Anchor — a running summary of what you've covered — and Your Sessions. The <strong>center</strong> is the conversation. The <strong>right panel</strong> shows Scripture passages and theologian arguments as they surface, so you can revisit them without scrolling back. Each Scripture citation includes a <strong>Compare Translations</strong> link — a quick way to see whether a different English translation would change what the argument actually rests on. Use <strong>Switch Topic</strong> to move into a different area of theology.</p>
       </div>
 
       <hr class="modal-divider">
@@ -889,6 +972,19 @@ loadSessionList();
       <button class="modal-close" onclick="closeCoverage()">×</button>
     </div>
     <div class="modal-body" id="coverage-body">
+      <p class="modal-intro">Loading…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Compare Translations Modal ── -->
+<div class="modal-overlay" id="translation-modal" onclick="closeTranslationModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="translation-modal-title">Compare Translations</h2>
+      <button class="modal-close" onclick="closeTranslationCompare()">×</button>
+    </div>
+    <div class="modal-body" id="translation-body">
       <p class="modal-intro">Loading…</p>
     </div>
   </div>
