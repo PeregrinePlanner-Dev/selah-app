@@ -34,13 +34,22 @@ pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 # trigger, so this exists purely to protect against runaway API cost during
 # this pre-launch phase, not as a finished pricing decision. Override via env
 # var for the default tier; adjust the dict directly as real tiers launch.
+#
+# Raised 2026-07-08: the original 30/month figure counted every chat turn
+# (not "conversations" despite the column name), which meant a single
+# multi-message sitting could exhaust an entire month's allowance -- and it
+# was stricter than the free anonymous tool's 1,200 turns/day/IP. Since
+# every signup today lands on "free", that was the tier actually gating real
+# users. New figures keep the same cost-containment intent (still capped,
+# still not equal to the free tool's effectively-unlimited ceiling) but no
+# longer make creating a Pro account a worse deal than staying anonymous.
 TIER_CONVERSATION_CAPS = {
-    "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "30")),
-    "beta": 100,
-    "individual": 200,
-    "church": 200,
-    "seminary": 200,
-    "berea": 200,
+    "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "300")),
+    "beta": 500,
+    "individual": 500,
+    "church": 1500,
+    "seminary": 1500,
+    "berea": 1500,
 }
 DEFAULT_CAP = TIER_CONVERSATION_CAPS["free"]
 

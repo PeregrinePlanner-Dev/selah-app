@@ -288,7 +288,7 @@
 
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
-      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()">📄 Generate Prep Doc<span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
+      <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()">📄 Create Teaching Outline<span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
       <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
       <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
     </div>
@@ -595,15 +595,15 @@ function openFeedback() {
   window.open(TALLY_URL, "_blank", "noopener");
 }
 
-// ── Prep Doc ───────────────────────────────────────────────────────────────
+// ── Teaching Outline (internally "Prep Doc") ────────────────────────────────
 // Generates a structured teaching outline (title, outline, citations,
 // discussion questions) from the current saved session and downloads it as
 // a .txt file, same Blob-download pattern the free tool uses for its
 // session recap. Requires a saved session (currentSessionId) -- there's
-// nothing to generate a Prep Doc from before the first message is sent.
+// nothing to create an outline from before the first message is sent.
 async function generatePrepDoc() {
   if (!currentSessionId) {
-    alert("Start a conversation first — there's nothing to generate a Prep Doc from yet.");
+    alert("Start a conversation first — there's nothing to create a teaching outline from yet.");
     return;
   }
   const btn = document.getElementById("prep-doc-btn");
@@ -618,18 +618,18 @@ async function generatePrepDoc() {
     });
     const data = await res.json();
     if (!res.ok || data.error) {
-      alert(data.error || "Something went wrong generating the Prep Doc — please try again.");
+      alert(data.error || "Something went wrong creating the teaching outline — please try again.");
       return;
     }
     const blob = new Blob([data.doc], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Selah-Prep-Doc-${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = `Selah-Teaching-Outline-${new Date().toISOString().slice(0,10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert("Something went wrong generating the Prep Doc — please try again.");
+    alert("Something went wrong creating the teaching outline — please try again.");
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -776,7 +776,7 @@ loadSessionList();
         <div class="action-explain">
           <div class="action-icon">📄</div>
           <div>
-            <div class="action-name">Generate Prep Doc</div>
+            <div class="action-name">Create Teaching Outline</div>
             <div class="action-desc">Turns the current conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions — downloaded as a text file ready to actually use.</div>
           </div>
         </div>
