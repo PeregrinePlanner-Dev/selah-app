@@ -318,6 +318,19 @@
     cursor: pointer;
   }
   .recap-secondary-btn:hover { background: #d1d5db; }
+
+  /* ── Choose Plan (Upgrade) modal ── */
+  .plan-option-btn {
+    display: block; width: 100%; text-align: left;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    background: white; padding: 12px 14px; margin-bottom: 10px;
+    cursor: pointer; transition: border-color .15s, background .15s;
+    font-family: inherit;
+  }
+  .plan-option-btn:last-child { margin-bottom: 0; }
+  .plan-option-btn:hover { border-color: #2f6b66; background: #f0fdf4; }
+  .plan-option-name { font-weight: 700; font-size: 0.92rem; color: #1f2937; margin-bottom: 3px; }
+  .plan-option-detail { font-size: 0.8rem; color: #6b7280; }
 </style>
 </head>
 <body>
@@ -1104,7 +1117,7 @@ function renderTranslationCompare(data) {
 }
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); closeDeleteSessionModal(); }
+  if (e.key === "Escape") { closeHelp(); closeCoverage(); closeTranslationCompare(); closeRecapOptions(); closeDeleteSessionModal(); closeChoosePlanModal(); }
 });
 
 // ── Billing ────────────────────────────────────────────────────────────
@@ -1132,16 +1145,58 @@ async function loadBillingStatus() {
   }
 }
 
-async function handleBillingClick() {
+// Fixed 2026-07-08 (same day, live-tested): this used to call /checkout with
+// a hardcoded plan: "monthly" the instant the button was clicked -- annual
+// was fully built server-side (pro_billing.py's STRIPE_PRICE_INDIVIDUAL_
+// ANNUAL) but never actually offered anywhere in the UI. Now a not-yet-paid
+// click opens a small plan-choice modal instead of going straight to
+// checkout; an already-paid click still goes straight to the portal, since
+// there's nothing to choose there.
+function handleBillingClick() {
+  if (billingTierSlug === "individual") {
+    goToPortal();
+  } else {
+    document.getElementById("choose-plan-modal").classList.add("show");
+  }
+}
+
+function closeChoosePlanModal() {
+  document.getElementById("choose-plan-modal").classList.remove("show");
+}
+function closeChoosePlanModalBg(e) {
+  if (e.target === document.getElementById("choose-plan-modal")) closeChoosePlanModal();
+}
+
+async function goToPortal() {
   const btn = document.getElementById("billing-btn");
   btn.disabled = true;
-  const activePaid = billingTierSlug === "individual";
-  const endpoint = activePaid ? "/pro/billing/portal" : "/pro/billing/checkout";
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch("/pro/billing/portal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: "monthly" }),
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+      return;
+    }
+    if (data.error) alert(data.error);
+  } catch (e) {
+    alert("Something went wrong reaching billing. Try again in a moment.");
+  }
+  btn.disabled = false;
+}
+
+async function selectPlan(plan) {
+  closeChoosePlanModal();
+  const btn = document.getElementById("billing-btn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/pro/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
     });
     const data = await res.json();
     if (data.url) {
@@ -1303,6 +1358,27 @@ loadBillingStatus();
         <button class="recap-secondary-btn" onclick="closeDeleteSessionModal()">Cancel</button>
         <button class="session-delete-confirm-btn" onclick="performDeleteSession()">Delete</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Choose Plan Modal (Upgrade to Individual Pro) ── -->
+<div class="modal-overlay" id="choose-plan-modal" onclick="closeChoosePlanModalBg(event)">
+  <div class="modal" style="width:420px;">
+    <div class="modal-header">
+      <h2>Choose Your Plan</h2>
+      <button class="modal-close" onclick="closeChoosePlanModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro" style="margin-bottom:14px;">Both start with a 14-day free trial.</p>
+      <button class="plan-option-btn" onclick="selectPlan('monthly')">
+        <div class="plan-option-name">Monthly — $9/mo</div>
+        <div class="plan-option-detail">Locked at $9/mo for at least 2 years</div>
+      </button>
+      <button class="plan-option-btn" onclick="selectPlan('annual')">
+        <div class="plan-option-name">Annual — $90/yr</div>
+        <div class="plan-option-detail">Two months free</div>
+      </button>
     </div>
   </div>
 </div>
