@@ -225,3 +225,85 @@ def strip_tags(text: str) -> str:
     text = re.sub(r'\[QUESTION:.*?\]', '', text, flags=re.DOTALL)
     text = re.sub(r'\[SOURCE:.*?\]',   '', text, flags=re.DOTALL)
     return text.strip()
+
+# ── Prep Doc generation (Selah for Ministry) ───────────────────────────────
+# First real "mode" beyond ordinary chat -- a structured teaching artifact
+# synthesized from a saved conversation, not a raw transcript. Added 2026-07-08
+# as the first build toward ministry.html's pitched features, chosen because
+# the roadmap already scoped its architecture: a swappable instruction block
+# reused later for Berea's Defense Prep, not a one-off feature built twice.
+# Lives here (not pro_chat.py) so it's available to any future caller of the
+# shared engine, matching the project's "never duplicate the engine" rule --
+# only the route/gating around it is Pro-specific.
+PREP_DOC_INSTRUCTIONS = """\
+You are turning a theology conversation into a structured teaching document \
+for a pastor, small-group leader, or teacher to actually use -- not a \
+transcript, a usable artifact.
+
+Produce, in this exact order:
+
+TITLE: [a short, specific title naming the actual topic explored]
+
+OUTLINE:
+[3-6 headed sections, each with a 2-4 sentence explanation, covering the \
+real theological ground actually covered in the conversation below, in the \
+order it naturally builds -- not a generic outline of the topic in the \
+abstract. Use only what was actually discussed.]
+
+CITATIONS:
+[Every source below, formatted as a clean reference list: Scripture as \
+"Book Chapter:Verse (Translation) -- quoted text", theologians as \
+"Name (dates) -- the argument, in 1-2 sentences". If no sources were \
+provided, write "No sources were tagged in this conversation."]
+
+DISCUSSION QUESTIONS:
+[4-6 questions suited to a teaching or small-group setting, grounded \
+specifically in the tensions and questions that actually surfaced in this \
+conversation -- not generic questions that could apply to any conversation \
+about this topic.]
+
+Conversation transcript:
+
+{convo_text}
+
+Sources introduced during this conversation:
+
+{sources_text}
+"""
+
+
+def format_full_convo(messages: list) -> str:
+    """Like format_convo_for_haiku but untruncated -- Prep Doc synthesis is a
+    one-shot call over the whole conversation, not an ongoing dialogue turn,
+    so there's no MAX_HISTORY-style reason to cut it down."""
+    lines = []
+    for m in messages:
+        role = "Person" if m["role"] == "user" else "Selah"
+        lines.append(f"{role}: {strip_tags(m['content'])}")
+    return "\n\n".join(lines)
+
+
+def format_sources_for_prep_doc(sources: list) -> str:
+    if not sources:
+        return "(none)"
+    lines = []
+    for s in sources:
+        kind = "Scripture" if s.get("type") == "scripture" else "Theologian"
+        lines.append(f"{kind} -- {s.get('label', '')}: {s.get('content', '')}")
+    return "\n".join(lines)
+
+
+def generate_prep_doc(node_name: str, messages: list, sources: list) -> str:
+    """One-shot Sonnet call synthesizing a conversation into a structured
+    teaching document. Deliberately NOT part of the conversational turn
+    pipeline -- no QUESTION/SOURCE tags to parse, no history truncation,
+    just a direct prompt-in, text-out generation over the full transcript."""
+    convo_text = format_full_convo(messages)
+    sources_text = format_sources_for_prep_doc(sources)
+    prompt = PREP_DOC_INSTRUCTIONS.format(convo_text=convo_text, sources_text=sources_text)
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()

@@ -23,6 +23,7 @@ from engine import (
     NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
     build_system_prompt, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
+    generate_prep_doc,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -45,6 +46,20 @@ DEFAULT_CAP = TIER_CONVERSATION_CAPS["free"]
 
 CAP_HIT_MESSAGE = (
     "You've reached this month's conversation limit for your current plan. "
+    "It resets at the start of next month."
+)
+
+# Prep Doc is a separate, more expensive action (a full untruncated-history
+# Sonnet call) than an ordinary chat turn -- tracked under its own
+# module_slug ('prep_mode', matching the module_registry row seeded back in
+# Session 21) rather than sharing the chat cap, so generating a few Prep Docs
+# doesn't eat into someone's ordinary conversation allowance. Flat cap for
+# now, not tier-differentiated, since no real tiers exist yet -- same
+# "conservative placeholder" spirit as TIER_CONVERSATION_CAPS above.
+PREP_DOC_MONTHLY_CAP = int(os.environ.get("PREP_DOC_MONTHLY_CAP", "10"))
+
+PREP_DOC_CAP_MESSAGE = (
+    "You've reached this month's Prep Doc limit for your current plan. "
     "It resets at the start of next month."
 )
 
@@ -71,11 +86,20 @@ def _billing_month_today() -> str:
     return today.replace(day=1).isoformat()
 
 
-def _check_and_reserve_usage(organization_id: str, tier_slug: str) -> bool:
+def _check_and_reserve_usage(
+    organization_id: str, tier_slug: str, module_slug: str | None = None, cap: int | None = None
+) -> bool:
     """Returns True if this turn is allowed to proceed, False if the org has
     hit its monthly cap. Reserves the turn (increments conversations_used)
     as part of the same call when allowed, using the service-role client --
     this table is never written through the user's own token.
+
+    module_slug scopes the cap to a specific feature (e.g. 'prep_mode')
+    instead of the default ordinary-chat bucket (module_slug IS NULL) --
+    added 2026-07-08 for Prep Doc, which is a separate, more expensive action
+    and shouldn't eat into someone's ordinary conversation allowance. cap
+    lets the caller override the tier-based default (Prep Doc uses its own
+    flat PREP_DOC_MONTHLY_CAP, not TIER_CONVERSATION_CAPS).
 
     Known simplification: check-then-write is two round trips, not one
     atomic operation, so a burst of near-simultaneous requests from the same
@@ -84,17 +108,17 @@ def _check_and_reserve_usage(organization_id: str, tier_slug: str) -> bool:
     real scale, same spirit as the free tool's existing rate-limit caveats."""
     svc = get_service_client()
     billing_month = _billing_month_today()
-    cap = TIER_CONVERSATION_CAPS.get(tier_slug, DEFAULT_CAP)
+    if cap is None:
+        cap = TIER_CONVERSATION_CAPS.get(tier_slug, DEFAULT_CAP)
 
-    existing = (
+    query = (
         svc.table("usage_records")
         .select("id, conversations_used, conversations_cap, hard_cap")
         .eq("organization_id", organization_id)
-        .is_("module_slug", "null")
         .eq("billing_month", billing_month)
-        .limit(1)
-        .execute()
     )
+    query = query.is_("module_slug", "null") if module_slug is None else query.eq("module_slug", module_slug)
+    existing = query.limit(1).execute()
 
     if existing.data:
         row = existing.data[0]
@@ -107,7 +131,7 @@ def _check_and_reserve_usage(organization_id: str, tier_slug: str) -> bool:
     else:
         svc.table("usage_records").insert({
             "organization_id": organization_id,
-            "module_slug": None,
+            "module_slug": module_slug,
             "billing_month": billing_month,
             "conversations_used": 1,
             "conversations_cap": cap,
@@ -291,6 +315,70 @@ def pro_chat():
         "chips": chips,
         "turn": convo["turn"],
     })
+
+
+@pro_chat_bp.route("/prep_doc", methods=["POST"])
+@login_required
+def prep_doc():
+    """Generate a structured teaching document (outline, citations,
+    discussion questions) from a saved session -- the first real 'mode'
+    beyond ordinary chat. Added 2026-07-08 as the first build toward
+    ministry.html's pitched features; reuses the roadmap's already-scoped
+    swappable-instruction-block pattern (see generate_prep_doc() in
+    engine.py) rather than inventing a one-off mechanism.
+
+    Known simplification: available to every logged-in Pro account
+    regardless of tier -- module_access-based per-org feature gating (the
+    schema supports it) isn't wired up anywhere yet, since no tiers actually
+    differ from each other today. Revisit once real tiers exist."""
+    data = request.json or {}
+    session_db_id = data.get("session_id")
+    if not session_db_id:
+        return jsonify({"error": "session_id required"}), 400
+
+    sb = get_user_supabase()
+
+    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
+    if not profile_resp.data:
+        return jsonify({"error": "no profile found for this account"}), 400
+    organization_id = profile_resp.data[0]["organization_id"]
+    is_comped = profile_resp.data[0].get("seat_status") == "comped"
+
+    sub_resp = (
+        sb.table("subscriptions")
+        .select("tier_slug")
+        .eq("organization_id", organization_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    )
+    tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
+
+    if not is_comped and not _check_and_reserve_usage(
+        organization_id, tier_slug, module_slug="prep_mode", cap=PREP_DOC_MONTHLY_CAP
+    ):
+        return jsonify({"error": PREP_DOC_CAP_MESSAGE}), 429
+
+    row_resp = (
+        sb.table("planning_sessions")
+        .select("session_data")
+        .eq("id", session_db_id)
+        .limit(1)
+        .execute()
+    )
+    if not row_resp.data:
+        return jsonify({"error": "session not found"}), 404
+    convo = row_resp.data[0]["session_data"] or _empty_convo()
+
+    if not convo.get("messages"):
+        return jsonify({"error": "Nothing to generate a Prep Doc from yet -- have a conversation first."}), 400
+
+    doc_text = generate_prep_doc(
+        convo.get("node") or "Grace",
+        convo["messages"],
+        convo.get("sources", []),
+    )
+    return jsonify({"doc": doc_text})
 
 
 @pro_chat_bp.route("/sessions", methods=["GET"])
