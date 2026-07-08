@@ -478,6 +478,50 @@ def list_sessions():
     return jsonify({"sessions": sessions})
 
 
+@pro_chat_bp.route("/coverage", methods=["GET"])
+@login_required
+def coverage():
+    """Aggregates which theology nodes and theologians have actually
+    surfaced across ALL of the user's sessions -- the first real piece of
+    ministry.html's 'For Solo, Ongoing Study' pitch (a running picture of
+    what's been covered), which was previously just "browse your session
+    list and infer it yourself." Added 2026-07-08.
+
+    Read-only: sources are backfilled in-memory here (same
+    _backfill_sources_from_history() used by get_session()) for any session
+    that hasn't been individually resumed yet, so a session's theologians
+    still count toward coverage even if nobody has clicked into it since the
+    persistence/backfill fixes landed. Deliberately does NOT write the
+    backfill back to the DB from here -- that only happens on an actual
+    resume (get_session), keeping this endpoint a simple aggregate read
+    rather than an N-way write across every session on each call."""
+    sb = get_user_supabase()
+    resp = sb.table("planning_sessions").select("session_data").execute()
+
+    nodes_covered = set()
+    theologians = set()
+    for row in resp.data:
+        convo = row.get("session_data") or {}
+        node = convo.get("node")
+        if node:
+            nodes_covered.add(node)
+
+        sources = convo.get("sources") or []
+        if not sources and convo.get("messages"):
+            sources = _backfill_sources_from_history(convo)
+        for s in sources:
+            if s.get("type") == "theologian":
+                label = (s.get("label") or "").strip()
+                if label:
+                    theologians.add(label)
+
+    return jsonify({
+        "nodes_covered": sorted(nodes_covered),
+        "nodes_total": len(NODES),
+        "theologians": sorted(theologians),
+    })
+
+
 @pro_chat_bp.route("/sessions/<session_id>", methods=["GET"])
 @login_required
 def get_session(session_id):

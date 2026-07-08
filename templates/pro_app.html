@@ -249,6 +249,13 @@
   .modal-divider {
     border: none; border-top: 1px solid #e5e7eb; margin: 18px 0;
   }
+
+  /* ── Coverage Modal ── */
+  .coverage-pill {
+    display: inline-block; background: #f3f4f6; color: #374151;
+    font-size: 0.72rem; padding: 3px 10px; border-radius: 999px;
+    margin: 0 4px 4px 0;
+  }
 </style>
 </head>
 <body>
@@ -289,6 +296,7 @@
     <div class="card actions-card">
       <div class="card-label actions-label">Actions</div>
       <button class="action-btn" id="prep-doc-btn" onclick="generatePrepDoc()"><span class="btn-label">📄 Create Teaching Outline</span><span class="tip">Turn this conversation into a structured teaching outline — key points, properly attributed citations, and discussion questions, ready to actually use.</span></button>
+      <button class="action-btn" onclick="openCoverage()">📊 View My Coverage<span class="tip">See which topics you've explored and which theologians have shaped the conversation so far, across all your sessions.</span></button>
       <button class="action-btn" onclick="newConversation()">↺ New Conversation<span class="tip">Start fresh with a new topic. Your current conversation stays saved in Your Sessions — nothing is lost.</span></button>
       <button class="action-btn" onclick="openFeedback()">✉ Send Feedback<span class="tip">Send us a note — questions, reactions, things that surprised you, or things that didn't work.</span></button>
     </div>
@@ -741,8 +749,62 @@ function closeHelp() {
 function closeHelpModal(e) {
   if (e.target === document.getElementById("help-modal")) closeHelp();
 }
+
+// ── Coverage ───────────────────────────────────────────────────────────────
+// Aggregates which topics and theologians have surfaced across ALL of the
+// user's sessions (not just the current one) -- first real step toward
+// ministry.html's "For Solo, Ongoing Study" pitch (a running picture of
+// what's been covered), which was previously just "browse Your Sessions and
+// infer it yourself." Added 2026-07-08.
+async function openCoverage() {
+  const modal = document.getElementById("coverage-modal");
+  const body = document.getElementById("coverage-body");
+  body.innerHTML = `<p class="modal-intro">Loading…</p>`;
+  modal.classList.add("show");
+  try {
+    const res = await fetch("/pro/coverage");
+    const data = await res.json();
+    renderCoverage(data);
+  } catch (e) {
+    body.innerHTML = `<p class="modal-intro">Couldn't load your coverage — please try again.</p>`;
+  }
+}
+function closeCoverage() {
+  document.getElementById("coverage-modal").classList.remove("show");
+}
+function closeCoverageModal(e) {
+  if (e.target === document.getElementById("coverage-modal")) closeCoverage();
+}
+function renderCoverage(data) {
+  const body = document.getElementById("coverage-body");
+  const covered = data.nodes_covered || [];
+  const total = data.nodes_total || 0;
+  const theologians = data.theologians || [];
+
+  const topicsHtml = covered.length
+    ? covered.map(n => `<span class="coverage-pill">${esc(nodeDisplayName(n))}</span>`).join("")
+    : `<span class="anchor-placeholder">Nothing explored yet — start a conversation to begin building your coverage.</span>`;
+
+  const theologiansHtml = theologians.length
+    ? theologians.map(t => `<span class="coverage-pill">${esc(t)}</span>`).join("")
+    : `<span class="anchor-placeholder">No theologians have surfaced yet.</span>`;
+
+  body.innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">Topics Explored</div>
+      <p class="modal-intro">${covered.length} of ${total} topics explored so far.</p>
+      <div style="margin-top:8px;">${topicsHtml}</div>
+    </div>
+    <hr class="modal-divider">
+    <div class="modal-section">
+      <div class="modal-section-title">Theologians Engaged</div>
+      <div>${theologiansHtml}</div>
+    </div>
+  `;
+}
+
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") closeHelp();
+  if (e.key === "Escape") { closeHelp(); closeCoverage(); }
 });
 
 // ── Init ────────────────────────────────────────────────────────────────
@@ -791,6 +853,14 @@ loadSessionList();
         </div>
 
         <div class="action-explain">
+          <div class="action-icon">📊</div>
+          <div>
+            <div class="action-name">View My Coverage</div>
+            <div class="action-desc">Shows which topics you've explored and which theologians have surfaced, across every session — not just the current one.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
           <div class="action-icon">↺</div>
           <div>
             <div class="action-name">New Conversation</div>
@@ -807,6 +877,19 @@ loadSessionList();
         </div>
 
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Coverage Modal ── -->
+<div class="modal-overlay" id="coverage-modal" onclick="closeCoverageModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Your Coverage</h2>
+      <button class="modal-close" onclick="closeCoverage()">×</button>
+    </div>
+    <div class="modal-body" id="coverage-body">
+      <p class="modal-intro">Loading…</p>
     </div>
   </div>
 </div>
