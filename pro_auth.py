@@ -15,6 +15,7 @@ Pro ever handles more sensitive data than it does today.
 """
 
 import os
+import time
 from functools import wraps
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
@@ -114,6 +115,7 @@ def signup():
 
     session["sb_access_token"] = result.session.access_token
     session["sb_refresh_token"] = result.session.refresh_token
+    session["sb_expires_at"] = result.session.expires_at
     session["sb_email"] = email
     session["sb_user_id"] = result.user.id
     return redirect(url_for("pro.pro_home"))
@@ -134,6 +136,7 @@ def login():
 
     session["sb_access_token"] = result.session.access_token
     session["sb_refresh_token"] = result.session.refresh_token
+    session["sb_expires_at"] = result.session.expires_at
     session["sb_email"] = email
     session["sb_user_id"] = result.user.id
     return redirect(url_for("pro.pro_home"))
@@ -143,9 +146,56 @@ def login():
 def logout():
     session.pop("sb_access_token", None)
     session.pop("sb_refresh_token", None)
+    session.pop("sb_expires_at", None)
     session.pop("sb_email", None)
     session.pop("sb_user_id", None)
     return redirect(url_for("pro.pro_home"))
+
+
+# Refresh the access token this many seconds before its actual expiry, so a
+# request that's mid-flight when the token would otherwise lapse still gets a
+# valid one. Supabase access tokens default to a 1-hour lifetime -- without
+# this, any Pro session left open past that hour starts getting silent 401s
+# from PostgREST on every subsequent request (profiles, planning_sessions,
+# usage_records alike), which show up to the user as a generic "something
+# went wrong" since nothing here was catching or refreshing on expiry. Found
+# 2026-07-08 via a live Supabase API log check after a Teaching Outline
+# generation failed -- the request never got past a 401'd /rest/v1/profiles
+# call, well after this same session's chat turns had worked fine earlier.
+_TOKEN_REFRESH_BUFFER_SECONDS = 60
+
+
+def _ensure_fresh_access_token() -> None:
+    """Proactively refreshes session['sb_access_token'] using the stored
+    refresh token if it's expired or about to be. Session cookies created
+    before this fix won't have 'sb_expires_at' set -- those are simply left
+    alone (same as today's behavior) until the user logs in again, at which
+    point expiry tracking starts.
+
+    If the refresh itself fails (refresh token revoked or truly dead, e.g.
+    after a password change elsewhere, or weeks of inactivity), the stale
+    session is cleared so the NEXT request cleanly hits login_required's
+    redirect instead of repeating a confusing generic error -- but the
+    current request still raises, same as before this fix, since there's no
+    valid token to hand back either way."""
+    expires_at = session.get("sb_expires_at")
+    refresh_token = session.get("sb_refresh_token")
+    if not expires_at or not refresh_token:
+        return
+    if time.time() < expires_at - _TOKEN_REFRESH_BUFFER_SECONDS:
+        return
+
+    try:
+        result = get_supabase().auth.refresh_session(refresh_token)
+    except Exception:
+        session.pop("sb_access_token", None)
+        session.pop("sb_refresh_token", None)
+        session.pop("sb_expires_at", None)
+        raise
+
+    session["sb_access_token"] = result.session.access_token
+    session["sb_refresh_token"] = result.session.refresh_token
+    session["sb_expires_at"] = result.session.expires_at
 
 
 def get_user_supabase() -> Client:
@@ -155,6 +205,7 @@ def get_user_supabase() -> Client:
     request since Flask is stateless between requests -- there is no
     connection to reuse. Shared here so pro_chat.py (and anything else
     Pro-side) doesn't duplicate this logic."""
+    _ensure_fresh_access_token()
     sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     sb.postgrest.auth(session["sb_access_token"])
     return sb
