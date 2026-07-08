@@ -167,10 +167,21 @@ _TOKEN_REFRESH_BUFFER_SECONDS = 60
 
 def _ensure_fresh_access_token() -> None:
     """Proactively refreshes session['sb_access_token'] using the stored
-    refresh token if it's expired or about to be. Session cookies created
-    before this fix won't have 'sb_expires_at' set -- those are simply left
-    alone (same as today's behavior) until the user logs in again, at which
-    point expiry tracking starts.
+    refresh token if it's expired, about to be, or unknown.
+
+    Session cookies created before 'sb_expires_at' existed won't have it set
+    at all -- originally this treated "missing" as "leave it alone," on the
+    assumption those sessions would simply re-authenticate on their next
+    login. In practice that meant anyone ALREADY logged in when this fix
+    deployed stayed stuck getting 401s indefinitely, since nothing about
+    their existing cookie ever changes without a fresh login -- confirmed
+    2026-07-08 via Supabase API logs showing continued 401s on
+    planning_sessions with zero refresh-token grant calls attempted. Fixed
+    by treating a missing expires_at the same as an expired one: refresh
+    proactively. Harmless if the current token was actually still fine --
+    refresh_session() just issues a new one either way -- and it self-heals
+    every already-logged-in session on its very next request, no manual
+    sign-out/sign-in required.
 
     If the refresh itself fails (refresh token revoked or truly dead, e.g.
     after a password change elsewhere, or weeks of inactivity), the stale
@@ -178,11 +189,11 @@ def _ensure_fresh_access_token() -> None:
     redirect instead of repeating a confusing generic error -- but the
     current request still raises, same as before this fix, since there's no
     valid token to hand back either way."""
-    expires_at = session.get("sb_expires_at")
     refresh_token = session.get("sb_refresh_token")
-    if not expires_at or not refresh_token:
+    if not refresh_token:
         return
-    if time.time() < expires_at - _TOKEN_REFRESH_BUFFER_SECONDS:
+    expires_at = session.get("sb_expires_at")
+    if expires_at is not None and time.time() < expires_at - _TOKEN_REFRESH_BUFFER_SECONDS:
         return
 
     try:
