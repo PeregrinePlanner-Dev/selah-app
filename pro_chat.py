@@ -75,19 +75,26 @@ pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 # system prompt into independently-cached layers (MASTER_PROMPT + node
 # content on their own cache_control breakpoints, RESPONSE_FORMAT left
 # uncached as it's too small to benefit) and uses a 1-hour ephemeral TTL
-# instead of the 5-minute default -- see that function's docstring. New
-# three-tier ladder (individual_light/individual_standard/individual_power)
-# sized against the corrected cost model, replacing the single flat
-# "individual" tier below; TIER_CONVERSATION_CAPS keeps "individual" mapped
-# to the old 200 figure for backward compatibility until Stripe products/
-# price IDs for the new tiers actually exist.
+# instead of the 5-minute default -- see that function's docstring.
+#
+# New three-tier ladder (individual_light/individual_standard/individual_power)
+# at $15/$27/$49, caps finalized 2026-07-09 at 120/225/400 turns/month --
+# Rick's own numbers, checked against the post-fix cost model (blended
+# ~$0.028/turn, worst-case/all-cold-cache ~$0.095/turn): blended margin
+# ~72-74% across all three, worst-case margin ~17-19% (never negative, a
+# deliberately thinner buffer than the base tiers' ~30% since the earlier
+# 100/180/325 draft was judged too tight for a genuinely heavy user -- the
+# overage block below is the release valve for anyone who still exceeds
+# these). Replaces the single flat "individual" tier below; kept in the
+# dict for backward compatibility until Stripe products/price IDs for the
+# new tiers actually exist -- nobody is on "individual" once they do.
 TIER_CONVERSATION_CAPS = {
     "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "300")),
     "beta": 500,
     "individual": 200,
-    "individual_light": 100,
-    "individual_standard": 180,
-    "individual_power": 325,
+    "individual_light": 120,
+    "individual_standard": 225,
+    "individual_power": 400,
     "church": 1500,
     "seminary": 1500,
     "berea": 1500,
