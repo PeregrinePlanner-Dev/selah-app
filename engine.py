@@ -126,16 +126,48 @@ Rules:
 - If you introduced nothing new this turn, omit SOURCE tags entirely.
 """
 
-def build_system_prompt(node_name: str) -> str:
+def build_system_blocks(node_name: str) -> list:
+    """Three system blocks, in the same reading order the model always saw
+    (MASTER_PROMPT -> node content -> RESPONSE_FORMAT), but as SEPARATE
+    cache_control breakpoints instead of one concatenated string under a
+    single breakpoint.
+
+    Why: MASTER_PROMPT (~10.1K tokens) and RESPONSE_FORMAT (~0.6K tokens) are
+    byte-identical on every single call, regardless of node or user -- only
+    the node block (~4.2K tokens median, up to ~16K for the largest node)
+    actually varies. Under the old single-breakpoint design, ANY cache miss
+    meant rewriting the entire combined ~15K+ token blob at the 25% write
+    markup. Splitting means the MASTER_PROMPT layer -- by far the largest
+    piece -- gets reused across EVERY request app-wide (any user, any node)
+    and so stays warm almost continuously once there's any regular traffic;
+    only the smaller node layer needs re-caching, and only when that
+    specific node has gone quiet. RESPONSE_FORMAT is left uncached (no
+    cache_control) since at ~600 tokens it's very likely under Anthropic's
+    minimum cacheable-segment size for Sonnet, so marking it wouldn't
+    actually earn a discount -- it's cheap enough plain that it isn't worth
+    the extra breakpoint.
+
+    Also uses the 1-hour ephemeral TTL (not the 5-minute default) on both
+    cached blocks -- this is a reflective, read-and-think app, and a 5-minute
+    TTL was going cold routinely just from normal reading/reflection pauses
+    between turns, not just idle abandonment. Split + longer TTL are
+    additive: TTL cuts how OFTEN a miss happens, splitting cuts how MUCH gets
+    rewritten when it does. Added 2026-07-09 after cost modeling showed cache
+    misses were the dominant per-turn cost driver under the old design.
+    """
     node_content = NODES.get(node_name, "")
-    return (
-        MASTER_PROMPT
-        + "\n\n---\n\n"
-        + f"## Active Node: {node_name}\n\n"
-        + "Use the content below as your primary doctrinal and tension reference.\n\n"
+    node_block = (
+        f"## Active Node: {node_name}\n\n"
+        "Use the content below as your primary doctrinal and tension reference.\n\n"
         + node_content
-        + RESPONSE_FORMAT
     )
+    return [
+        {"type": "text", "text": MASTER_PROMPT,
+         "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+        {"type": "text", "text": node_block,
+         "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+        {"type": "text", "text": RESPONSE_FORMAT},
+    ]
 
 # ── Combined anchor + chips + source extraction -- one Haiku call per turn ────
 # Source extraction is folded in here, eliminating the separate second Haiku call.

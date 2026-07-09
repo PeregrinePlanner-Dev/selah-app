@@ -21,7 +21,7 @@ from flask import Blueprint, request, jsonify, session, render_template
 
 from engine import (
     NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
-    build_system_prompt, parse_response, format_convo_for_haiku,
+    build_system_blocks, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
     generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
 )
@@ -61,19 +61,33 @@ pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 #   Selah_Pro_Strategy_Brainstorm.md for the underlying per-token math)
 #   $4.22 / $0.02-0.025 = ~170-210 turns/month -> 200 is the number logged
 #   in Selah_Pro_Build_Roadmap.md's Session 24 stress-test entry.
-# "church"/"seminary"/"berea" are UNCHANGED and flagged as NOT YET SAFE:
-# they're still a flat number unrelated to how many seats an org actually
-# bought, which under real per-seat pricing (as low as $7/seat at the
-# 10-seat rate) could cost more than the org paid for a small purchase.
-# Not fixed here because seat-based purchasing/assignment isn't built yet
-# (Phase 3, still open per the roadmap) -- nobody can actually buy a seat
-# today, so there's no live financial exposure yet. Needs a per-seat-scaled
-# cap (roughly 150 turns/seat/month, pooled at the org level, by the same
-# stress-test math) before Church/Org seat purchasing goes live.
+#
+# SUPERSEDED 2026-07-09 (Session 25 cost deep-dive): the $0.02-0.025/turn
+# figure above undercounted real cost -- MASTER_PROMPT alone measured at
+# ~10.1K tokens (not the ~4K assumed) and the system-prompt cache_control
+# was on the default 5-minute TTL, which normal reading/reflection pauses in
+# a reflective study app were routinely breaking, forcing a full ~15K-token
+# cache-write (25% markup) far more often than "worst case" implies. Real
+# blended cost modeled at ~$0.044/turn, worst-case (cold cache + max-length
+# reply) ~$0.098/turn -- meaning 200 turns at $9/mo actually ran near
+# break-even-to-negative, not the ~50%-of-revenue budget this comment
+# assumed. Fixed the same day: engine.build_system_blocks() now splits the
+# system prompt into independently-cached layers (MASTER_PROMPT + node
+# content on their own cache_control breakpoints, RESPONSE_FORMAT left
+# uncached as it's too small to benefit) and uses a 1-hour ephemeral TTL
+# instead of the 5-minute default -- see that function's docstring. New
+# three-tier ladder (individual_light/individual_standard/individual_power)
+# sized against the corrected cost model, replacing the single flat
+# "individual" tier below; TIER_CONVERSATION_CAPS keeps "individual" mapped
+# to the old 200 figure for backward compatibility until Stripe products/
+# price IDs for the new tiers actually exist.
 TIER_CONVERSATION_CAPS = {
     "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "300")),
     "beta": 500,
     "individual": 200,
+    "individual_light": 100,
+    "individual_standard": 180,
+    "individual_power": 325,
     "church": 1500,
     "seminary": 1500,
     "berea": 1500,
@@ -311,7 +325,6 @@ def pro_chat():
         convo["node"] = route_to_node(message)
 
     active_node = convo["node"]
-    system = build_system_prompt(active_node)
 
     convo["messages"].append({"role": "user", "content": message})
 
@@ -327,11 +340,11 @@ def pro_chat():
     # itself. Added 2026-07-08: pass the persisted anchor (this turn's prior
     # value, before it gets refreshed below) as its own system block so the
     # model has a running sense of the conversation's arc, not just its own
-    # short-term window. Kept as a SEPARATE block from the node-based system
-    # prompt (which stays cache_control'd) rather than concatenated into it,
-    # so the large static prompt keeps its prompt-cache hit rate -- only this
-    # small, per-turn-changing block is sent fresh each time.
-    system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    # short-term window. Kept as a SEPARATE block from the cached system
+    # prompt blocks below rather than concatenated into them, so the large
+    # static prompt keeps its prompt-cache hit rate -- only this small,
+    # per-turn-changing block is sent fresh each time.
+    system_blocks = build_system_blocks(active_node)
     if convo.get("anchor"):
         system_blocks.append({
             "type": "text",

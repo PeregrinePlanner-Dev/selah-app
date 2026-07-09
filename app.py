@@ -10,7 +10,7 @@ from pro_chat import pro_chat_bp
 from pro_billing import pro_billing_bp
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
-    route_to_node, build_system_prompt, parse_response,
+    route_to_node, build_system_blocks, parse_response,
     format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags, client,
 )
 
@@ -26,7 +26,7 @@ app.register_blueprint(pro_bp)
 app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
 
-# Node content, routing, system-prompt assembly (build_system_prompt), and
+# Node content, routing, system-prompt assembly (build_system_blocks), and
 # response parsing (parse_response) all live in engine.py now (extracted
 # 2026-07-07) -- the free tool and the Pro chat route (pro_chat.py) share
 # one engine instead of each keeping its own copy. Nothing about their
@@ -174,12 +174,17 @@ def chat():
         convo["node"] = route_to_node(message)
 
     active_node = convo["node"]
-    system      = build_system_prompt(active_node)
 
     convo["messages"].append({"role": "user", "content": message})
 
     # ── Main response (Sonnet) ────────────────────────────────────────────────
-    # system prompt is cached -- saves ~80-90% of input token cost from turn 2 onward.
+    # System prompt is split into independently-cached blocks (see
+    # engine.build_system_blocks) -- the MASTER_PROMPT and RESPONSE_FORMAT
+    # layers are identical across every node/user app-wide, so they stay warm
+    # from ANY request; only the smaller node-specific layer needs re-caching
+    # when that node's traffic goes quiet. 1-hour ephemeral TTL (not the
+    # 5-minute default) added 2026-07-09 so normal reading/reflection pauses
+    # between turns don't force a cache rewrite.
     # Only the last MAX_HISTORY messages are sent to cap growing context costs.
     # Strip technical tags from history so Sonnet doesn't see prior [SOURCE:] tags
     # and interpret them as "sourcing already done" -- which caused it to stop tagging.
@@ -191,7 +196,7 @@ def chat():
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        system=build_system_blocks(active_node),
         messages=clean_history,
     )
     raw_text = response.content[0].text
