@@ -102,7 +102,7 @@ TIER_CONVERSATION_CAPS = {
 DEFAULT_CAP = TIER_CONVERSATION_CAPS["free"]
 
 CAP_HIT_MESSAGE = (
-    "You've reached this month's conversation limit for your current plan. "
+    "You've reached this month's exchange limit for your current plan. "
     "It resets at the start of next month."
 )
 
