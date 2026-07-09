@@ -77,24 +77,35 @@ pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 # uncached as it's too small to benefit) and uses a 1-hour ephemeral TTL
 # instead of the 5-minute default -- see that function's docstring.
 #
-# New three-tier ladder (individual_light/individual_standard/individual_power)
-# at $15/$27/$49, caps finalized 2026-07-09 at 120/225/400 turns/month --
-# Rick's own numbers, checked against the post-fix cost model (blended
-# ~$0.028/turn, worst-case/all-cold-cache ~$0.095/turn): blended margin
-# ~72-74% across all three, worst-case margin ~17-19% (never negative, a
-# deliberately thinner buffer than the base tiers' ~30% since the earlier
-# 100/180/325 draft was judged too tight for a genuinely heavy user -- the
-# overage block below is the release valve for anyone who still exceeds
-# these). Replaces the single flat "individual" tier below; kept in the
-# dict for backward compatibility until Stripe products/price IDs for the
-# new tiers actually exist -- nobody is on "individual" once they do.
+# New three-tier ladder, publicly named "Explore / Pursue / Immerse" --
+# deliberately plain, non-identity verbs (not "Seeker/Disciple/Scholar"-type
+# language, which would tie how much someone pays to how spiritually mature
+# they are), escalating by depth of engagement rather than just volume.
+# "Immerse" chosen over "Abide" for the top tier despite Abide's stronger
+# devotional resonance -- Abide is already a well-known, established
+# Christian meditation/prayer app (Guideposts-owned), and colliding with an
+# actual competing product's name outweighed the tonal fit. Locked 2026-07-09.
+#
+# Pricing finalized at $17/$28/$49 (up from an initial $15/$27/$49 pass --
+# Rick opted for slightly higher margin on Explore and Pursue, Immerse
+# unchanged), caps at 120/225/400 turns/month, checked against the post-fix
+# cost model (blended ~$0.028/turn, worst-case/all-cold-cache ~$0.095/turn):
+# blended margin 75.6%/73.5%/73.6%, worst-case margin 28.3%/19.7%/18.9% --
+# every tier gained or held margin versus the $15/$27/$49 pass, none lost
+# ground. Deliberately thinner worst-case buffer than the base tiers' ~30%
+# design principle, since the earlier 100/180/325-cap draft was judged too
+# tight for a genuinely heavy user -- the overage block below is the release
+# valve for anyone who still exceeds these. Replaces the single flat
+# "individual" tier below; kept in the dict for backward compatibility until
+# Stripe products/price IDs for the new tiers actually exist -- nobody is on
+# "individual" once they do.
 TIER_CONVERSATION_CAPS = {
     "free": int(os.environ.get("FREE_TIER_MONTHLY_CAP", "300")),
     "beta": 500,
     "individual": 200,
-    "individual_light": 120,
-    "individual_standard": 225,
-    "individual_power": 400,
+    "individual_explore": 120,   # $17/mo
+    "individual_pursue": 225,    # $28/mo
+    "individual_immerse": 400,   # $49/mo
     "church": 1500,
     "seminary": 1500,
     "berea": 1500,
