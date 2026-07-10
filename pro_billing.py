@@ -33,11 +33,14 @@ block):
                                       flow yet. Redeeming a purchased block
                                       into someone's actual exchange balance
                                       (rollover/overage credit) is a real,
-                                      undesigned feature (roadmap tasks #76/
-                                      #77) -- creating this Price now so the
-                                      Stripe product catalog is complete and
-                                      ready whenever that mechanism is built,
-                                      not because checkout for it works today.
+                                      undesigned feature (roadmap task #77 --
+                                      corrected 2026-07-10, was wrongly
+                                      citing #76 too, which is the unrelated
+                                      forgot-password item) -- creating this
+                                      Price now so the Stripe product
+                                      catalog is complete and ready whenever
+                                      that mechanism is built, not because
+                                      checkout for it works today.
   Any annual price left unset falls back to that tier's monthly price, same
   graceful-degrade behavior as the old single-tier version -- a tier can go
   live monthly-only without its annual Price existing yet.
