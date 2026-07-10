@@ -112,6 +112,18 @@ TIER_CONVERSATION_CAPS = {
 }
 DEFAULT_CAP = TIER_CONVERSATION_CAPS["free"]
 
+# Trial cap is flat and exchange-based, decoupled from which tier was
+# chosen at signup (Rick's call, 2026-07-10, starting point -- adjust if
+# real trial usage says otherwise). Deliberately NOT tier-based: sizing the
+# trial off the tier's own monthly cap would make picking the priciest tier
+# to trial the "smart" move (more free exchanges before ever paying), and
+# ties trial cost to Stripe's trial_period_days window rather than to real
+# usage. 25 is enough for two genuine conversations at the 8-15
+# exchanges/conversation depth seen in real transcripts -- a real feel for
+# the product, not a free month. Worst-case cost: 25 x ~$0.095 = ~$2.38/
+# trial; blended: 25 x ~$0.028 = ~$0.70/trial.
+TRIAL_EXCHANGE_CAP = 25
+
 CAP_HIT_MESSAGE = (
     "You've reached this month's exchange limit for your current plan. "
     "It resets at the start of next month."
@@ -298,21 +310,39 @@ def pro_chat():
     # this check short-circuits before billing status is ever consulted.
     is_comped = profile_resp.data[0].get("seat_status") == "comped"
 
+    # NOTE (found + fixed 2026-07-10): this used to filter .eq("status",
+    # "active"), which silently excluded "trialing" rows entirely -- a
+    # trialing subscriber matched nothing here and fell through to the
+    # tier_slug="free" default below, same as a canceled or past_due
+    # account. That's not the same bug as "trial gets the full paid-tier
+    # cap for free" (a claim from an earlier session's notes that doesn't
+    # match what this code actually did) -- the real prior behavior was a
+    # trialing user got the free tier's cap (300, looser than the new
+    # trial cap below), not their subscribed tier's cap. Fixed by fetching
+    # the latest row regardless of status and handling "trialing"
+    # explicitly instead of relying on the filter to do it implicitly.
     sub_resp = (
         sb.table("subscriptions")
-        .select("tier_slug")
+        .select("tier_slug, status")
         .eq("organization_id", organization_id)
-        .eq("status", "active")
+        .order("created_at", desc=True)
         .limit(1)
         .execute()
     )
     tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
+    sub_status = sub_resp.data[0]["status"] if sub_resp.data else None
+
+    # Trial exchanges are capped flat (TRIAL_EXCHANGE_CAP), not by the
+    # tier's own monthly cap -- see the constant's comment above. Only
+    # applies while status is literally "trialing"; active/past_due/
+    # canceled/free all fall through to the normal tier-based cap.
+    cap_override = TRIAL_EXCHANGE_CAP if sub_status == "trialing" else None
 
     # Cap-check gate -- BEFORE the Anthropic call, never after. Uses the
     # service-role client internally; never checked or written via the
     # user's own token. Comped seats skip this entirely -- no usage-record
     # row is even written for them, since there's nothing to cap.
-    if not is_comped and not _check_and_reserve_usage(organization_id, tier_slug):
+    if not is_comped and not _check_and_reserve_usage(organization_id, tier_slug, cap=cap_override):
         return jsonify({
             "reply": CAP_HIT_MESSAGE,
             "question": "",
