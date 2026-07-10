@@ -331,6 +331,12 @@
   .plan-option-btn:hover { border-color: #2f6b66; background: #f0fdf4; }
   .plan-option-name { font-weight: 700; font-size: 0.92rem; color: #1f2937; margin-bottom: 3px; }
   .plan-option-detail { font-size: 0.8rem; color: #6b7280; }
+  .tier-block { margin-bottom: 16px; }
+  .tier-block:last-child { margin-bottom: 0; }
+  .tier-block-name { font-weight: 700; font-size: 0.88rem; color: #1f2937; margin-bottom: 6px; }
+  .tier-block-cap { font-weight: 400; font-size: 0.76rem; color: #6b7280; margin-left: 6px; }
+  .tier-block-row { display: flex; gap: 8px; }
+  .tier-block-row .plan-option-btn { flex: 1; margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -1128,6 +1134,11 @@ document.addEventListener("keydown", e => {
 // only shown once loadBillingStatus() gets a real answer, so this stays
 // invisible rather than broken before Stripe keys are actually configured.
 let billingTierSlug = null;
+// Kept in sync with pro_billing.py's _TIER_INFO tier_slug values
+// (individual_explore/pursue/immerse) -- old bare "individual" retained
+// here too since a pre-2026-07-09 row could still carry it until its next
+// renewal re-syncs via webhook.
+const PAID_TIER_SLUGS = ["individual", "individual_explore", "individual_pursue", "individual_immerse"];
 
 async function loadBillingStatus() {
   try {
@@ -1136,7 +1147,7 @@ async function loadBillingStatus() {
     const data = await res.json();
     billingTierSlug = data.tier_slug;
     const btn = document.getElementById("billing-btn");
-    const activePaid = data.tier_slug === "individual" && data.status !== "canceled";
+    const activePaid = PAID_TIER_SLUGS.includes(data.tier_slug) && data.status !== "canceled";
     btn.textContent = activePaid ? "Manage Billing" : "Upgrade";
     btn.style.display = "inline-block";
   } catch (e) {
@@ -1153,7 +1164,7 @@ async function loadBillingStatus() {
 // checkout; an already-paid click still goes straight to the portal, since
 // there's nothing to choose there.
 function handleBillingClick() {
-  if (billingTierSlug === "individual") {
+  if (PAID_TIER_SLUGS.includes(billingTierSlug)) {
     goToPortal();
   } else {
     document.getElementById("choose-plan-modal").classList.add("show");
@@ -1188,7 +1199,7 @@ async function goToPortal() {
   btn.disabled = false;
 }
 
-async function selectPlan(plan) {
+async function selectPlan(tier, plan) {
   closeChoosePlanModal();
   const btn = document.getElementById("billing-btn");
   btn.disabled = true;
@@ -1196,7 +1207,7 @@ async function selectPlan(plan) {
     const res = await fetch("/pro/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ tier, plan }),
     });
     const data = await res.json();
     if (data.url) {
@@ -1364,21 +1375,55 @@ loadBillingStatus();
 
 <!-- ── Choose Plan Modal (Upgrade to Individual Pro) ── -->
 <div class="modal-overlay" id="choose-plan-modal" onclick="closeChoosePlanModalBg(event)">
-  <div class="modal" style="width:420px;">
+  <div class="modal" style="width:480px;">
     <div class="modal-header">
       <h2>Choose Your Plan</h2>
       <button class="modal-close" onclick="closeChoosePlanModal()">×</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro" style="margin-bottom:14px;">Both start with a 14-day free trial.</p>
-      <button class="plan-option-btn" onclick="selectPlan('monthly')">
-        <div class="plan-option-name">Monthly — $9/mo</div>
-        <div class="plan-option-detail">Locked at $9/mo for at least 2 years</div>
-      </button>
-      <button class="plan-option-btn" onclick="selectPlan('annual')">
-        <div class="plan-option-name">Annual — $90/yr</div>
-        <div class="plan-option-detail">Two months free</div>
-      </button>
+      <p class="modal-intro" style="margin-bottom:14px;">All three tiers start with a 14-day free trial.</p>
+
+      <div class="tier-block">
+        <div class="tier-block-name">Explore <span class="tier-block-cap">120 exchanges/mo</span></div>
+        <div class="tier-block-row">
+          <button class="plan-option-btn" onclick="selectPlan('explore','monthly')">
+            <div class="plan-option-name">$17/mo</div>
+            <div class="plan-option-detail">Locked 2 years</div>
+          </button>
+          <button class="plan-option-btn" onclick="selectPlan('explore','annual')">
+            <div class="plan-option-name">$170/yr</div>
+            <div class="plan-option-detail">2 months free</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="tier-block">
+        <div class="tier-block-name">Pursue <span class="tier-block-cap">225 exchanges/mo</span></div>
+        <div class="tier-block-row">
+          <button class="plan-option-btn" onclick="selectPlan('pursue','monthly')">
+            <div class="plan-option-name">$28/mo</div>
+            <div class="plan-option-detail">Locked 2 years</div>
+          </button>
+          <button class="plan-option-btn" onclick="selectPlan('pursue','annual')">
+            <div class="plan-option-name">$280/yr</div>
+            <div class="plan-option-detail">2 months free</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="tier-block">
+        <div class="tier-block-name">Immerse <span class="tier-block-cap">400 exchanges/mo</span></div>
+        <div class="tier-block-row">
+          <button class="plan-option-btn" onclick="selectPlan('immerse','monthly')">
+            <div class="plan-option-name">$49/mo</div>
+            <div class="plan-option-detail">Locked 2 years</div>
+          </button>
+          <button class="plan-option-btn" onclick="selectPlan('immerse','annual')">
+            <div class="plan-option-name">$490/yr</div>
+            <div class="plan-option-detail">2 months free</div>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

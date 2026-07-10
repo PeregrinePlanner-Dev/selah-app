@@ -1,29 +1,46 @@
 """Selah for Ministry -- Stripe billing blueprint.
 
-Individual Pro only, self-serve, for now (per Rick's 2026-07-08 pricing
-finalization: $9/mo intro locked 2 years, $12/mo regular, $90/yr annual).
-Church/Org and the congregation Member Add-On are deliberately NOT wired to
-Checkout here -- seat-based purchasing isn't built yet (Phase 3), and both
-are still a "contact us" sales motion on ministry.html, not a self-serve
-flow. Wiring only what's actually sellable today keeps this from promising
-a checkout experience that doesn't exist.
+Individual Pro, self-serve, three tiers (per Rick's 2026-07-09 pricing
+finalization, commit 22c3d2c): Explore $17/mo ($170/yr, 120 exchanges),
+Pursue $28/mo ($280/yr, 225 exchanges), Immerse $49/mo ($490/yr, 400
+exchanges). Church/Org and the congregation Member Add-On are deliberately
+NOT wired to Checkout here -- seat-based purchasing isn't built yet (Phase
+3), and both are still a "contact us" sales motion on ministry.html, not a
+self-serve flow. Wiring only what's actually sellable today keeps this from
+promising a checkout experience that doesn't exist.
 
 Kept as its own module, registered onto the existing Flask app additively,
 same pattern as pro_auth.py/pro_chat.py -- the free tool's routes and the
 rest of Pro stay untouched by this.
 
 Setup required before this does anything (all via env vars, none of which
-exist yet as of this writing):
-  STRIPE_SECRET_KEY              -- Stripe dashboard > Developers > API keys
-  STRIPE_WEBHOOK_SECRET           -- shown when you register this endpoint's
-                                     URL (https://<domain>/pro/billing/webhook)
-                                     as a webhook destination in the Stripe
-                                     dashboard
-  STRIPE_PRICE_INDIVIDUAL_MONTHLY -- Price ID for the $9/mo Individual Pro
-                                     Price (Products > Selah Individual Pro)
-  STRIPE_PRICE_INDIVIDUAL_ANNUAL  -- Price ID for the $90/yr Price, once
-                                     that number is finalized -- optional;
-                                     monthly-only launch works fine without it
+exist yet as of this writing -- see Selah_Pro_Build_Roadmap.md Section 14
+for the "7 Stripe products" count: 3 tiers x 2 billing cycles + 1 overage
+block):
+  STRIPE_SECRET_KEY               -- Stripe dashboard > Developers > API keys
+  STRIPE_WEBHOOK_SECRET            -- shown when you register this endpoint's
+                                      URL (https://<domain>/pro/billing/webhook)
+                                      as a webhook destination in the Stripe
+                                      dashboard
+  STRIPE_PRICE_EXPLORE_MONTHLY     -- $17/mo, 120 exchanges/mo
+  STRIPE_PRICE_EXPLORE_ANNUAL      -- $170/yr
+  STRIPE_PRICE_PURSUE_MONTHLY      -- $28/mo, 225 exchanges/mo
+  STRIPE_PRICE_PURSUE_ANNUAL       -- $280/yr
+  STRIPE_PRICE_IMMERSE_MONTHLY     -- $49/mo, 400 exchanges/mo
+  STRIPE_PRICE_IMMERSE_ANNUAL      -- $490/yr
+  STRIPE_PRICE_EXCHANGE_BLOCK      -- $15 one-time, 100 exchanges. Price ID
+                                      wiring only -- NOT a working purchase
+                                      flow yet. Redeeming a purchased block
+                                      into someone's actual exchange balance
+                                      (rollover/overage credit) is a real,
+                                      undesigned feature (roadmap tasks #76/
+                                      #77) -- creating this Price now so the
+                                      Stripe product catalog is complete and
+                                      ready whenever that mechanism is built,
+                                      not because checkout for it works today.
+  Any annual price left unset falls back to that tier's monthly price, same
+  graceful-degrade behavior as the old single-tier version -- a tier can go
+  live monthly-only without its annual Price existing yet.
 Until STRIPE_SECRET_KEY is set, every route here returns a clean 503 rather
 than a confusing crash, so the app can deploy with this code in place before
 the keys actually exist.
@@ -42,24 +59,53 @@ pro_billing_bp = Blueprint("pro_billing", __name__, url_prefix="/pro/billing")
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
-# Individual Pro's Prices, created once in the Stripe dashboard. Prices are
-# immutable in Stripe once created -- this is what makes the 2-year
-# price-lock promise mechanically real: a future list-price change means
-# creating a THIRD Price object and pointing new Checkout Sessions at it,
-# never editing this one out from under existing subscribers.
-STRIPE_PRICE_INDIVIDUAL_MONTHLY = os.environ.get("STRIPE_PRICE_INDIVIDUAL_MONTHLY", "")
-STRIPE_PRICE_INDIVIDUAL_ANNUAL = os.environ.get("STRIPE_PRICE_INDIVIDUAL_ANNUAL", "")
+# Three tiers x two billing cycles. Prices are immutable in Stripe once
+# created -- this is what makes the 2-year price-lock promise mechanically
+# real: a future list-price change means creating a new Price object and
+# pointing new Checkout Sessions at it, never editing one out from under
+# existing subscribers.
+TIER_PRICE_IDS = {
+    "explore": {
+        "monthly": os.environ.get("STRIPE_PRICE_EXPLORE_MONTHLY", ""),
+        "annual": os.environ.get("STRIPE_PRICE_EXPLORE_ANNUAL", ""),
+    },
+    "pursue": {
+        "monthly": os.environ.get("STRIPE_PRICE_PURSUE_MONTHLY", ""),
+        "annual": os.environ.get("STRIPE_PRICE_PURSUE_ANNUAL", ""),
+    },
+    "immerse": {
+        "monthly": os.environ.get("STRIPE_PRICE_IMMERSE_MONTHLY", ""),
+        "annual": os.environ.get("STRIPE_PRICE_IMMERSE_ANNUAL", ""),
+    },
+}
+
+# Price-ID wiring only, no checkout route yet -- see the module docstring's
+# note on STRIPE_PRICE_EXCHANGE_BLOCK above.
+STRIPE_PRICE_EXCHANGE_BLOCK = os.environ.get("STRIPE_PRICE_EXCHANGE_BLOCK", "")
+
+# What each tier+cycle actually costs and which TIER_CONVERSATION_CAPS key
+# (pro_chat.py) it maps to -- kept here rather than re-derived from Stripe,
+# since Stripe's Price objects don't carry our own tier-slug naming.
+_TIER_INFO = {
+    "explore": {"tier_slug": "individual_explore", "monthly": 17.00, "annual": 170.00},
+    "pursue":  {"tier_slug": "individual_pursue",  "monthly": 28.00, "annual": 280.00},
+    "immerse": {"tier_slug": "individual_immerse", "monthly": 49.00, "annual": 490.00},
+}
 
 # Maps a Price ID back to what we persist on our own side after a
 # checkout/renewal -- Stripe's webhook payloads only carry the price ID, not
-# a ready-made "$9, monthly" summary, so this is the one place that
-# translation lives. Extend this dict (not the tier-assignment logic below)
-# if/when a regular ($12) Price or a Church/Org self-serve Price is added.
+# a ready-made "$17, monthly, explore" summary, so this is the one place
+# that translation lives. Extend TIER_PRICE_IDS/_TIER_INFO above (not this
+# loop) if/when a new tier or a Church/Org self-serve Price is added.
 PRICE_MAP = {}
-if STRIPE_PRICE_INDIVIDUAL_MONTHLY:
-    PRICE_MAP[STRIPE_PRICE_INDIVIDUAL_MONTHLY] = {"billing_cycle": "monthly", "current_price": 9.00}
-if STRIPE_PRICE_INDIVIDUAL_ANNUAL:
-    PRICE_MAP[STRIPE_PRICE_INDIVIDUAL_ANNUAL] = {"billing_cycle": "annual", "current_price": 90.00}
+for _tier, _cycles in TIER_PRICE_IDS.items():
+    for _cycle, _price_id in _cycles.items():
+        if _price_id:
+            PRICE_MAP[_price_id] = {
+                "billing_cycle": _cycle,
+                "current_price": _TIER_INFO[_tier][_cycle],
+                "tier_slug": _TIER_INFO[_tier]["tier_slug"],
+            }
 
 TRIAL_DAYS = 14
 
@@ -79,23 +125,32 @@ def _get_org_id_and_email():
 @pro_billing_bp.route("/checkout", methods=["POST"])
 @login_required
 def create_checkout_session():
-    """Starts a Stripe Checkout session for Individual Pro. Returns a URL for
-    the frontend to redirect to (Stripe's hosted page) rather than
-    redirecting server-side, since this is called via fetch() -- no card
-    data ever touches this server, so there's no PCI burden here at all.
+    """Starts a Stripe Checkout session for one of the three Individual Pro
+    tiers. Returns a URL for the frontend to redirect to (Stripe's hosted
+    page) rather than redirecting server-side, since this is called via
+    fetch() -- no card data ever touches this server, so there's no PCI
+    burden here at all.
 
-    body: {"plan": "monthly" | "annual"} -- defaults to monthly if omitted
-    or unrecognized. Annual silently falls back to monthly until
-    STRIPE_PRICE_INDIVIDUAL_ANNUAL is actually set, so monthly can launch
-    alone without the annual Price existing yet."""
+    body: {"tier": "explore" | "pursue" | "immerse", "plan": "monthly" |
+    "annual"} -- tier is required, no default: guessing the wrong tier means
+    charging the wrong price, so an invalid/missing tier is a hard 400, not
+    a silent fallback. plan defaults to "monthly" and silently falls back to
+    that tier's monthly price if the annual Price isn't configured yet, so a
+    tier can launch monthly-only."""
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
-    plan = (request.json or {}).get("plan", "monthly")
+    body = request.json or {}
+    tier = body.get("tier", "")
+    plan = body.get("plan", "monthly")
+
+    if tier not in TIER_PRICE_IDS:
+        return jsonify({"error": f"Unknown plan tier: {tier!r}"}), 400
+
     price_id = (
-        STRIPE_PRICE_INDIVIDUAL_ANNUAL
-        if plan == "annual" and STRIPE_PRICE_INDIVIDUAL_ANNUAL
-        else STRIPE_PRICE_INDIVIDUAL_MONTHLY
+        TIER_PRICE_IDS[tier].get("annual")
+        if plan == "annual" and TIER_PRICE_IDS[tier].get("annual")
+        else TIER_PRICE_IDS[tier].get("monthly")
     )
     if not price_id:
         return jsonify({"error": "No Stripe price is configured for this plan yet."}), 503
@@ -250,6 +305,18 @@ def _sync_subscription_row(subscription, organization_id=None):
         print(f"[STRIPE WEBHOOK] subscription {subscription.get('id')} has no organization_id metadata, skipping sync")
         return
 
+    # Looked up before building update_fields, not after, so the
+    # unknown-price fallback below can tell a brand-new row from an
+    # existing one (see comment there).
+    existing = (
+        svc.table("subscriptions")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .limit(1)
+        .execute()
+    )
+    is_new_row = not existing.data
+
     items = (subscription.get("items") or {}).get("data") or []
     price_id = items[0]["price"]["id"] if items else None
     price_info = PRICE_MAP.get(price_id, {})
@@ -258,27 +325,36 @@ def _sync_subscription_row(subscription, organization_id=None):
     our_status = _STRIPE_STATUS_MAP.get(stripe_status, "active")
 
     update_fields = {
-        "tier_slug": "individual",
         "status": our_status,
         "stripe_customer_id": subscription.get("customer"),
         "stripe_subscription_id": subscription.get("id"),
         "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
     }
+    if price_info:
+        # Known price -- set the real tier and billing details.
+        update_fields["tier_slug"] = price_info["tier_slug"]
+        update_fields["billing_cycle"] = price_info["billing_cycle"]
+        update_fields["current_price"] = price_info["current_price"]
+    elif is_new_row:
+        # Unrecognized price_id on a brand-new row -- don't guess silently.
+        # Most likely cause: a subscription created directly in the Stripe
+        # dashboard, or a STRIPE_PRICE_* env var that's missing/wrong. The
+        # NOT NULL tier_slug column still needs *something*, so this
+        # defaults to the cheapest real tier as the safer of two wrong
+        # guesses (under-provisioning, not over-), and logs loudly so it
+        # gets caught rather than silently mis-billed.
+        print(f"[STRIPE WEBHOOK] price {price_id!r} not in PRICE_MAP -- check STRIPE_PRICE_* env vars (new row, defaulted to individual_explore)")
+        update_fields["tier_slug"] = "individual_explore"
+    else:
+        # Unrecognized price on an EXISTING row -- leave tier_slug out of
+        # update_fields entirely so this update doesn't clobber the row's
+        # already-correct tier with a wrong guess.
+        print(f"[STRIPE WEBHOOK] price {price_id!r} not in PRICE_MAP -- check STRIPE_PRICE_* env vars (existing row, tier_slug left unchanged)")
     if subscription.get("current_period_end"):
         update_fields["current_period_end"] = _epoch_to_iso(subscription["current_period_end"])
     if subscription.get("trial_end"):
         update_fields["trial_end"] = _epoch_to_iso(subscription["trial_end"])
-    if price_info:
-        update_fields["billing_cycle"] = price_info["billing_cycle"]
-        update_fields["current_price"] = price_info["current_price"]
 
-    existing = (
-        svc.table("subscriptions")
-        .select("id")
-        .eq("organization_id", organization_id)
-        .limit(1)
-        .execute()
-    )
     if existing.data:
         svc.table("subscriptions").update(update_fields).eq("organization_id", organization_id).execute()
     else:
