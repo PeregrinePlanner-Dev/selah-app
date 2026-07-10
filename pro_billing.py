@@ -46,6 +46,7 @@ than a confusing crash, so the app can deploy with this code in place before
 the keys actually exist.
 """
 
+import calendar
 import os
 from datetime import datetime, timezone
 
@@ -253,7 +254,7 @@ def billing_status():
     sb = get_user_supabase()
     sub_resp = (
         sb.table("subscriptions")
-        .select("tier_slug, status, billing_cycle, current_price, current_period_end, cancel_at_period_end, trial_end")
+        .select("tier_slug, status, billing_cycle, current_price, current_period_end, cancel_at_period_end, trial_end, price_lock_expires_at")
         .eq("organization_id", organization_id)
         .order("created_at", desc=True)
         .limit(1)
@@ -286,6 +287,20 @@ _STRIPE_STATUS_MAP = {
 
 def _epoch_to_iso(epoch_seconds: int) -> str:
     return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).isoformat()
+
+
+PRICE_LOCK_MONTHS = 24
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    """Calendar-aware month addition (timedelta(days=730) drifts against
+    real 24-month periods across leap years). Clamps to the last real day
+    of the target month for edge cases like Jan 31 + 1 month."""
+    month_index = dt.month - 1 + months
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 
 def _sync_subscription_row(subscription, organization_id=None):
@@ -330,6 +345,23 @@ def _sync_subscription_row(subscription, organization_id=None):
         "stripe_subscription_id": subscription.get("id"),
         "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
     }
+    if is_new_row:
+        # Anchor the 24-month price-lock promise to the moment this org
+        # FIRST ever subscribed -- set once, here, and never touched again
+        # by any later renewal/upgrade/downgrade sync. Note: customer.
+        # subscription.deleted (below) updates this same row to
+        # tier_slug='free'/status='canceled' rather than deleting it, so a
+        # later resubscribe finds an existing row (is_new_row=False) and
+        # this block doesn't re-run -- the original first-subscribe date
+        # sticks even across a cancel/resubscribe cycle. That's a real
+        # policy choice, not an oversight: revisit if the business instead
+        # wants a lapsed-then-returning subscriber's lock clock to restart.
+        started_at = (
+            datetime.fromtimestamp(subscription["created"], tz=timezone.utc)
+            if subscription.get("created")
+            else datetime.now(timezone.utc)
+        )
+        update_fields["price_lock_expires_at"] = _add_months(started_at, PRICE_LOCK_MONTHS).isoformat()
     if price_info:
         # Known price -- set the real tier and billing details.
         update_fields["tier_slug"] = price_info["tier_slug"]
