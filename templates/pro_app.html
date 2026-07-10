@@ -666,6 +666,22 @@ async function sendMessage(text, forceNode) {
     updateAnchor(data.anchor);
     addSources(data.sources);
     loadSessionList(); // refresh the list so this session's updated_at/anchor move to the top
+
+    // Trial-start welcome (Rick, 2026-07-10): pro_chat.py flags the exact
+    // request that started the 14-day/25-exchange clock -- surface that
+    // moment once, right after the reply it rode in on, rather than a
+    // separate pre-chat step that would delay their first real answer.
+    if (data.trial_started) {
+      document.getElementById("trial-welcome-modal").classList.add("show");
+    }
+
+    // Door 2 of 3 (Rick, 2026-07-10): running out mid-session should open
+    // the plan picker itself, not just leave a dead-end reply sitting in
+    // the transcript. pro_chat.py sets this flag on both trial-exhaustion
+    // (date or exchange count) and a paid tier's monthly cap.
+    if (data.upgrade_required) {
+      document.getElementById("choose-plan-modal").classList.add("show");
+    }
   } catch (err) {
     addBubble("assistant", "Something went wrong — please try again.");
   } finally {
@@ -1150,6 +1166,19 @@ async function loadBillingStatus() {
     const activePaid = PAID_TIER_SLUGS.includes(data.tier_slug) && data.status !== "canceled";
     btn.textContent = activePaid ? "Manage Billing" : "Upgrade";
     btn.style.display = "inline-block";
+
+    // Door 3 of 3 (Rick, 2026-07-10): opening a brand-new session with no
+    // credits left should surface the plan picker immediately, not wait
+    // for them to type a message just to get bounced. Checks both trial
+    // limits -- date (trial_end passed) and count (exchanges_used hit the
+    // cap) -- since either one alone ends a card-free trial.
+    if (data.status === "trialing") {
+      const trialEndPassed = data.trial_end && new Date(data.trial_end) <= new Date();
+      const exchangesExhausted = data.exchanges_cap != null && data.exchanges_used >= data.exchanges_cap;
+      if (trialEndPassed || exchangesExhausted) {
+        document.getElementById("choose-plan-modal").classList.add("show");
+      }
+    }
   } catch (e) {
     // Billing not configured yet, or the request failed -- leave the
     // button hidden rather than show something broken.
@@ -1169,6 +1198,10 @@ function handleBillingClick() {
   } else {
     document.getElementById("choose-plan-modal").classList.add("show");
   }
+}
+
+function closeTrialWelcomeModal() {
+  document.getElementById("trial-welcome-modal").classList.remove("show");
 }
 
 function closeChoosePlanModal() {
@@ -1373,6 +1406,22 @@ loadBillingStatus();
   </div>
 </div>
 
+<!-- ── Trial-Start Welcome (Rick, 2026-07-10 -- shown once, the moment the
+     card-free 14-day/25-exchange trial actually starts, on the response to
+     the first real exchange) ── -->
+<div class="modal-overlay" id="trial-welcome-modal">
+  <div class="modal" style="width:440px;">
+    <div class="modal-header">
+      <h2>Welcome</h2>
+      <button class="modal-close" onclick="closeTrialWelcomeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro">Your free trial begins with the first exchange with your study companion. You have 25 exchanges within the next 14 days to decide if you would like to continue using Selah for Ministry. Once your trial expires you may choose from three levels of monthly exchanges and two billing periods. For now, enjoy Selah for Ministry.</p>
+      <button class="plan-option-btn" style="margin-top:6px;" onclick="closeTrialWelcomeModal()">Got it</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Choose Plan Modal (Upgrade to Individual Pro) ── -->
 <div class="modal-overlay" id="choose-plan-modal" onclick="closeChoosePlanModalBg(event)">
   <div class="modal" style="width:480px;">
@@ -1381,7 +1430,7 @@ loadBillingStatus();
       <button class="modal-close" onclick="closeChoosePlanModal()">×</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro" style="margin-bottom:10px;">Try Selah for Ministry on us for 25 exchanges with your study companion. Use them any time over the next 14 days. You may cancel at any point before the 25th exchange or before the 14 days expire. Only after the trial ends will your card be charged.</p>
+      <p class="modal-intro" style="margin-bottom:10px;">Choose a plan to continue with your study companion beyond your trial.</p>
       <p class="modal-intro" style="margin-bottom:10px;">Subscription rates shown will not increase for at least 24 months.</p>
       <p class="modal-intro" style="margin-bottom:14px;">Annual subscriptions are equivalent to two months free.</p>
 

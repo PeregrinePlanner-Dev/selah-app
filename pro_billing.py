@@ -48,7 +48,7 @@ the keys actually exist.
 
 import calendar
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import stripe
 from flask import Blueprint, request, jsonify, url_for
@@ -108,6 +108,14 @@ for _tier, _cycles in TIER_PRICE_IDS.items():
                 "tier_slug": _TIER_INFO[_tier]["tier_slug"],
             }
 
+# Superseded 2026-07-10: the free trial now happens entirely BEFORE Stripe
+# is ever involved (pro_chat.py starts a homegrown 14-day/25-exchange trial
+# on someone's first exchange, no card required -- see TRIAL_EXCHANGE_CAP
+# there). Checkout no longer grants a second Stripe-side trial_period_days
+# on top of that; conversion is a real charge starting immediately, whether
+# someone converts mid-trial (clicked Upgrade directly) or after their
+# trial already ended. Left defined (unused) rather than deleted, in case a
+# future promo wants a Stripe-side trial again for a specific campaign.
 TRIAL_DAYS = 14
 
 
@@ -186,7 +194,6 @@ def create_checkout_session():
         "client_reference_id": organization_id,
         "metadata": {"organization_id": organization_id},
         "subscription_data": {
-            "trial_period_days": TRIAL_DAYS,
             "metadata": {"organization_id": organization_id},
         },
     }
@@ -262,7 +269,31 @@ def billing_status():
     )
     if not sub_resp.data:
         return jsonify({"tier_slug": "free", "status": "active"})
-    return jsonify(sub_resp.data[0])
+
+    result = dict(sub_resp.data[0])
+
+    # Exchanges used this billing month -- exposed so the frontend can
+    # decide whether to open the plan-choice modal on page load itself
+    # (Rick's "door 3": a new session with no credits left) without having
+    # to send a throwaway chat message just to find out. Same usage_records
+    # lookup pro_chat.py's _check_and_reserve_usage uses, read-only here.
+    usage_resp = (
+        sb.table("usage_records")
+        .select("conversations_used, conversations_cap")
+        .eq("organization_id", organization_id)
+        .eq("billing_month", date.today().replace(day=1).isoformat())
+        .is_("module_slug", "null")
+        .limit(1)
+        .execute()
+    )
+    if usage_resp.data:
+        result["exchanges_used"] = usage_resp.data[0]["conversations_used"]
+        result["exchanges_cap"] = usage_resp.data[0]["conversations_cap"]
+    else:
+        result["exchanges_used"] = 0
+        result["exchanges_cap"] = None
+
+    return jsonify(result)
 
 
 # ─────────────────────────── Webhook ───────────────────────────
@@ -325,12 +356,19 @@ def _sync_subscription_row(subscription, organization_id=None):
     # existing one (see comment there).
     existing = (
         svc.table("subscriptions")
-        .select("id")
+        .select("id, price_lock_expires_at")
         .eq("organization_id", organization_id)
         .limit(1)
         .execute()
     )
     is_new_row = not existing.data
+    # NOT the same thing as is_new_row (see below): since handle_new_user()
+    # gives every signup a subscriptions row on day one ('trial'/'active'),
+    # every real conversion is an UPDATE to an already-existing row, not an
+    # INSERT -- is_new_row is False for essentially every real subscriber.
+    # price_lock_expires_at IS NULL is the actual "has this org ever had a
+    # real paid price before" signal.
+    needs_price_lock = is_new_row or (existing.data and existing.data[0].get("price_lock_expires_at") is None)
 
     items = (subscription.get("items") or {}).get("data") or []
     price_id = items[0]["price"]["id"] if items else None
@@ -345,17 +383,23 @@ def _sync_subscription_row(subscription, organization_id=None):
         "stripe_subscription_id": subscription.get("id"),
         "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
     }
-    if is_new_row:
+    if needs_price_lock and price_info:
         # Anchor the 24-month price-lock promise to the moment this org
-        # FIRST ever subscribed -- set once, here, and never touched again
-        # by any later renewal/upgrade/downgrade sync. Note: customer.
-        # subscription.deleted (below) updates this same row to
-        # tier_slug='free'/status='canceled' rather than deleting it, so a
-        # later resubscribe finds an existing row (is_new_row=False) and
-        # this block doesn't re-run -- the original first-subscribe date
-        # sticks even across a cancel/resubscribe cycle. That's a real
-        # policy choice, not an oversight: revisit if the business instead
-        # wants a lapsed-then-returning subscriber's lock clock to restart.
+        # FIRST gets a real paid price -- set once, here, and never touched
+        # again by any later renewal/upgrade/downgrade sync. Gated on
+        # needs_price_lock (price_lock_expires_at IS NULL), not is_new_row:
+        # every signup already has a subscriptions row from handle_new_user
+        # ('trial'/'active'), so a real conversion is always an UPDATE, not
+        # an INSERT -- is_new_row alone would never fire this. Also gated on
+        # price_info being known -- never anchor a lock date to a guessed
+        # tier_slug (see the unrecognized-price branches below). Note:
+        # customer.subscription.deleted (below) sets tier_slug='free' but
+        # leaves price_lock_expires_at as-is, so a later resubscribe still
+        # has it non-NULL and correctly skips re-anchoring -- the original
+        # first-subscribe date sticks even across a cancel/resubscribe
+        # cycle. That's a real policy choice, not an oversight: revisit if
+        # the business instead wants a lapsed-then-returning subscriber's
+        # lock clock to restart.
         started_at = (
             datetime.fromtimestamp(subscription["created"], tz=timezone.utc)
             if subscription.get("created")
@@ -368,19 +412,26 @@ def _sync_subscription_row(subscription, organization_id=None):
         update_fields["billing_cycle"] = price_info["billing_cycle"]
         update_fields["current_price"] = price_info["current_price"]
     elif is_new_row:
-        # Unrecognized price_id on a brand-new row -- don't guess silently.
-        # Most likely cause: a subscription created directly in the Stripe
-        # dashboard, or a STRIPE_PRICE_* env var that's missing/wrong. The
-        # NOT NULL tier_slug column still needs *something*, so this
-        # defaults to the cheapest real tier as the safer of two wrong
+        # Unrecognized price_id with NO subscriptions row at all -- rare
+        # now that handle_new_user() always creates one at signup (would
+        # only happen if that trigger somehow failed). Most likely cause of
+        # the unrecognized price itself: a subscription created directly in
+        # the Stripe dashboard, or a STRIPE_PRICE_* env var that's missing/
+        # wrong. The NOT NULL tier_slug column still needs *something*, so
+        # this defaults to the cheapest real tier as the safer of two wrong
         # guesses (under-provisioning, not over-), and logs loudly so it
         # gets caught rather than silently mis-billed.
         print(f"[STRIPE WEBHOOK] price {price_id!r} not in PRICE_MAP -- check STRIPE_PRICE_* env vars (new row, defaulted to individual_explore)")
         update_fields["tier_slug"] = "individual_explore"
     else:
-        # Unrecognized price on an EXISTING row -- leave tier_slug out of
-        # update_fields entirely so this update doesn't clobber the row's
-        # already-correct tier with a wrong guess.
+        # Unrecognized price on an EXISTING row (the common case -- every
+        # org has one from signup) -- leave tier_slug out of update_fields
+        # entirely rather than guess. If this row's prior tier_slug was a
+        # real paid tier, that's obviously right; if it was still a
+        # placeholder ('trial'/'free'/'beta'), leaving it unchanged is
+        # still the safer of the two options -- better a stuck placeholder
+        # that gets caught by the loud log line than a silently wrong paid
+        # tier assignment.
         print(f"[STRIPE WEBHOOK] price {price_id!r} not in PRICE_MAP -- check STRIPE_PRICE_* env vars (existing row, tier_slug left unchanged)")
     if subscription.get("current_period_end"):
         update_fields["current_period_end"] = _epoch_to_iso(subscription["current_period_end"])

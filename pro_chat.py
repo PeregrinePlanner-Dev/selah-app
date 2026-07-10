@@ -15,7 +15,7 @@ later build.
 
 import os
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, render_template
 
@@ -127,6 +127,23 @@ TRIAL_EXCHANGE_CAP = 25
 CAP_HIT_MESSAGE = (
     "You've reached this month's exchange limit for your current plan. "
     "It resets at the start of next month."
+)
+
+# Card-free trial (Rick, 2026-07-10): the 14-day clock is no longer managed
+# by Stripe (no subscription/card exists yet during a trial), so nothing
+# automatically flips status away from "trialing" when day 14 passes --
+# pro_chat() has to check trial_end against the current time itself, same
+# as it already checks the 25-exchange count via cap_override below. Two
+# distinct trial-exhaustion messages (date vs. count) since the modal
+# copy/analytics benefit from knowing which limit was actually hit, even
+# though both end in the same "go pick a plan" outcome.
+TRIAL_EXPIRED_MESSAGE = (
+    "Your 14-day trial has ended. Choose a plan to keep talking with your "
+    "study companion."
+)
+TRIAL_CAP_HIT_MESSAGE = (
+    "You've used all 25 exchanges in your trial. Choose a plan to keep "
+    "talking with your study companion."
 )
 
 # Prep Doc is a separate, more expensive action (a full untruncated-history
@@ -323,14 +340,54 @@ def pro_chat():
     # explicitly instead of relying on the filter to do it implicitly.
     sub_resp = (
         sb.table("subscriptions")
-        .select("tier_slug, status")
+        .select("id, tier_slug, status, trial_end")
         .eq("organization_id", organization_id)
         .order("created_at", desc=True)
         .limit(1)
         .execute()
     )
-    tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
-    sub_status = sub_resp.data[0]["status"] if sub_resp.data else None
+    sub_row = sub_resp.data[0] if sub_resp.data else None
+    tier_slug = sub_row["tier_slug"] if sub_row else "free"
+    sub_status = sub_row["status"] if sub_row else None
+    trial_end = sub_row.get("trial_end") if sub_row else None
+
+    # Card-free trial start (Rick, 2026-07-10): handle_new_user() now lands
+    # every signup on tier_slug='trial'/status='active'/trial_end=NULL --
+    # "hasn't started yet." THIS exchange is the trigger the first time it's
+    # ever seen: flip to 'trialing' and set trial_end = now + 14 days,
+    # BEFORE the cap check below, so this same message both starts and
+    # counts as exchange #1 of the trial. Never touches rows that have
+    # already started (trial_end IS NOT NULL) or that were never on 'trial'
+    # in the first place (comped accounts, beta testers, real subscribers).
+    trial_just_started = False
+    if not is_comped and sub_row and tier_slug == "trial" and sub_status == "active" and not trial_end:
+        new_trial_end = datetime.now(timezone.utc) + timedelta(days=14)
+        get_service_client().table("subscriptions").update({
+            "status": "trialing",
+            "trial_end": new_trial_end.isoformat(),
+        }).eq("id", sub_row["id"]).execute()
+        sub_status = "trialing"
+        trial_end = new_trial_end.isoformat()
+        trial_just_started = True
+
+    # Trial-expiry-by-date gate: nothing in Stripe is watching this clock
+    # (no subscription/card exists during a card-free trial), so this has
+    # to check trial_end itself rather than relying on a webhook to flip
+    # status away from "trialing" at day 14. Checked before the exchange-
+    # count cap below -- either limit alone is enough to end the trial.
+    if not is_comped and sub_status == "trialing" and trial_end:
+        trial_end_dt = trial_end if isinstance(trial_end, datetime) else datetime.fromisoformat(str(trial_end).replace("Z", "+00:00"))
+        if trial_end_dt <= datetime.now(timezone.utc):
+            return jsonify({
+                "reply": TRIAL_EXPIRED_MESSAGE,
+                "question": "",
+                "sources": [],
+                "node": "",
+                "anchor": "",
+                "chips": [],
+                "turn": 0,
+                "upgrade_required": True,
+            })
 
     # Trial exchanges are capped flat (TRIAL_EXCHANGE_CAP), not by the
     # tier's own monthly cap -- see the constant's comment above. Only
@@ -343,14 +400,19 @@ def pro_chat():
     # user's own token. Comped seats skip this entirely -- no usage-record
     # row is even written for them, since there's nothing to cap.
     if not is_comped and not _check_and_reserve_usage(organization_id, tier_slug, cap=cap_override):
+        # upgrade_required signals the frontend to auto-open the plan-
+        # choice modal (Rick's "door 2" -- running out mid-session) rather
+        # than just showing a dead-end reply. Trial exhaustion gets its own
+        # wording (no "resets next month" -- a trial doesn't reset).
         return jsonify({
-            "reply": CAP_HIT_MESSAGE,
+            "reply": TRIAL_CAP_HIT_MESSAGE if sub_status == "trialing" else CAP_HIT_MESSAGE,
             "question": "",
             "sources": [],
             "node": "",
             "anchor": "",
             "chips": [],
             "turn": 0,
+            "upgrade_required": True,
         })
 
     if session_db_id:
@@ -496,6 +558,7 @@ def pro_chat():
         "anchor": convo["anchor"],
         "chips": chips,
         "turn": convo["turn"],
+        "trial_started": trial_just_started,
     })
 
 
