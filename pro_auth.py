@@ -114,11 +114,14 @@ def signup():
     password = request.form.get("password", "")
     # Rick's call, 2026-07-12: a church admin managing a roster doesn't
     # necessarily know everyone's email offhand -- a real name is what
-    # they actually recognize people by. Required (server-side, not just
-    # the HTML form's `required` attribute, which a direct POST could
-    # skip) -- an optional field would just end up null for enough people
-    # that it wouldn't solve the actual problem it exists for.
-    full_name = request.form.get("full_name", "").strip()
+    # they actually recognize people by. Split first/last (not one
+    # full_name field, an earlier same-session pass corrected) -- lets the
+    # roster sort alphabetically by surname and lets future transactional
+    # email personalize with a first name alone. Required server-side, not
+    # just the HTML form's `required` attribute, which a direct POST could
+    # skip.
+    first_name = request.form.get("first_name", "").strip()
+    last_name = request.form.get("last_name", "").strip()
     # Present on Church/Org invite links (both Leadership single-use and
     # Membership shared-code) -- carried through Supabase Auth's signup
     # metadata into raw_user_meta_data, read by the handle_new_user()
@@ -128,8 +131,8 @@ def signup():
 
     if not email or not password:
         return redirect(url_for("pro.pro_home", error="Email and password are required."))
-    if not full_name:
-        return redirect(url_for("pro.pro_home", error="Full name is required."))
+    if not first_name or not last_name:
+        return redirect(url_for("pro.pro_home", error="First and last name are required."))
 
     try:
         signup_kwargs = {"email": email, "password": password}
@@ -159,13 +162,16 @@ def signup():
 
     # Save the name onto the profile handle_new_user() just created --
     # simplest to do here as a direct update via the service client rather
-    # than threading full_name through Supabase Auth's signup metadata and
-    # having the DB trigger set it (the pattern invite_code already uses),
-    # since that would mean editing the trigger function itself for a
-    # single extra column. Best-effort: never let this be the reason
-    # signup itself fails, worst case the profile just has no name yet.
+    # than threading it through Supabase Auth's signup metadata and having
+    # the DB trigger set it (the pattern invite_code already uses), since
+    # that would mean editing the trigger function itself for two extra
+    # columns. Best-effort: never let this be the reason signup itself
+    # fails, worst case the profile just has no name yet.
     try:
-        get_service_client().table("profiles").update({"full_name": full_name}).eq("id", result.user.id).execute()
+        get_service_client().table("profiles").update({
+            "first_name": first_name,
+            "last_name": last_name,
+        }).eq("id", result.user.id).execute()
     except Exception:
         pass
 

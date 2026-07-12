@@ -66,8 +66,10 @@
       <div class="sub" id="signup-sub">Set up your Selah for Ministry account.</div>
       <form method="POST" action="/pro/signup" onsubmit="return checkPasswordsMatch(this)">
         <input type="hidden" id="signup-invite-code" name="invite_code" value="">
-        <label for="signup-name">Full name</label>
-        <input type="text" id="signup-name" name="full_name" required>
+        <label for="signup-first-name">First name</label>
+        <input type="text" id="signup-first-name" name="first_name" required>
+        <label for="signup-last-name">Last name</label>
+        <input type="text" id="signup-last-name" name="last_name" required>
         <label for="signup-email">Email</label>
         <input type="email" id="signup-email" name="email" required>
         <label for="signup-password">Password</label>

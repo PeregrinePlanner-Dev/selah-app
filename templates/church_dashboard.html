@@ -588,8 +588,9 @@ function rosterRow(r) {
     : `<button class="btn-row-sm" onclick="suspendMember('${r.id}')">Suspend</button>`;
   const removeBtn = `<button class="btn-row-sm danger" onclick="removeMember('${r.id}')">Remove</button>`;
 
+  const displayName = [r.first_name, r.last_name].filter(Boolean).join(" ");
   return `<tr>
-    <td>${escapeHtml(r.full_name || r.email)}${r.full_name ? `<div class="invite-meta">${escapeHtml(r.email)}</div>` : ""}</td>
+    <td>${escapeHtml(displayName || r.email)}${displayName ? `<div class="invite-meta">${escapeHtml(r.email)}</div>` : ""}</td>
     <td>${kind}</td>
     <td>${statusBadge}</td>
     <td>${badges}</td>
@@ -619,7 +620,8 @@ async function rosterAction(url, profile_id) {
 
 async function removeMember(id) {
   const person = (window._rosterCache || []).find(r => r.id === id);
-  const who = person ? (person.full_name || person.email) : "this person";
+  const personName = person ? [person.first_name, person.last_name].filter(Boolean).join(" ") : "";
+  const who = personName || (person ? person.email : "this person");
   if (!confirm(`Remove ${who} from the roster? This frees their seat and moves them to their own individual trial account.`)) return;
   try {
     const res = await fetch("/pro/org/roster/remove", {

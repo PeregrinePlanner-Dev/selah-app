@@ -73,9 +73,10 @@ def get_roster():
     svc = get_service_client()
     roster = (
         svc.table("profiles")
-        .select("id, email, full_name, seat_type, seat_status, is_org_admin, waitlisted_at, suspended_at")
+        .select("id, email, first_name, last_name, seat_type, seat_status, is_org_admin, waitlisted_at, suspended_at")
         .eq("organization_id", organization_id)
         .order("seat_type")
+        .order("last_name")
         .execute()
     )
     return jsonify({"roster": roster.data})
