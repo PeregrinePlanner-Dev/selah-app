@@ -32,11 +32,6 @@
   }
   .help-btn:hover, .signout-btn:hover, .billing-btn:hover, .church-btn:hover { background: rgba(255,255,255,0.22); }
   .billing-btn:disabled { opacity: 0.6; cursor: default; }
-  .danger-link {
-    color: rgba(255,255,255,0.7); font-size: 0.68rem; text-decoration: underline;
-    cursor: pointer; margin-left: 2px;
-  }
-  .danger-link:hover { color: white; }
   .top-notice-banner {
     background: #eff6ff; color: #1d4ed8; padding: 9px 20px; font-size: 0.82rem;
     display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
@@ -364,7 +359,6 @@
     <form method="POST" action="/pro/logout" style="margin:0;">
       <button type="submit" class="signout-btn">Sign Out</button>
     </form>
-    <a class="danger-link" onclick="openDeleteAccountModal()">Delete Account</a>
   </div>
 </header>
 
@@ -517,6 +511,7 @@
 
 <footer class="app-footer">
   <span><a href="/legal">Terms &amp; Privacy</a></span>
+  <span><a onclick="openDeleteAccountModal()" style="cursor:pointer;">Delete Account</a></span>
 </footer>
 
 <script>
@@ -1379,6 +1374,14 @@ showTopNotice();
           <div>
             <div class="action-name">Send Feedback</div>
             <div class="action-desc">Something felt off theologically, or a response didn't land right? This opens a short form. We want to know.</div>
+          </div>
+        </div>
+
+        <div class="action-explain">
+          <div class="action-icon">⚠</div>
+          <div>
+            <div class="action-name">Delete Account</div>
+            <div class="action-desc">Tucked in small print at the bottom of the page, on purpose. Permanently deletes your account and every saved conversation, immediately, with no grace period to undo it. If you're part of a church organization, this only removes your own account — it doesn't affect the organization, its roster, or anyone else on it.</div>
           </div>
         </div>
 
