@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from pro_auth import pro_bp
 from pro_chat import pro_chat_bp
 from pro_billing import pro_billing_bp
+from pro_org import pro_org_bp
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
@@ -25,6 +26,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-chang
 app.register_blueprint(pro_bp)
 app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
+app.register_blueprint(pro_org_bp)
 
 # Node content, routing, system-prompt assembly (build_system_blocks), and
 # response parsing (parse_response) all live in engine.py now (extracted

@@ -54,7 +54,7 @@ import os
 from datetime import date, datetime, timezone
 
 import stripe
-from flask import Blueprint, request, jsonify, url_for
+from flask import Blueprint, request, jsonify, url_for, session
 
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -121,6 +121,67 @@ for _tier, _cycles in TIER_PRICE_IDS.items():
 # future promo wants a Stripe-side trial again for a specific campaign.
 TRIAL_DAYS = 14
 
+# ─────────────────── Church/Org seat billing (2026-07-12) ───────────────────
+# Unlike Individual Pro's TIER_PRICE_IDS above (a separate flat Price per
+# tier+cycle), Church/Org seats are ONE Stripe Price per seat type, each
+# configured in the Stripe dashboard as volume-tiered pricing (billing_scheme
+# 'tiered', tiers_mode 'volume') -- Section 11's explicit design: total
+# quantity on a single subscription item determines the per-seat rate for
+# every seat, not a blended rate, and not a separate Price object per
+# bracket. Not yet created in Stripe -- env vars below will be empty until
+# that dashboard work happens, same "clean 503, not a crash" pattern as
+# TIER_PRICE_IDS above.
+CHURCH_SEAT_PRICE_IDS = {
+    "leader": os.environ.get("STRIPE_PRICE_CHURCH_LEADERSHIP", ""),
+    "member": os.environ.get("STRIPE_PRICE_CHURCH_MEMBER", ""),
+}
+
+CHURCH_SEAT_TIER_SLUGS = {
+    "leader": "church_leadership",
+    "member": "church_member",
+}
+
+# Reverse lookup for the webhook -- which seat_type a given Price ID belongs
+# to, mirroring PRICE_MAP's role for Individual Pro but keyed differently
+# since there's no billing_cycle/current_price to pre-compute (volume-tiered
+# price varies by quantity, not a flat number -- current_price gets derived
+# from the actual invoice line item at sync time instead, see
+# _sync_church_subscription below).
+CHURCH_PRICE_TO_SEAT_TYPE = {
+    price_id: seat_type
+    for seat_type, price_id in CHURCH_SEAT_PRICE_IDS.items()
+    if price_id
+}
+
+# Membership is not sold on its own (Section 16) -- it's only ever an
+# add-on to an org that already has an active Leadership subscription.
+# Enforced in create_church_checkout_session below.
+
+# Exchange blocks (2026-07-12, Rick's call): a one-time, one-flat-price
+# top-up for whichever pooled seat_type is running low -- NOT a separate
+# price per seat type (unlike the seats themselves above); the seat_type
+# only determines which pool's usage_records.conversations_cap gets
+# credited, not what's charged. Purchasable in quantity (buy 3 blocks =
+# 300 extra exchanges) via the Stripe line item's own quantity, not a
+# volume-tiered Price -- there's no discount-at-scale intent here the way
+# there is for seats. $15/100 exchanges chosen to match the same number
+# floated (but never built) for Individual Pro's own overage block --
+# healthy margin against the $0.045/exchange assumption Section 17's seat
+# pricing was locked against ($0.15/exchange retail vs ~$0.045 cost).
+# Genuinely new scope: Section 17's locked Church/Org pricing never
+# designed an overage path at all, only flat monthly pooled caps.
+STRIPE_PRICE_CHURCH_EXCHANGE_BLOCK = os.environ.get("STRIPE_PRICE_CHURCH_EXCHANGE_BLOCK", "")
+CHURCH_EXCHANGES_PER_BLOCK = 100
+
+# Base monthly pooled cap per seat_type, duplicated from pro_chat.py's
+# TIER_CONVERSATION_CAPS (church_leadership/church_member) rather than
+# imported -- pro_chat.py doesn't import pro_billing.py today and adding
+# that edge purely for two integers wasn't worth it. Needed here only for
+# the rare case a block is bought before this month's usage_records row
+# exists yet (see _apply_church_exchange_block below); keep in sync with
+# pro_chat.py's TIER_CONVERSATION_CAPS if either ever changes.
+BASE_CHURCH_CAP = {"leader": 200, "member": 100}
+
 
 def _get_org_id_and_email():
     """Shared lookup -- every route here needs the caller's own
@@ -132,6 +193,24 @@ def _get_org_id_and_email():
     if not profile_resp.data:
         return None, None
     return profile_resp.data[0]["organization_id"], profile_resp.data[0]["email"]
+
+
+def _get_org_id_email_and_admin_status():
+    """Same as _get_org_id_and_email(), plus is_org_admin -- every
+    Church/Org seat-billing route below is an admin-only action (buying
+    seats, changing quantity spends the church's money and changes real
+    people's access), never something any seat-holder can trigger."""
+    sb = get_user_supabase()
+    profile_resp = (
+        sb.table("profiles")
+        .select("organization_id, email, is_org_admin")
+        .limit(1)
+        .execute()
+    )
+    if not profile_resp.data:
+        return None, None, False
+    row = profile_resp.data[0]
+    return row["organization_id"], row["email"], bool(row.get("is_org_admin"))
 
 
 @pro_billing_bp.route("/checkout", methods=["POST"])
@@ -299,6 +378,526 @@ def billing_status():
     return jsonify(result)
 
 
+# ────────────────── Church/Org seat checkout & management ──────────────────
+
+MAX_ORG_ADMINS = 4  # Rick's call, 2026-07-12: "multi-admin is vital... minimum of 3-4."
+
+
+@pro_billing_bp.route("/church/start", methods=["POST"])
+@login_required
+def start_church_org():
+    """Bootstraps a brand-new church org for the CALLING profile -- solves
+    a real chicken-and-egg gap: every signup lands on their own
+    org_type='individual' org with is_org_admin=false by default
+    (handle_new_user()), but create_church_checkout_session above requires
+    is_org_admin=true. Something has to make the very first admin. Flips
+    the caller's own org to org_type='church' and sets themselves as its
+    first admin (of up to MAX_ORG_ADMINS) -- after this, /church/checkout
+    works normally. Refuses if this org already has any Leadership/
+    Membership subscription (already a church org, calling this again would
+    be a no-op at best, confusing at worst) or if the caller already has
+    other people in their org (shouldn't happen for a solo individual org,
+    but don't silently reorganize an org that somehow isn't solo).
+
+    body: {"org_name": str (optional), "postal_code": str (required)}.
+    postal_code is required at this layer (Rick's call, 2026-07-12) -- the
+    real-world problem it solves is "First Baptist Church" existing in
+    hundreds of towns, with nothing on the organizations row to tell them
+    apart in Stripe, support conversations, or this same admin's own
+    dashboard. org_name lets the founder replace the default (their own
+    email, set at signup) with the church's actual name at the same moment
+    -- optional since a solo admin might not have the final name decided
+    yet and can always be revisited later; postal_code has no such
+    "decide later" grace since disambiguation matters from the first
+    purchase onward."""
+    body = request.json or {}
+    postal_code = (body.get("postal_code") or "").strip()
+    org_name = (body.get("org_name") or "").strip() or None
+    if not postal_code:
+        return jsonify({"error": "postal_code is required -- it's what tells your organization apart from every other church with the same name."}), 400
+
+    organization_id, _email, _is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+
+    svc = get_service_client()
+
+    org_check = svc.table("organizations").select("org_type").eq("id", organization_id).limit(1).execute()
+    if org_check.data and org_check.data[0]["org_type"] == "church":
+        return jsonify({"error": "This is already a church organization."}), 400
+
+    roster = svc.table("profiles").select("id").eq("organization_id", organization_id).execute()
+    if len(roster.data or []) > 1:
+        return jsonify({"error": "This organization isn't a solo account -- contact Selah admin directly to set up Church/Org."}), 400
+
+    org_update = {"org_type": "church", "postal_code": postal_code}
+    if org_name:
+        org_update["name"] = org_name
+    svc.table("organizations").update(org_update).eq("id", organization_id).execute()
+    svc.table("profiles").update({"is_org_admin": True, "seat_type": "leader", "seat_status": "comped"}).eq("id", session["sb_user_id"]).execute()
+    # seat_status='comped' (not 'paid') for the founding admin's own seat --
+    # they haven't bought a Leadership seat block yet at this exact moment
+    # (that's the /church/checkout call right after this), so 'paid' would
+    # be a lie about money that hasn't moved; comped is the accurate status
+    # until their own org's first real Leadership purchase includes them in
+    # its seat count. Matches the existing comped-seat precedent (Rick,
+    # Clark) rather than inventing a new status for this one moment.
+
+    return jsonify({"ok": True, "note": "This is now a church organization. Purchase Leadership seats to activate it."})
+
+
+@pro_billing_bp.route("/church/checkout", methods=["POST"])
+@login_required
+def create_church_checkout_session():
+    """Starts Checkout for a NEW Leadership or Membership seat subscription
+    -- the org's first purchase of that seat type. Admin-only (buying seats
+    spends the church's money). body: {"seat_type": "leader"|"member",
+    "quantity": int} -- quantity is required with no default, same
+    no-silent-guessing principle as Individual Pro's required "tier".
+    Membership can't be purchased standalone (Section 16: it's opened BY a
+    Leadership purchase, never sold on its own) -- checked against the org's
+    existing subscriptions before allowing it."""
+    if not stripe.api_key:
+        return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
+
+    body = request.json or {}
+    seat_type = body.get("seat_type", "")
+    quantity = body.get("quantity")
+
+    if seat_type not in CHURCH_SEAT_PRICE_IDS:
+        return jsonify({"error": f"Unknown seat type: {seat_type!r}"}), 400
+    if not isinstance(quantity, int) or quantity < 1:
+        return jsonify({"error": "quantity must be a positive integer"}), 400
+    if seat_type == "member" and quantity < 10:
+        return jsonify({"error": "Membership seats have a 10-seat minimum (it's a volume discount -- Section 11)."}), 400
+
+    price_id = CHURCH_SEAT_PRICE_IDS[seat_type]
+    if not price_id:
+        return jsonify({"error": "No Stripe price is configured for this seat type yet."}), 503
+
+    organization_id, email, is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+    if not is_admin:
+        return jsonify({"error": "Only an organization admin can purchase seats."}), 403
+
+    svc = get_service_client()
+
+    if seat_type == "member":
+        leadership = (
+            svc.table("subscriptions")
+            .select("id")
+            .eq("organization_id", organization_id)
+            .eq("tier_slug", "church_leadership")
+            .in_("status", ["active", "trialing"])
+            .limit(1)
+            .execute()
+        )
+        if not leadership.data:
+            return jsonify({"error": "Membership seats require an active Leadership subscription first (Section 16 -- Membership is opened by Leadership, not sold on its own)."}), 400
+
+    existing = (
+        svc.table("subscriptions")
+        .select("stripe_customer_id")
+        .eq("organization_id", organization_id)
+        .limit(1)
+        .execute()
+    )
+    existing_customer_id = (
+        existing.data[0]["stripe_customer_id"]
+        if existing.data and existing.data[0].get("stripe_customer_id")
+        else None
+    )
+
+    checkout_kwargs = {
+        "mode": "subscription",
+        # Church/Org checkout lands the admin back on the church dashboard
+        # (not the plain chat app, unlike Individual Pro's checkout above) --
+        # they came from there to buy seats, and that's exactly where
+        # they'd next want to see the purchase reflected once the webhook
+        # confirms it.
+        "success_url": url_for("pro_org.org_dashboard", _external=True) + "?checkout=success",
+        "cancel_url": url_for("pro_org.org_dashboard", _external=True) + "?checkout=cancelled",
+        "line_items": [{"price": price_id, "quantity": quantity}],
+        "client_reference_id": organization_id,
+        "metadata": {"organization_id": organization_id, "seat_type": seat_type},
+        "subscription_data": {
+            "metadata": {"organization_id": organization_id, "seat_type": seat_type},
+        },
+    }
+    if existing_customer_id:
+        checkout_kwargs["customer"] = existing_customer_id
+    elif email:
+        checkout_kwargs["customer_email"] = email
+
+    try:
+        checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
+    except Exception as e:
+        return jsonify({"error": f"Could not start checkout: {e}"}), 502
+
+    return jsonify({"url": checkout_session.url})
+
+
+@pro_billing_bp.route("/church/blocks/checkout", methods=["POST"])
+@login_required
+def create_church_block_checkout_session():
+    """Starts a ONE-TIME (mode='payment', not 'subscription') Checkout
+    session for exchange blocks -- a top-up for whichever pooled seat_type
+    is running low this month. Admin-only, same reasoning as seat purchases:
+    spends the church's money. body: {"seat_type": "leader"|"member",
+    "quantity": int} -- quantity here is the number of BLOCKS (each worth
+    CHURCH_EXCHANGES_PER_BLOCK exchanges), not a seat count; the Stripe line
+    item's own quantity is what lets someone buy more than one block in a
+    single purchase, per Rick's call.
+
+    Actual crediting of usage_records.conversations_cap does NOT happen
+    here -- same pattern as seat purchases, only on the webhook's
+    checkout.session.completed once payment is actually confirmed (see
+    _apply_church_exchange_block below). This route only starts the
+    payment."""
+    if not stripe.api_key:
+        return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
+    if not STRIPE_PRICE_CHURCH_EXCHANGE_BLOCK:
+        return jsonify({"error": "Exchange blocks aren't configured yet -- check back soon."}), 503
+
+    body = request.json or {}
+    seat_type = body.get("seat_type", "")
+    quantity = body.get("quantity")
+
+    if seat_type not in CHURCH_SEAT_TIER_SLUGS:
+        return jsonify({"error": f"Unknown seat type: {seat_type!r}"}), 400
+    if not isinstance(quantity, int) or quantity < 1:
+        return jsonify({"error": "quantity must be a positive integer (number of blocks)"}), 400
+
+    organization_id, email, is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+    if not is_admin:
+        return jsonify({"error": "Only an organization admin can purchase exchange blocks."}), 403
+
+    svc = get_service_client()
+    existing = (
+        svc.table("subscriptions")
+        .select("stripe_customer_id")
+        .eq("organization_id", organization_id)
+        .limit(1)
+        .execute()
+    )
+    existing_customer_id = (
+        existing.data[0]["stripe_customer_id"]
+        if existing.data and existing.data[0].get("stripe_customer_id")
+        else None
+    )
+
+    checkout_kwargs = {
+        "mode": "payment",
+        "success_url": url_for("pro_org.org_dashboard", _external=True) + "?checkout=block_success",
+        "cancel_url": url_for("pro_org.org_dashboard", _external=True) + "?checkout=block_cancelled",
+        "line_items": [{"price": STRIPE_PRICE_CHURCH_EXCHANGE_BLOCK, "quantity": quantity}],
+        "client_reference_id": organization_id,
+        # No subscription_data here at all -- mode='payment' sessions don't
+        # have one. metadata on the SESSION itself is what the webhook reads
+        # (see stripe_webhook's purchase_type branch), unlike the seat
+        # routes above where subscription_data.metadata matters more since
+        # that's what persists onto the resulting Subscription object.
+        "metadata": {
+            "organization_id": organization_id,
+            "seat_type": seat_type,
+            "purchase_type": "church_exchange_block",
+            "block_quantity": str(quantity),
+        },
+    }
+    if existing_customer_id:
+        checkout_kwargs["customer"] = existing_customer_id
+    elif email:
+        checkout_kwargs["customer_email"] = email
+
+    try:
+        checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
+    except Exception as e:
+        return jsonify({"error": f"Could not start checkout: {e}"}), 502
+
+    return jsonify({"url": checkout_session.url})
+
+
+def promote_waitlisted_if_room(organization_id: str, seat_type: str) -> int:
+    """Promotes as many waitlisted (seat_status='pending') profiles of the
+    given seat_type as there's now room for, oldest-waitlisted first (a
+    real fairness call, not arbitrary -- first-come-first-served for who
+    gets the freed/new seat). Called from two places a seat pool's
+    occupied-vs-purchased balance can shift: pro_org.py's roster removal
+    (frees one seat immediately), and _sync_church_subscription_row below
+    (a seat-quantity increase actually CONFIRMED paid via the Stripe
+    webhook -- deliberately not called from the /seats/update request
+    itself, which only starts a proration charge that could still fail).
+
+    Returns how many profiles were promoted (used by callers purely for
+    logging/testing, not branched on). Uses the service-role client --
+    seat_status is real access/billing-adjacent state, never written
+    through a user's own RLS-scoped token."""
+    svc = get_service_client()
+    tier_slug = CHURCH_SEAT_TIER_SLUGS.get(seat_type)
+    if not tier_slug:
+        return 0
+
+    sub = (
+        svc.table("subscriptions")
+        .select("seat_quantity")
+        .eq("organization_id", organization_id)
+        .eq("tier_slug", tier_slug)
+        .in_("status", ["active", "trialing"])
+        .limit(1)
+        .execute()
+    )
+    purchased = sub.data[0].get("seat_quantity") if sub.data else None
+    if not purchased:
+        return 0
+
+    occupied_resp = (
+        svc.table("profiles")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .eq("seat_type", seat_type)
+        .in_("seat_status", ["paid", "comped"])
+        .execute()
+    )
+    open_slots = purchased - len(occupied_resp.data or [])
+    if open_slots <= 0:
+        return 0
+
+    waiting = (
+        svc.table("profiles")
+        .select("id, waitlisted_at")
+        .eq("organization_id", organization_id)
+        .eq("seat_type", seat_type)
+        .eq("seat_status", "pending")
+        .order("waitlisted_at")
+        .limit(open_slots)
+        .execute()
+    )
+    for row in (waiting.data or []):
+        svc.table("profiles").update({
+            "seat_status": "paid",
+            "waitlisted_at": None,
+        }).eq("id", row["id"]).execute()
+
+    return len(waiting.data or [])
+
+
+def _get_church_stripe_subscription(organization_id, seat_type):
+    """Shared lookup for the preview/update routes below -- the existing
+    Stripe Subscription object for this org's seat type, or None."""
+    svc = get_service_client()
+    row = (
+        svc.table("subscriptions")
+        .select("stripe_subscription_id")
+        .eq("organization_id", organization_id)
+        .eq("tier_slug", CHURCH_SEAT_TIER_SLUGS[seat_type])
+        .in_("status", ["active", "trialing"])
+        .limit(1)
+        .execute()
+    )
+    if not row.data or not row.data[0].get("stripe_subscription_id"):
+        return None
+    return stripe.Subscription.retrieve(row.data[0]["stripe_subscription_id"])
+
+
+@pro_billing_bp.route("/church/seats/preview", methods=["POST"])
+@login_required
+def preview_seat_change():
+    """Non-destructive preview of what a seat-quantity increase would cost
+    RIGHT NOW via Stripe's upcoming-invoice preview -- Section 11's explicit
+    requirement: the church admin sees the prorated charge before confirming
+    anything, since the actual update route bills immediately
+    (create_prorations), not at the next cycle. body: {"seat_type":
+    "leader"|"member", "new_quantity": int}."""
+    if not stripe.api_key:
+        return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
+
+    body = request.json or {}
+    seat_type = body.get("seat_type", "")
+    new_quantity = body.get("new_quantity")
+
+    if seat_type not in CHURCH_SEAT_PRICE_IDS:
+        return jsonify({"error": f"Unknown seat type: {seat_type!r}"}), 400
+    if not isinstance(new_quantity, int) or new_quantity < 1:
+        return jsonify({"error": "new_quantity must be a positive integer"}), 400
+
+    organization_id, _email, is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+    if not is_admin:
+        return jsonify({"error": "Only an organization admin can change seat counts."}), 403
+
+    sub = _get_church_stripe_subscription(organization_id, seat_type)
+    if not sub:
+        return jsonify({"error": f"No active {seat_type} subscription found -- use /church/checkout for a first purchase."}), 400
+
+    item = sub["items"]["data"][0]
+    try:
+        upcoming = stripe.Invoice.upcoming(
+            customer=sub["customer"],
+            subscription=sub["id"],
+            subscription_items=[{"id": item["id"], "quantity": new_quantity}],
+            subscription_proration_behavior="create_prorations",
+        )
+    except Exception as e:
+        return jsonify({"error": f"Could not preview the change: {e}"}), 502
+
+    return jsonify({
+        "current_quantity": item["quantity"],
+        "new_quantity": new_quantity,
+        "prorated_amount_due_now": upcoming["amount_due"] / 100.0,
+        "currency": upcoming["currency"],
+    })
+
+
+@pro_billing_bp.route("/church/seats/update", methods=["POST"])
+@login_required
+def update_seat_quantity():
+    """Actually applies a seat-quantity change, billing the proration
+    immediately (Section 11's reversed decision: seats are usable right
+    away, so deferring their cost to the next cycle would eat a full
+    cycle of usage cost with zero matching revenue). Real seat POOL access
+    still only increases once the invoice.paid webhook confirms the
+    prorated charge actually succeeded (see _sync_church_subscription) --
+    this route just starts that; it doesn't grant access itself. body:
+    {"seat_type": "leader"|"member", "new_quantity": int}."""
+    if not stripe.api_key:
+        return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
+
+    body = request.json or {}
+    seat_type = body.get("seat_type", "")
+    new_quantity = body.get("new_quantity")
+
+    if seat_type not in CHURCH_SEAT_PRICE_IDS:
+        return jsonify({"error": f"Unknown seat type: {seat_type!r}"}), 400
+    if not isinstance(new_quantity, int) or new_quantity < 1:
+        return jsonify({"error": "new_quantity must be a positive integer"}), 400
+    if seat_type == "member" and new_quantity < 10:
+        return jsonify({"error": "Membership seats have a 10-seat minimum."}), 400
+
+    organization_id, _email, is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+    if not is_admin:
+        return jsonify({"error": "Only an organization admin can change seat counts."}), 403
+
+    sub = _get_church_stripe_subscription(organization_id, seat_type)
+    if not sub:
+        return jsonify({"error": f"No active {seat_type} subscription found -- use /church/checkout for a first purchase."}), 400
+
+    item = sub["items"]["data"][0]
+    if new_quantity < item["quantity"]:
+        # Decreasing seat count (e.g. downsizing) is real functionality but
+        # genuinely different (what happens to the now-excess occupied
+        # seats? who gets removed?) -- not designed yet, deliberately out
+        # of scope for today. Increases only for now.
+        return jsonify({"error": "Reducing seat count isn't supported yet -- contact Selah admin directly for now."}), 400
+
+    try:
+        stripe.Subscription.modify(
+            sub["id"],
+            items=[{"id": item["id"], "quantity": new_quantity}],
+            proration_behavior="create_prorations",
+        )
+        stripe.Invoice.create(customer=sub["customer"], subscription=sub["id"])
+        # Immediate invoicing per Section 11's decision -- create_prorations
+        # alone schedules the proration as a line item on the NEXT invoice,
+        # not a standalone one billed now. Explicitly creating+finalizing
+        # (via auto_advance default) a real invoice right after the quantity
+        # change is what actually charges it immediately rather than
+        # silently deferring to next cycle despite the proration_behavior
+        # setting -- easy to get wrong, flagging the reasoning here.
+    except Exception as e:
+        return jsonify({"error": f"Could not update seat count: {e}"}), 502
+
+    return jsonify({
+        "ok": True,
+        "note": "Seat purchase is processing -- your organization's available seats will update automatically once payment is confirmed.",
+    })
+
+
+def _apply_church_exchange_block(organization_id: str, metadata: dict) -> None:
+    """Credits a confirmed exchange-block purchase onto the CURRENT
+    calendar month's pooled usage_records row for (organization_id,
+    seat_type) -- a block is a this-month top-up, not a permanent balance
+    increase, matching how the pooled cap itself already resets every
+    billing_month (no rollover mechanism exists yet -- roadmap task #77,
+    a separate, still-undesigned piece).
+
+    Called only from stripe_webhook() on a confirmed checkout.session.completed
+    for a mode='payment' session carrying purchase_type='church_exchange_block'
+    metadata -- never from the /blocks/checkout route itself, same
+    "only credit on confirmed payment, not on starting checkout" pattern
+    seat purchases already follow.
+
+    Row creation (the rare case someone buys a block before this month's
+    usage_records row exists at all -- normally it already exists, since
+    you'd only be buying a block because you're already near/at this
+    month's cap) uses BASE_CHURCH_CAP as the starting point, same
+    check-then-insert-tolerate-duplicate-key pattern pro_chat.py's
+    _check_and_reserve_usage() already uses for the same table."""
+    seat_type = metadata.get("seat_type")
+    block_quantity_raw = metadata.get("block_quantity")
+    if not organization_id or seat_type not in BASE_CHURCH_CAP or not block_quantity_raw:
+        print(f"[STRIPE WEBHOOK] church exchange block purchase missing org/seat_type/block_quantity metadata -- org={organization_id!r} meta={metadata!r}, skipping credit")
+        return
+    try:
+        block_quantity = int(block_quantity_raw)
+    except (TypeError, ValueError):
+        print(f"[STRIPE WEBHOOK] church exchange block purchase had a non-integer block_quantity {block_quantity_raw!r}, skipping credit")
+        return
+
+    exchanges_to_add = block_quantity * CHURCH_EXCHANGES_PER_BLOCK
+    billing_month = date.today().replace(day=1).isoformat()
+    svc = get_service_client()
+
+    existing = (
+        svc.table("usage_records")
+        .select("id, conversations_cap")
+        .eq("organization_id", organization_id)
+        .eq("billing_month", billing_month)
+        .is_("module_slug", "null")
+        .eq("seat_type", seat_type)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        row = existing.data[0]
+        new_cap = (row.get("conversations_cap") or 0) + exchanges_to_add
+        svc.table("usage_records").update({"conversations_cap": new_cap}).eq("id", row["id"]).execute()
+    else:
+        try:
+            svc.table("usage_records").insert({
+                "organization_id": organization_id,
+                "module_slug": None,
+                "seat_type": seat_type,
+                "billing_month": billing_month,
+                "conversations_used": 0,
+                "conversations_cap": BASE_CHURCH_CAP[seat_type] + exchanges_to_add,
+                "hard_cap": True,
+            }).execute()
+        except Exception:
+            # Lost the create race (e.g. a chat turn landed the same
+            # instant and created the row first via the normal cap-check
+            # path) -- re-fetch and update instead of losing the credit.
+            retry = (
+                svc.table("usage_records")
+                .select("id, conversations_cap")
+                .eq("organization_id", organization_id)
+                .eq("billing_month", billing_month)
+                .is_("module_slug", "null")
+                .eq("seat_type", seat_type)
+                .limit(1)
+                .execute()
+            )
+            if retry.data:
+                row = retry.data[0]
+                new_cap = (row.get("conversations_cap") or 0) + exchanges_to_add
+                svc.table("usage_records").update({"conversations_cap": new_cap}).eq("id", row["id"]).execute()
+
+
 # ─────────────────────────── Webhook ───────────────────────────
 
 # Maps Stripe's own subscription.status values to our subscriptions.status
@@ -337,6 +936,64 @@ def _add_months(dt: datetime, months: int) -> datetime:
     return dt.replace(year=year, month=month, day=day)
 
 
+def _sync_church_subscription_row(subscription, organization_id, seat_type):
+    """Church/Org counterpart to _sync_subscription_row below -- kept
+    separate rather than folded into one branching function because the
+    shapes genuinely differ: an org can hold TWO simultaneous subscriptions
+    (church_leadership AND church_member), so matching by organization_id
+    alone (as the individual-tier function does, via .limit(1)) would
+    silently find/overwrite the WRONG one. Matches on (organization_id,
+    tier_slug) instead. No price-lock logic here -- that 24-month promise
+    was specifically an Individual Pro commitment (Section 14), never
+    extended to seats. billing_cycle/current_price intentionally left null
+    for now -- Stripe's volume-tiered pricing means the real per-seat rate
+    varies by quantity bracket, not a flat number the way Individual Pro's
+    PRICE_MAP already has one; computing an accurate effective rate needs
+    the invoice line item, not just the subscription object, and is real
+    follow-up work, not done in this pass."""
+    svc = get_service_client()
+    tier_slug = CHURCH_SEAT_TIER_SLUGS[seat_type]
+
+    items = (subscription.get("items") or {}).get("data") or []
+    seat_quantity = items[0]["quantity"] if items else None
+
+    stripe_status = subscription.get("status", "active")
+    our_status = _STRIPE_STATUS_MAP.get(stripe_status, "active")
+
+    update_fields = {
+        "tier_slug": tier_slug,
+        "status": our_status,
+        "stripe_customer_id": subscription.get("customer"),
+        "stripe_subscription_id": subscription.get("id"),
+        "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
+        "seat_quantity": seat_quantity,
+    }
+    if subscription.get("current_period_end"):
+        update_fields["current_period_end"] = _epoch_to_iso(subscription["current_period_end"])
+
+    existing = (
+        svc.table("subscriptions")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .eq("tier_slug", tier_slug)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        svc.table("subscriptions").update(update_fields).eq("id", existing.data[0]["id"]).execute()
+    else:
+        update_fields["organization_id"] = organization_id
+        svc.table("subscriptions").insert(update_fields).execute()
+
+    # A seat-quantity increase just got CONFIRMED (this is a webhook firing
+    # off a real Stripe event, not the /seats/update request itself, which
+    # only starts a proration charge that could still fail) -- check
+    # whether that frees up room for anyone on this seat_type's waitlist.
+    # Harmless no-op if seat_quantity didn't grow or nobody's waiting.
+    if seat_quantity:
+        promote_waitlisted_if_room(organization_id, seat_type)
+
+
 def _sync_subscription_row(subscription, organization_id=None):
     """Upserts our subscriptions row from a Stripe Subscription object --
     the single source of truth this pulls from on every relevant webhook
@@ -354,9 +1011,24 @@ def _sync_subscription_row(subscription, organization_id=None):
         print(f"[STRIPE WEBHOOK] subscription {subscription.get('id')} has no organization_id metadata, skipping sync")
         return
 
+    # Church/Org seats branch off here entirely -- see
+    # _sync_church_subscription_row's docstring for why this can't share the
+    # rest of this function's organization_id-only matching logic.
+    items_preview = (subscription.get("items") or {}).get("data") or []
+    price_id_preview = items_preview[0]["price"]["id"] if items_preview else None
+    if price_id_preview in CHURCH_PRICE_TO_SEAT_TYPE:
+        _sync_church_subscription_row(subscription, organization_id, CHURCH_PRICE_TO_SEAT_TYPE[price_id_preview])
+        return
+
     # Looked up before building update_fields, not after, so the
     # unknown-price fallback below can tell a brand-new row from an
-    # existing one (see comment there).
+    # existing one (see comment there). Matching by organization_id alone
+    # is still correct here (not the bug it looks like) -- an org's
+    # org_type is either 'individual' or 'church', never both, so an
+    # individual-tier org can never simultaneously hold a church_leadership/
+    # church_member row for this .limit(1) to collide with. Church/Org rows
+    # are already routed to _sync_church_subscription_row above and never
+    # reach this line.
     existing = (
         svc.table("subscriptions")
         .select("id, price_lock_expires_at")
@@ -473,15 +1145,25 @@ def stripe_webhook():
     data_object = event["data"]["object"]
 
     if event_type == "checkout.session.completed":
-        # Pull the Subscription object fresh here (rather than trusting
-        # Checkout Session's own summary fields) so this syncs from the
-        # exact same shape customer.subscription.* events use later --
-        # one code path, not two slightly-different ones.
-        organization_id = data_object.get("client_reference_id") or (data_object.get("metadata") or {}).get("organization_id")
-        subscription_id = data_object.get("subscription")
-        if subscription_id:
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            _sync_subscription_row(subscription, organization_id=organization_id)
+        metadata = data_object.get("metadata") or {}
+        organization_id = data_object.get("client_reference_id") or metadata.get("organization_id")
+
+        if metadata.get("purchase_type") == "church_exchange_block":
+            # One-time payment (mode='payment'), not a subscription -- this
+            # session never has a `subscription` field at all, so it has to
+            # be caught here, before the subscription-fetch branch below
+            # (which would otherwise just silently no-op on a missing
+            # subscription_id and never credit anything).
+            _apply_church_exchange_block(organization_id, metadata)
+        else:
+            # Pull the Subscription object fresh here (rather than trusting
+            # Checkout Session's own summary fields) so this syncs from the
+            # exact same shape customer.subscription.* events use later --
+            # one code path, not two slightly-different ones.
+            subscription_id = data_object.get("subscription")
+            if subscription_id:
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                _sync_subscription_row(subscription, organization_id=organization_id)
 
     elif event_type in ("customer.subscription.updated", "customer.subscription.created"):
         _sync_subscription_row(data_object)
@@ -493,13 +1175,32 @@ def stripe_webhook():
         # the free tier's cap, same lifecycle as any lapsed SaaS
         # subscription. Revisit if a different landing tier is ever wanted
         # for lapsed-but-recent subscribers.
+        #
+        # Church/Org note (2026-07-12): an org can hold TWO simultaneous
+        # subscriptions (church_leadership + church_member) -- the naive
+        # "update every subscriptions row for this organization_id" would
+        # wrongly wipe BOTH when only one of them actually ended (e.g.
+        # Membership lapses but Leadership is still active). Scope the
+        # update to the specific tier_slug this deleted subscription was,
+        # same (organization_id, tier_slug) matching _sync_church_subscription_row
+        # uses. Individual Pro orgs only ever have one row, so this is a
+        # no-op behavior change for them -- eq("tier_slug", ...) still
+        # matches their single row either way.
         organization_id = (data_object.get("metadata") or {}).get("organization_id")
         if organization_id:
+            items = (data_object.get("items") or {}).get("data") or []
+            price_id = items[0]["price"]["id"] if items else None
+            seat_type = CHURCH_PRICE_TO_SEAT_TYPE.get(price_id)
+            tier_slug = CHURCH_SEAT_TIER_SLUGS[seat_type] if seat_type else None
+
             svc = get_service_client()
-            svc.table("subscriptions").update({
+            query = svc.table("subscriptions").update({
                 "tier_slug": "free",
                 "status": "canceled",
-            }).eq("organization_id", organization_id).execute()
+            }).eq("organization_id", organization_id)
+            if tier_slug:
+                query = query.eq("tier_slug", tier_slug)
+            query.execute()
 
     # invoice.payment_failed is deliberately not handled separately here --
     # Stripe already emits customer.subscription.updated with status

@@ -88,25 +88,63 @@ def pro_home():
     longer needed."""
     if session.get("sb_access_token"):
         return redirect(url_for("pro_chat.pro_app"))
-    return render_template("pro_login.html", error=request.args.get("error", ""))
+    return render_template(
+        "pro_login.html",
+        error=request.args.get("error", ""),
+        notice=request.args.get("notice", ""),
+    )
+
+
+# Maps handle_new_user()'s profiles.invite_resolution values (set only when
+# an invite_code was submitted but didn't resolve -- bad/expired/used/wrong
+# email) to a plain-language message. Section 11's explicit correction: a
+# failed invite must never silently land someone on an ordinary signup
+# without telling them -- this is that message.
+_INVITE_RESOLUTION_MESSAGES = {
+    "invalid_code": "That invite link/code isn't recognized -- your account was created as a regular signup instead. Double-check the link with your church, or continue on your own.",
+    "expired": "That invite link/code has expired -- your account was created as a regular signup instead. Ask your church for a fresh one, or continue on your own.",
+    "already_used": "That invite link has already been used by someone else -- Leadership invites are single-use. Your account was created as a regular signup instead; ask your church admin for a new invite.",
+    "wrong_email": "That invite was issued to a different email address -- Leadership invites are tied to one specific person. Your account was created as a regular signup instead; ask your church admin to reissue it to this email.",
+}
 
 
 @pro_bp.route("/signup", methods=["POST"])
 def signup():
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
+    # Rick's call, 2026-07-12: a church admin managing a roster doesn't
+    # necessarily know everyone's email offhand -- a real name is what
+    # they actually recognize people by. Required (server-side, not just
+    # the HTML form's `required` attribute, which a direct POST could
+    # skip) -- an optional field would just end up null for enough people
+    # that it wouldn't solve the actual problem it exists for.
+    full_name = request.form.get("full_name", "").strip()
+    # Present on Church/Org invite links (both Leadership single-use and
+    # Membership shared-code) -- carried through Supabase Auth's signup
+    # metadata into raw_user_meta_data, read by the handle_new_user()
+    # trigger, which does the actual (race-safe) resolution. Blank/absent
+    # for an ordinary signup, same as today.
+    invite_code = request.form.get("invite_code", "").strip() or None
 
     if not email or not password:
         return redirect(url_for("pro.pro_home", error="Email and password are required."))
+    if not full_name:
+        return redirect(url_for("pro.pro_home", error="Full name is required."))
 
     try:
-        result = get_supabase().auth.sign_up({"email": email, "password": password})
+        signup_kwargs = {"email": email, "password": password}
+        if invite_code:
+            signup_kwargs["options"] = {"data": {"invite_code": invite_code}}
+        result = get_supabase().auth.sign_up(signup_kwargs)
     except Exception as e:
         return redirect(url_for("pro.pro_home", error=f"Signup failed: {e}"))
 
     # If email confirmation is required (Supabase default), there may be no
     # session yet -- send the user back with a clear message rather than
-    # silently failing to log them in.
+    # silently failing to log them in. Note: an invite_resolution problem or
+    # a pending/waitlisted seat can't be surfaced here in that case either,
+    # since there's no session yet to read the profile with -- it'll show
+    # the first time they actually log in instead (see login() below).
     if result.session is None:
         return redirect(url_for(
             "pro.pro_home",
@@ -118,6 +156,52 @@ def signup():
     session["sb_expires_at"] = result.session.expires_at
     session["sb_email"] = email
     session["sb_user_id"] = result.user.id
+
+    # Save the name onto the profile handle_new_user() just created --
+    # simplest to do here as a direct update via the service client rather
+    # than threading full_name through Supabase Auth's signup metadata and
+    # having the DB trigger set it (the pattern invite_code already uses),
+    # since that would mean editing the trigger function itself for a
+    # single extra column. Best-effort: never let this be the reason
+    # signup itself fails, worst case the profile just has no name yet.
+    try:
+        get_service_client().table("profiles").update({"full_name": full_name}).eq("id", result.user.id).execute()
+    except Exception:
+        pass
+
+    # Tell them plainly if the invite they used didn't actually work, or if
+    # it worked but the pool was full (pending/waitlisted) -- never let
+    # either of those pass silently. Read via the service client since RLS
+    # for a brand-new profile under a church org isn't guaranteed to be
+    # self-readable in every seat_status case, and this check should never
+    # itself be the thing that breaks signup.
+    try:
+        svc = get_service_client()
+        prof = (
+            svc.table("profiles")
+            .select("invite_resolution, seat_status, seat_type")
+            .eq("id", result.user.id)
+            .limit(1)
+            .execute()
+        )
+        if prof.data:
+            row = prof.data[0]
+            if row.get("invite_resolution") in _INVITE_RESOLUTION_MESSAGES:
+                return redirect(url_for(
+                    "pro_chat.pro_app",
+                    notice=_INVITE_RESOLUTION_MESSAGES[row["invite_resolution"]],
+                ))
+            if row.get("seat_status") == "pending":
+                kind = "Leadership" if row.get("seat_type") == "leader" else "Membership"
+                return redirect(url_for(
+                    "pro_chat.pro_app",
+                    notice=f"Your church's {kind} seats are all full right now -- you're on the waitlist and will get access automatically as soon as a seat opens.",
+                ))
+    except Exception:
+        # Never let this status check be the reason signup itself fails --
+        # worst case the person just doesn't see the notice.
+        pass
+
     return redirect(url_for("pro.pro_home"))
 
 
@@ -150,6 +234,46 @@ def logout():
     session.pop("sb_email", None)
     session.pop("sb_user_id", None)
     return redirect(url_for("pro.pro_home"))
+
+
+@pro_bp.route("/account/delete", methods=["POST"])
+@login_required
+def delete_account():
+    """Self-serve, immediate, permanent account deletion -- no grace period
+    (Rick's explicit call, 2026-07-12: voluntary self-delete is immediate;
+    the 14-day trial-transition window only applies to the two INVOLUNTARY
+    cases -- a church's access lapsing or a single person being removed
+    from a roster -- not to someone deleting their own account by choice).
+
+    Deletes the auth.users row via the admin API, which cascades to
+    profiles (ON DELETE CASCADE, pre-existing) and planning_sessions'
+    conversation history (ON DELETE CASCADE, added 2026-07-12 specifically
+    to make this route's promise real -- see the DB migration notes). This
+    is the technical backing for legal.html's existing "we may... delete
+    the associated data" language, which had no mechanism behind it before
+    today.
+
+    Does NOT touch the organizations/subscriptions/usage_records rows for
+    any org this person belonged to -- deleting one member must never
+    affect a shared church org's data for everyone else still on it. An
+    orphaned solo individual's own org row is left in place too (harmless,
+    near-zero cost) rather than added complexity for a same-day build --
+    real cleanup of those can be a periodic job later, not blocking this."""
+    user_id = session.get("sb_user_id")
+    if not user_id:
+        return redirect(url_for("pro.pro_home", error="Not logged in."))
+
+    try:
+        get_service_client().auth.admin.delete_user(user_id)
+    except Exception as e:
+        return redirect(url_for("pro_chat.pro_app", error=f"Could not delete account: {e}"))
+
+    session.pop("sb_access_token", None)
+    session.pop("sb_refresh_token", None)
+    session.pop("sb_expires_at", None)
+    session.pop("sb_email", None)
+    session.pop("sb_user_id", None)
+    return redirect(url_for("pro.pro_home", notice="Your account and all associated data have been permanently deleted."))
 
 
 # Refresh the access token this many seconds before its actual expiry, so a

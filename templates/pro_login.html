@@ -20,8 +20,9 @@
   h1 { font-size: 1.3rem; margin-bottom: 6px; color: #1f2937; }
   .sub { color: #6b7280; font-size: 0.85rem; margin-bottom: 20px; }
   .error { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; }
+  .notice { background: #eff6ff; color: #1d4ed8; padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; }
   label { display: block; font-size: 0.82rem; color: #374151; margin-bottom: 4px; font-weight: 600; }
-  input[type="email"], input[type="password"] {
+  input[type="text"], input[type="email"], input[type="password"] {
     width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
     font-size: 0.95rem; margin-bottom: 14px;
   }
@@ -45,6 +46,7 @@
 <div class="wrap">
   <div class="card">
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 
     <div id="login-panel">
       <h1>Sign in</h1>
@@ -61,8 +63,11 @@
 
     <div id="signup-panel" style="display:none;">
       <h1>Create account</h1>
-      <div class="sub">Set up your Selah for Ministry account.</div>
+      <div class="sub" id="signup-sub">Set up your Selah for Ministry account.</div>
       <form method="POST" action="/pro/signup" onsubmit="return checkPasswordsMatch(this)">
+        <input type="hidden" id="signup-invite-code" name="invite_code" value="">
+        <label for="signup-name">Full name</label>
+        <input type="text" id="signup-name" name="full_name" required>
         <label for="signup-email">Email</label>
         <input type="email" id="signup-email" name="email" required>
         <label for="signup-password">Password</label>
@@ -84,6 +89,21 @@ function toggle() {
   document.getElementById('signup-panel').style.display =
     document.getElementById('signup-panel').style.display === 'none' ? 'block' : 'none';
 }
+
+// An invite link (generated on the church dashboard) looks like
+// /pro/?invite=<token> -- carry that token into the signup form's hidden
+// invite_code field (read server-side by pro_auth.py's signup(), then
+// resolved by the handle_new_user() DB trigger) and open straight to the
+// signup panel, since anyone arriving via an invite link is here to create
+// an account, not sign into an existing one.
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const invite = params.get("invite");
+  if (!invite) return;
+  document.getElementById("signup-invite-code").value = invite;
+  document.getElementById("signup-sub").textContent = "You've been invited -- create your account to join.";
+  toggle();
+})();
 
 // Client-side only -- password_confirm is never sent to /pro/signup (no
 // name attribute reaches the server as a field it needs to handle), this

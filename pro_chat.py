@@ -106,6 +106,25 @@ TIER_CONVERSATION_CAPS = {
     "individual_explore": 120,   # $17/mo
     "individual_pursue": 225,    # $28/mo
     "individual_immerse": 400,   # $49/mo
+    # Church/Org (Section 17, locked 2026-07-12 for the first 10 beta
+    # churches): these are POOLED caps -- one shared counter per org PER
+    # SEAT TYPE, not per person. Every Leadership profile at an org reserves
+    # against the same usage_records row (organization_id + seat_type=
+    # 'leader' + module_slug=NULL + billing_month); every Membership profile
+    # at that SAME org reserves against a separate row (seat_type='member')
+    # -- two independent pools per org, not one shared bucket. See
+    # usage_records.seat_type (added 2026-07-12) and
+    # _check_and_reserve_usage()'s docstring in pro_chat.py for why that
+    # split exists. $0.045/exchange working cost assumption; adjust after
+    # real beta-church usage data comes in, per Rick's explicit "lock these
+    # in for the beta test churches, adjust after several churches are
+    # online."
+    "church_leadership": 200,
+    "church_member": 100,
+    # Superseded by the two rows above -- kept only for any pre-Section-11
+    # row that might still reference the old flat slugs, not used by any
+    # live signup path (handle_new_user() only ever assigns
+    # church_leadership/church_member/trial/individual_* now).
     "church": 1500,
     "seminary": 1500,
     "berea": 1500,
@@ -246,7 +265,8 @@ def _billing_month_today() -> str:
 
 
 def _check_and_reserve_usage(
-    organization_id: str, tier_slug: str, module_slug: str | None = None, cap: int | None = None
+    organization_id: str, tier_slug: str, module_slug: str | None = None, cap: int | None = None,
+    seat_type: str | None = None,
 ) -> bool:
     """Returns True if this turn is allowed to proceed, False if the org has
     hit its monthly cap. Reserves the turn (increments conversations_used)
@@ -260,11 +280,40 @@ def _check_and_reserve_usage(
     lets the caller override the tier-based default (Prep Doc uses its own
     flat PREP_DOC_MONTHLY_CAP, not TIER_CONVERSATION_CAPS).
 
-    Known simplification: check-then-write is two round trips, not one
-    atomic operation, so a burst of near-simultaneous requests from the same
-    org could slightly overshoot the cap under real concurrent load. Fine at
-    today's volume; worth revisiting (e.g. a single atomic SQL update) before
-    real scale, same spirit as the free tool's existing rate-limit caveats."""
+    FIXED 2026-07-12 (was a known simplification, see prior comment history):
+    the actual increment-if-under-cap step now goes through the DB-side
+    public.reserve_usage() RPC -- a single atomic `UPDATE ... WHERE
+    conversations_used < conversations_cap RETURNING` -- instead of a
+    separate SELECT then UPDATE from this Python code, closing the race
+    where a burst of near-simultaneous requests from the same org could
+    overshoot the cap. This mattered more once Church/Org pooled caps went
+    live: a whole congregation's exchanges landing on one shared counter is
+    exactly the concurrent-write pattern that made the old two-round-trip
+    version unsafe.
+
+    seat_type ('leader' | 'member' | None) selects WHICH pooled counter a
+    Church/Org turn reserves against. A single organization_id can carry
+    TWO independent pools -- Leadership capped at 200/mo, Membership at
+    100/mo (Section 17) -- so seat_type is what keeps a Leadership seat's
+    chat turn from silently sharing (and draining) a Membership seat's
+    counter, or vice versa. None for individual/free/trial/beta orgs, which
+    only ever have one pool. Not combined with module_slug's own scoping
+    (Prep Doc, Translation Compare) -- those feature-module caps stay
+    org-wide for now, not seat-type-split; that's real follow-up design
+    work (which of those two seat types even get those features), not
+    something decided yet.
+
+    Row CREATION (a brand-new org/module/seat_type/month combination --
+    essentially only the very first turn anyone in that pool takes in a
+    given calendar month) is still a separate check-then-insert step, since
+    reserve_usage() only increments an EXISTING row. That race window is
+    real but low-stakes: usage_records' unique constraint plus two partial
+    unique indexes (covering the module_slug IS NULL case with and without
+    a seat_type, since Postgres doesn't treat NULLs as equal under a plain
+    UNIQUE constraint) mean a losing insert just raises a duplicate-key
+    error here, caught and ignored, and the winner's row is what
+    reserve_usage() below then increments -- no duplicate rows, no cap
+    bypass, worst case is one wasted insert attempt."""
     svc = get_service_client()
     billing_month = _billing_month_today()
     if cap is None:
@@ -272,31 +321,38 @@ def _check_and_reserve_usage(
 
     query = (
         svc.table("usage_records")
-        .select("id, conversations_used, conversations_cap, hard_cap")
+        .select("id")
         .eq("organization_id", organization_id)
         .eq("billing_month", billing_month)
     )
     query = query.is_("module_slug", "null") if module_slug is None else query.eq("module_slug", module_slug)
+    query = query.is_("seat_type", "null") if seat_type is None else query.eq("seat_type", seat_type)
     existing = query.limit(1).execute()
 
-    if existing.data:
-        row = existing.data[0]
-        if row["hard_cap"] and row["conversations_used"] >= row["conversations_cap"]:
-            return False
-        svc.table("usage_records").update({
-            "conversations_used": row["conversations_used"] + 1,
-        }).eq("id", row["id"]).execute()
-        return True
-    else:
-        svc.table("usage_records").insert({
-            "organization_id": organization_id,
-            "module_slug": module_slug,
-            "billing_month": billing_month,
-            "conversations_used": 1,
-            "conversations_cap": cap,
-            "hard_cap": True,
-        }).execute()
-        return True
+    if not existing.data:
+        try:
+            svc.table("usage_records").insert({
+                "organization_id": organization_id,
+                "module_slug": module_slug,
+                "seat_type": seat_type,
+                "billing_month": billing_month,
+                "conversations_used": 0,
+                "conversations_cap": cap,
+                "hard_cap": True,
+            }).execute()
+        except Exception:
+            # Lost the create race to a concurrent request -- their row is
+            # what reserve_usage() below will find and increment. Not an
+            # error condition, nothing to do here.
+            pass
+
+    result = svc.rpc("reserve_usage", {
+        "p_organization_id": organization_id,
+        "p_module_slug": module_slug,
+        "p_billing_month": billing_month,
+        "p_seat_type": seat_type,
+    }).execute()
+    return bool(result.data)
 
 
 @pro_chat_bp.route("/chat", methods=["POST"])
@@ -312,10 +368,27 @@ def pro_chat():
 
     sb = get_user_supabase()
 
-    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
+    profile_resp = sb.table("profiles").select("organization_id, seat_status, seat_type, suspended_at").limit(1).execute()
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
+
+    # Suspension (pro_org.py's suspend_member(), 2026-07-12) is a
+    # moderation hold, not a billing state -- checked before anything else,
+    # including comped status. A comped seat bypasses the USAGE cap below
+    # (there's nothing to meter for it), but it was never meant to bypass
+    # an admin's decision to suspend that specific person.
+    if profile_resp.data[0].get("suspended_at"):
+        return jsonify({
+            "reply": "Your access has been suspended by your organization's admin. Contact them if you believe this is a mistake.",
+            "question": "", "sources": [], "node": "", "anchor": "", "chips": [], "turn": 0,
+        }), 403
+
     organization_id = profile_resp.data[0]["organization_id"]
+    # 'leader' | 'member' | None -- None for every non-Church/Org profile.
+    # See _check_and_reserve_usage's docstring: this is what keeps a
+    # Leadership seat's turns and a Membership seat's turns from colliding
+    # into one shared usage_records row/cap for the same org.
+    profile_seat_type = profile_resp.data[0].get("seat_type")
 
     # Comped seats (Rick's own account, the pastor-friend beta tester/marketer)
     # bypass the usage cap entirely, regardless of tier_slug. This is a manual
@@ -338,14 +411,38 @@ def pro_chat():
     # trial cap below), not their subscribed tier's cap. Fixed by fetching
     # the latest row regardless of status and handling "trialing"
     # explicitly instead of relying on the filter to do it implicitly.
-    sub_resp = (
-        sb.table("subscriptions")
-        .select("id, tier_slug, status, trial_end")
-        .eq("organization_id", organization_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
+    #
+    # FIXED 2026-07-12: for a Church/Org profile this used to just grab the
+    # org's single most-recently-created subscriptions row -- fine for
+    # Individual Pro (always exactly one row) but silently wrong for a
+    # church, which can hold TWO simultaneous rows (church_leadership +
+    # church_member). Since Membership is always purchased AFTER Leadership
+    # (Section 16 -- it's an add-on, never sold standalone), "most recent"
+    # would in practice always resolve to the church_member row -- meaning
+    # every Leadership seat-holder's chat request would have been evaluated
+    # against the 100/mo Membership cap, never their real 200/mo pool. Now
+    # scoped to the tier_slug matching THIS profile's own seat_type instead
+    # of just taking whichever subscription happens to be newest.
+    if profile_seat_type in ("leader", "member"):
+        wanted_tier_slug = "church_leadership" if profile_seat_type == "leader" else "church_member"
+        sub_resp = (
+            sb.table("subscriptions")
+            .select("id, tier_slug, status, trial_end")
+            .eq("organization_id", organization_id)
+            .eq("tier_slug", wanted_tier_slug)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    else:
+        sub_resp = (
+            sb.table("subscriptions")
+            .select("id, tier_slug, status, trial_end")
+            .eq("organization_id", organization_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
     sub_row = sub_resp.data[0] if sub_resp.data else None
     tier_slug = sub_row["tier_slug"] if sub_row else "free"
     sub_status = sub_row["status"] if sub_row else None
@@ -399,7 +496,9 @@ def pro_chat():
     # service-role client internally; never checked or written via the
     # user's own token. Comped seats skip this entirely -- no usage-record
     # row is even written for them, since there's nothing to cap.
-    if not is_comped and not _check_and_reserve_usage(organization_id, tier_slug, cap=cap_override):
+    if not is_comped and not _check_and_reserve_usage(
+        organization_id, tier_slug, cap=cap_override, seat_type=profile_seat_type
+    ):
         # upgrade_required signals the frontend to auto-open the plan-
         # choice modal (Rick's "door 2" -- running out mid-session) rather
         # than just showing a dead-end reply. Trial exhaustion gets its own
@@ -572,10 +671,14 @@ def prep_doc():
     swappable-instruction-block pattern (see generate_prep_doc() in
     engine.py) rather than inventing a one-off mechanism.
 
-    Known simplification: available to every logged-in Pro account
-    regardless of tier -- module_access-based per-org feature gating (the
-    schema supports it) isn't wired up anywhere yet, since no tiers actually
-    differ from each other today. Revisit once real tiers exist."""
+    Church/Org gate (Rick's call, 2026-07-12): Prep Doc is a Leadership tool
+    -- staff preparing lessons/sermons/discussion guides -- not part of what
+    a Congregation Membership seat buys (personal chat access only).
+    Individual Pro and free/trial/beta accounts are unaffected; this only
+    excludes profiles.seat_type == 'member'. Translation Compare is
+    deliberately NOT gated the same way -- it's a lighter, more personal-
+    study-oriented feature Rick wasn't asked to restrict, so it stays open
+    to both seat types for now."""
     data = request.json or {}
     session_db_id = data.get("session_id")
     if not session_db_id:
@@ -599,11 +702,15 @@ def prep_doc():
 
     sb = get_user_supabase()
 
-    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
+    profile_resp = sb.table("profiles").select("organization_id, seat_status, seat_type").limit(1).execute()
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
     organization_id = profile_resp.data[0]["organization_id"]
     is_comped = profile_resp.data[0].get("seat_status") == "comped"
+    profile_seat_type = profile_resp.data[0].get("seat_type")
+
+    if profile_seat_type == "member":
+        return jsonify({"error": "Session Recap is a Leadership feature -- Membership seats have full chat access but not this tool."}), 403
 
     sub_resp = (
         sb.table("subscriptions")
