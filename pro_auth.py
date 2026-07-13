@@ -21,6 +21,8 @@ from functools import wraps
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from supabase import create_client, Client
 
+from pro_email import send_welcome_email, send_seat_granted_email, send_account_deletion_email
+
 pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -185,7 +187,7 @@ def signup():
         svc = get_service_client()
         prof = (
             svc.table("profiles")
-            .select("invite_resolution, seat_status, seat_type")
+            .select("invite_resolution, seat_status, seat_type, organization_id")
             .eq("id", result.user.id)
             .limit(1)
             .execute()
@@ -203,9 +205,27 @@ def signup():
                     "pro_chat.pro_app",
                     notice=f"Your church's {kind} seats are all full right now -- you're on the waitlist and will get access automatically as soon as a seat opens.",
                 ))
+            # Landed on a real (paid or comped) church seat via invite --
+            # send the seat-granted notice instead of the plain welcome.
+            if row.get("seat_status") in ("paid", "comped") and row.get("seat_type"):
+                org_name = "your organization"
+                if row.get("organization_id"):
+                    org_resp = (
+                        svc.table("organizations")
+                        .select("name")
+                        .eq("id", row["organization_id"])
+                        .limit(1)
+                        .execute()
+                    )
+                    org_name = (org_resp.data[0].get("name") if org_resp.data else None) or org_name
+                send_seat_granted_email(email, first_name, org_name, row["seat_type"])
+            else:
+                send_welcome_email(email, first_name)
+        else:
+            send_welcome_email(email, first_name)
     except Exception:
         # Never let this status check be the reason signup itself fails --
-        # worst case the person just doesn't see the notice.
+        # worst case the person just doesn't see the notice or the email.
         pass
 
     return redirect(url_for("pro.pro_home"))
@@ -269,10 +289,15 @@ def delete_account():
     if not user_id:
         return redirect(url_for("pro.pro_home", error="Not logged in."))
 
+    user_email = session.get("sb_email")
+
     try:
         get_service_client().auth.admin.delete_user(user_id)
     except Exception as e:
         return redirect(url_for("pro_chat.pro_app", error=f"Could not delete account: {e}"))
+
+    if user_email:
+        send_account_deletion_email(user_email)
 
     session.pop("sb_access_token", None)
     session.pop("sb_refresh_token", None)

@@ -88,3 +88,97 @@ def send_waitlist_promoted_email(to: str, org_name: str, seat_type: str) -> bool
       <p>Sign in any time to start using it.</p>
     """)
     return send_email(to, subject, html)
+
+
+def send_welcome_email(to: str, first_name: str) -> bool:
+    """Sent once, right after an ordinary individual signup (not tied to a
+    church invite) -- pro_auth.py signup()."""
+    name = first_name or "there"
+    subject = "Welcome to Selah for Ministry"
+    html = _wrap(f"""
+      <p>Hi {name},</p>
+      <p>Your Selah for Ministry account is ready. You're on a 14-day trial with 25 exchanges to explore systematic theology at whatever depth you want to go.</p>
+      <p>Sign in any time to get started.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_seat_granted_email(to: str, first_name: str, org_name: str, seat_type: str) -> bool:
+    """Sent once, right after someone successfully redeems a church invite
+    and lands on a real (paid or comped) seat -- pro_auth.py signup()."""
+    name = first_name or "there"
+    kind = "Leadership" if seat_type == "leader" else "Membership"
+    subject = f"You're in -- {org_name} on Selah for Ministry"
+    html = _wrap(f"""
+      <p>Hi {name},</p>
+      <p>You now have a {kind} seat at <strong>{org_name}</strong> on Selah for Ministry. Sign in any time to get started.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_suspended_email(to: str, org_name: str) -> bool:
+    """Sent when an admin suspends a roster member -- pro_org.py
+    suspend_member(). Their seat stays reserved; this is a moderation
+    hold, not a removal."""
+    subject = f"Your access at {org_name} has been suspended"
+    html = _wrap(f"""
+      <p>An admin at <strong>{org_name}</strong> has suspended your access on Selah for Ministry. Your seat is still reserved -- you just can't sign in and use it until it's reactivated.</p>
+      <p>Contact {org_name}'s admin if you have questions.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_reactivated_email(to: str, org_name: str) -> bool:
+    """Sent when an admin clears a suspension -- pro_org.py
+    reactivate_member()."""
+    subject = f"Your access at {org_name} has been restored"
+    html = _wrap(f"""
+      <p>An admin at <strong>{org_name}</strong> has restored your access on Selah for Ministry. Sign in any time.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_promoted_admin_email(to: str, org_name: str) -> bool:
+    """Sent when an existing roster member is granted admin access --
+    pro_org.py promote_admin()."""
+    subject = f"You're now an admin at {org_name}"
+    html = _wrap(f"""
+      <p>You've been given admin access at <strong>{org_name}</strong> on Selah for Ministry. You can now manage seats, invitations, and the roster from the Church/Org dashboard.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_demoted_admin_email(to: str, org_name: str) -> bool:
+    """Sent when an admin's own access is revoked by another admin --
+    pro_org.py demote_admin()."""
+    subject = f"Your admin access at {org_name} has changed"
+    html = _wrap(f"""
+      <p>Your admin access at <strong>{org_name}</strong> on Selah for Ministry has been removed. You keep your own seat and access, just not the ability to manage seats, invitations, or the roster.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_exchange_block_confirmation_email(to: str, org_name: str, seat_type: str, exchanges_added: int, new_cap: int) -> bool:
+    """Sent to the admin who bought the block, once the webhook confirms
+    the charge succeeded -- pro_billing.py _apply_church_exchange_block().
+    A Stripe receipt covers the charge itself; this explains what it
+    actually did to the pool."""
+    kind = "Leadership" if seat_type == "leader" else "Membership"
+    subject = f"Exchange block added -- {org_name}"
+    html = _wrap(f"""
+      <p>Your exchange block purchase for {org_name}'s {kind} pool is confirmed -- {exchanges_added} exchanges added.</p>
+      <p>This month's {kind} cap is now {new_cap}.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_account_deletion_email(to: str) -> bool:
+    """Sent right after a self-serve account deletion completes --
+    pro_auth.py delete_account(). The account and its data are already
+    gone by the time this sends; it's a receipt, not a warning."""
+    subject = "Your Selah for Ministry account has been deleted"
+    html = _wrap(f"""
+      <p>Your Selah for Ministry account and all associated conversation history have been permanently deleted, as requested. This can't be undone.</p>
+      <p>If you didn't request this, contact us immediately at admin@selahexploringtheology.com.</p>
+    """)
+    return send_email(to, subject, html)

@@ -57,7 +57,7 @@ import stripe
 from flask import Blueprint, request, jsonify, url_for, session
 
 from pro_auth import login_required, get_user_supabase, get_service_client
-from pro_email import send_waitlist_promoted_email
+from pro_email import send_waitlist_promoted_email, send_exchange_block_confirmation_email
 
 pro_billing_bp = Blueprint("pro_billing", __name__, url_prefix="/pro/billing")
 
@@ -628,6 +628,10 @@ def create_church_block_checkout_session():
             "seat_type": seat_type,
             "purchase_type": "church_exchange_block",
             "block_quantity": str(quantity),
+            # Carried through so the webhook's confirmation email
+            # (_apply_church_exchange_block) can address the admin who
+            # actually bought the block without a second lookup.
+            "purchaser_email": email or "",
         },
     }
     if existing_customer_id:
@@ -905,19 +909,21 @@ def _apply_church_exchange_block(organization_id: str, metadata: dict) -> None:
         .limit(1)
         .execute()
     )
+    new_cap = None
     if existing.data:
         row = existing.data[0]
         new_cap = (row.get("conversations_cap") or 0) + exchanges_to_add
         svc.table("usage_records").update({"conversations_cap": new_cap}).eq("id", row["id"]).execute()
     else:
         try:
+            new_cap = BASE_CHURCH_CAP[seat_type] + exchanges_to_add
             svc.table("usage_records").insert({
                 "organization_id": organization_id,
                 "module_slug": None,
                 "seat_type": seat_type,
                 "billing_month": billing_month,
                 "conversations_used": 0,
-                "conversations_cap": BASE_CHURCH_CAP[seat_type] + exchanges_to_add,
+                "conversations_cap": new_cap,
                 "hard_cap": True,
             }).execute()
         except Exception:
@@ -938,6 +944,20 @@ def _apply_church_exchange_block(organization_id: str, metadata: dict) -> None:
                 row = retry.data[0]
                 new_cap = (row.get("conversations_cap") or 0) + exchanges_to_add
                 svc.table("usage_records").update({"conversations_cap": new_cap}).eq("id", row["id"]).execute()
+
+    # Confirmation email to whoever bought the block -- Stripe's own
+    # receipt covers the charge; this explains what it actually did to
+    # the pool. Best-effort: the credit above is already committed by the
+    # time this runs, so an email failure here must never look like the
+    # purchase itself failed.
+    purchaser_email = metadata.get("purchaser_email")
+    if purchaser_email and new_cap is not None:
+        try:
+            org_resp = svc.table("organizations").select("name").eq("id", organization_id).limit(1).execute()
+            org_name = (org_resp.data[0].get("name") if org_resp.data else None) or "your organization"
+            send_exchange_block_confirmation_email(purchaser_email, org_name, seat_type, exchanges_to_add, new_cap)
+        except Exception:
+            pass
 
 
 # ─────────────────────────── Webhook ───────────────────────────

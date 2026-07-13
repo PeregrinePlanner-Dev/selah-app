@@ -22,7 +22,13 @@ from flask import Blueprint, request, jsonify, session, render_template
 
 from pro_auth import login_required, get_user_supabase, get_service_client
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
-from pro_email import send_roster_removal_email
+from pro_email import (
+    send_roster_removal_email,
+    send_suspended_email,
+    send_reactivated_email,
+    send_promoted_admin_email,
+    send_demoted_admin_email,
+)
 
 pro_org_bp = Blueprint("pro_org", __name__, url_prefix="/pro/org")
 
@@ -56,6 +62,14 @@ def _get_admin_org_id():
     if not row.get("is_org_admin"):
         return None, (jsonify({"error": "Only an organization admin can do this."}), 403)
     return row["organization_id"], None
+
+
+def _get_org_name(svc, organization_id: str) -> str:
+    """Shared lookup for the notice-email call sites below -- avoids
+    repeating the same organizations query in suspend/reactivate/promote/
+    demote/remove."""
+    resp = svc.table("organizations").select("name").eq("id", organization_id).limit(1).execute()
+    return (resp.data[0].get("name") if resp.data else None) or "your organization"
 
 
 @pro_org_bp.route("/roster", methods=["GET"])
@@ -185,9 +199,7 @@ def remove_from_roster():
 
     email_sent = False
     if target_row.get("email"):
-        org_resp = svc.table("organizations").select("name").eq("id", organization_id).limit(1).execute()
-        org_name = (org_resp.data[0].get("name") if org_resp.data else None) or "your organization"
-        email_sent = send_roster_removal_email(target_row["email"], org_name)
+        email_sent = send_roster_removal_email(target_row["email"], _get_org_name(svc, organization_id))
 
     return jsonify({
         "ok": True,
@@ -344,7 +356,7 @@ def suspend_member():
     svc = get_service_client()
     target = (
         svc.table("profiles")
-        .select("id")
+        .select("id, email")
         .eq("id", profile_id)
         .eq("organization_id", organization_id)
         .limit(1)
@@ -356,6 +368,10 @@ def suspend_member():
     svc.table("profiles").update({
         "suspended_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", profile_id).execute()
+
+    if target.data[0].get("email"):
+        send_suspended_email(target.data[0]["email"], _get_org_name(svc, organization_id))
+
     return jsonify({"ok": True})
 
 
@@ -377,7 +393,7 @@ def reactivate_member():
     svc = get_service_client()
     target = (
         svc.table("profiles")
-        .select("id")
+        .select("id, email")
         .eq("id", profile_id)
         .eq("organization_id", organization_id)
         .limit(1)
@@ -387,6 +403,10 @@ def reactivate_member():
         return jsonify({"error": "That person isn't on your roster."}), 404
 
     svc.table("profiles").update({"suspended_at": None}).eq("id", profile_id).execute()
+
+    if target.data[0].get("email"):
+        send_reactivated_email(target.data[0]["email"], _get_org_name(svc, organization_id))
+
     return jsonify({"ok": True})
 
 
@@ -410,7 +430,7 @@ def promote_admin():
 
     target = (
         svc.table("profiles")
-        .select("id, is_org_admin")
+        .select("id, email, is_org_admin")
         .eq("id", profile_id)
         .eq("organization_id", organization_id)
         .limit(1)
@@ -432,6 +452,10 @@ def promote_admin():
         return jsonify({"error": f"This organization already has the maximum of {MAX_ORG_ADMINS} admins."}), 400
 
     svc.table("profiles").update({"is_org_admin": True}).eq("id", profile_id).execute()
+
+    if target.data[0].get("email"):
+        send_promoted_admin_email(target.data[0]["email"], _get_org_name(svc, organization_id))
+
     return jsonify({"ok": True})
 
 
@@ -454,7 +478,7 @@ def demote_admin():
 
     target = (
         svc.table("profiles")
-        .select("id, is_org_admin")
+        .select("id, email, is_org_admin")
         .eq("id", profile_id)
         .eq("organization_id", organization_id)
         .limit(1)
@@ -476,6 +500,10 @@ def demote_admin():
         return jsonify({"error": "Can't remove the last remaining admin -- promote someone else first."}), 400
 
     svc.table("profiles").update({"is_org_admin": False}).eq("id", profile_id).execute()
+
+    if target.data[0].get("email"):
+        send_demoted_admin_email(target.data[0]["email"], _get_org_name(svc, organization_id))
+
     return jsonify({"ok": True})
 
 
