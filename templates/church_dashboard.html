@@ -920,6 +920,45 @@ async function removeMemberConfirmed(id) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// TEMPORARY DEMO ONLY -- added 2026-07-13 so Rick can eyeball the confirm-
+// step layout/wording without a real Stripe subscription behind Vallecito
+// (this is a live, not test-mode, Stripe account -- no org here has a real
+// subscription to preview against, and faking one means a real charge).
+// Console-only, not wired to any button anyone can click by accident.
+// >>> REMOVE THIS WHOLE BLOCK AFTER RICK'S CLARK MEETING <<<
+function demoSeatConfirm(seatType, newQty) {
+  const currentQty = seatType === "leader" ? (orgStatus.leader_seats_purchased || 0) : (orgStatus.member_seats_purchased || 0);
+  const rateFor = qty => {
+    const tiers = seatType === "leader"
+      ? [[4, 14.00], [9, 12.00], [Infinity, 10.00]]
+      : [[24, 8.00], [99, 7.50], [999, 7.00], [Infinity, 6.50]];
+    for (const [upTo, price] of tiers) { if (qty <= upTo) return price; }
+  };
+  const currentRate = rateFor(currentQty);
+  const newRate = rateFor(newQty);
+  const newMonthlyTotal = newRate * newQty;
+  const fakeProrated = Math.max((newMonthlyTotal - (currentRate * currentQty)) / 2, 0);
+
+  document.getElementById("buy-seats-title").textContent = `Add ${SEAT_LABEL[seatType]} Seats`;
+  const added = newQty - currentQty;
+  const rateLine = newRate === currentRate
+    ? `Rate: $${newRate.toFixed(2)}/seat`
+    : `New rate: $${newRate.toFixed(2)}/seat -- down from $${currentRate.toFixed(2)}/seat at ${currentQty}`;
+  document.getElementById("buy-seats-confirm-text").innerHTML =
+    `<div style="margin-bottom:8px; color:#991b1b; font-weight:700;">DEMO ONLY -- not a real charge, not connected to Stripe</div>` +
+    `<div style="margin-bottom:8px;">Adding ${added} brings your total to ${newQty} ${SEAT_LABEL[seatType]} seats.</div>` +
+    `<div style="margin-bottom:8px;">${rateLine}</div>` +
+    `<div style="margin-bottom:8px;">New monthly total: $${newMonthlyTotal.toFixed(2)}/month</div>` +
+    `<div><strong>Prorated charge due today: $${fakeProrated.toFixed(2)} USD (illustrative)</strong></div>`;
+  document.getElementById("buy-seats-confirm-btn").onclick = () => alert("Demo only -- disabled, not wired to Stripe.");
+  document.getElementById("buy-seats-step-input").style.display = "none";
+  document.getElementById("buy-seats-step-confirm").style.display = "block";
+  document.getElementById("buy-seats-modal").style.display = "flex";
+}
+// >>> END TEMPORARY DEMO BLOCK -- REMOVE AFTER CLARK MEETING <<<
+// ═══════════════════════════════════════════════════════════════════════
+
 // ── Init ─────────────────────────────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
 if (params.get("checkout") === "success") {
