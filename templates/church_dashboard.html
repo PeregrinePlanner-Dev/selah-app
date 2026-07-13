@@ -160,7 +160,7 @@
   <!-- ── View: not yet a church org ── -->
   <div id="start-view" class="card" style="display:none;">
     <h2>Start a Church / Organization account</h2>
-    <div class="sub">Turns your account into a church organization -- you become its first admin, and can then purchase Leadership seats for staff and, once that's active, Membership seats for the congregation.</div>
+    <div class="sub">Turns your account into a church organization -- you become its first admin, and can then add Leadership seats for staff and, once that's active, Membership seats for the congregation.</div>
     <div style="margin-bottom: 14px;">
       <label for="start-org-name">Church / organization name</label>
       <input type="text" id="start-org-name" style="width:100%; max-width:360px;" placeholder="e.g. First Baptist Church">
@@ -186,7 +186,7 @@
 
     <div class="card">
       <h2>Seats</h2>
-      <div class="sub">Invite staff under Leadership, your congregation under Membership -- each is managed and capped separately.</div>
+      <div class="sub">Invite staff under Leadership, your congregation under Membership.</div>
 
       <div class="seat-block" id="leader-seat-block">
         <div class="seat-block-title">Leadership</div>
@@ -199,13 +199,13 @@
         <div class="seat-warning" id="leader-low-warning" style="display:none;">All Leadership seats are in use -- add more to bring on another leader.</div>
         <div class="seat-roster-panel" id="leader-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="leader-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
-          <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
+          <div class="invite-meta" id="leader-block-note" style="margin-bottom:6px;"></div>
           <div class="seat-controls">
             <div>
-              <label for="leader-block-qty">Blocks</label>
+              <label for="leader-block-qty">Blocks (100 exchanges each)</label>
               <input type="number" id="leader-block-qty" min="1" value="1" style="width:80px;">
             </div>
-            <button class="btn-secondary" onclick="buyBlock('leader')">Buy Exchange Block(s)</button>
+            <button class="btn-secondary" onclick="buyBlock('leader')">Add Exchanges</button>
           </div>
         </div>
       </div>
@@ -222,25 +222,25 @@
         <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Add at least one Leadership seat above to unlock Membership for your congregation.</div>
         <div class="seat-roster-panel" id="member-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="member-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
-          <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
+          <div class="invite-meta" id="member-block-note" style="margin-bottom:6px;"></div>
           <div class="seat-controls">
             <div>
-              <label for="member-block-qty">Blocks</label>
+              <label for="member-block-qty">Blocks (100 exchanges each)</label>
               <input type="number" id="member-block-qty" min="1" value="1" style="width:80px;">
             </div>
-            <button class="btn-secondary" onclick="buyBlock('member')">Buy Exchange Block(s)</button>
+            <button class="btn-secondary" onclick="buyBlock('member')">Add Exchanges</button>
           </div>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <h2>Invites</h2>
-      <div class="sub">A Leadership invite is single-use and tied to one email. A Membership invite is a shared, reusable code for the whole congregation.</div>
+      <h2>Invitations</h2>
+      <div class="sub">Create a link and send it to someone to add them to your Leadership or Membership roster.</div>
 
       <div class="seat-controls" style="margin-bottom: 14px;">
         <div>
-          <label for="invite-type">Type</label>
+          <label for="invite-type">Add to</label>
           <select id="invite-type" onchange="onInviteTypeChange()">
             <option value="leader">Leadership</option>
             <option value="member">Membership</option>
@@ -250,12 +250,12 @@
           <label for="invite-email">Their email</label>
           <input type="email" id="invite-email" style="width:220px;">
         </div>
-        <button class="btn-secondary" onclick="generateInvite()">Generate Invite</button>
+        <button class="btn-secondary" onclick="generateInvite()">Generate Invitation</button>
       </div>
 
       <div id="new-invite-link-box"></div>
 
-      <div id="invites-list"><span class="placeholder">Loading invites…</span></div>
+      <div id="invites-list"><span class="placeholder">Loading invitations…</span></div>
     </div>
 
   </div>
@@ -279,11 +279,11 @@
     </div>
 
     <div id="buy-seats-step-confirm" style="display:none;">
-      <div class="sub" id="buy-seats-confirm-text"></div>
-      <div class="modal-actions">
+      <div class="modal-actions" style="justify-content: flex-start; margin-top: 0; margin-bottom: 16px;">
         <button class="btn-secondary" onclick="backToBuySeatsInput()">Back</button>
         <button class="btn-primary" id="buy-seats-confirm-btn">Confirm &amp; Charge</button>
       </div>
+      <div class="sub" id="buy-seats-confirm-text"></div>
     </div>
   </div>
 </div>
@@ -315,11 +315,11 @@ const SEAT_LABEL = { leader: "Leadership", member: "Membership" };
 const SEAT_PRICING_TIERS = {
   leader: {
     rows: [["1–4 seats", "$14/seat"], ["5–9 seats", "$12/seat"], ["10+ seats", "$10/seat"]],
-    note: "Includes a shared pool of 200 exchanges/month across all Leadership seats.",
+    note: "",
   },
   member: {
     rows: [["10–24 seats", "$8/seat"], ["25–99 seats", "$7.50/seat"], ["100–999 seats", "$7/seat"], ["1000+ seats", "$6.50/seat"]],
-    note: "10-seat minimum. Includes a shared pool of 100 exchanges/month across all Membership seats.",
+    note: "10-seat minimum.",
   },
 };
 
@@ -328,7 +328,7 @@ function renderPricingTiers(seatType) {
   const rows = t.rows.map(([range, price]) =>
     `<div class="tier-row"><span>${escapeHtml(range)}</span><span><strong>${escapeHtml(price)}</strong></span></div>`
   ).join("");
-  document.getElementById("buy-seats-pricing").innerHTML = rows + `<div class="tier-note">${escapeHtml(t.note)}</div>`;
+  document.getElementById("buy-seats-pricing").innerHTML = rows + (t.note ? `<div class="tier-note">${escapeHtml(t.note)}</div>` : "");
 }
 let orgStatus = null;
 let _buySeatsType = null;
@@ -382,7 +382,7 @@ async function loadStatus() {
       const kind = data.seat_type === "leader" ? "Leadership" : "Membership";
       const orgLabel = orgDisplayName(data);
       document.getElementById("member-view-text").textContent =
-        `You hold a ${kind} seat at ${orgLabel}. Contact your organization's admin to manage seats, invites, or the roster.`;
+        `You hold a ${kind} seat at ${orgLabel}. Contact your organization's admin to manage seats, invitations, or the roster.`;
       return;
     }
 
@@ -400,6 +400,23 @@ async function loadStatus() {
 function orgDisplayName(data) {
   const name = data.org_name || "your organization";
   return data.org_postal_code ? `${name} (${data.org_postal_code})` : name;
+}
+
+function nextRefillDateLabel() {
+  const now = new Date();
+  const firstOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return firstOfNextMonth.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
+function showBlockPurchaseIfLow(seatType, used, cap) {
+  const el = document.getElementById(`${seatType}-block-purchase`);
+  const noteEl = document.getElementById(`${seatType}-block-note`);
+  if (cap == null) { el.style.display = "none"; return; }
+  const remaining = Math.max(cap - (used || 0), 0);
+  const low = remaining <= cap * 0.20;
+  if (!low) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  noteEl.textContent = `${remaining} of ${cap} exchanges left this month. Renews with your subscription on ${nextRefillDateLabel()} -- add exchanges now only if you need more before then.`;
 }
 
 function renderSeats(data) {
@@ -430,7 +447,12 @@ function renderSeats(data) {
     leaderUsageEl.style.display = "none";
   }
   document.getElementById("leader-low-warning").style.display = (leaderPurchased && leaderAvailable <= 0) ? "block" : "none";
-  document.getElementById("leader-block-purchase").style.display = leaderPurchased ? "block" : "none";
+  // Exchange blocks are a mid-month top-up -- only worth surfacing once
+  // you're actually close to running out, not just because seats exist
+  // (Rick, 2026-07-13: show it at 20% or less of this month's pool left,
+  // and show the free reset date so the admin can judge whether buying is
+  // even worth it before then).
+  showBlockPurchaseIfLow("leader", data.leader_exchanges_used, data.leader_exchanges_cap);
   if (!leaderHasRoster) {
     document.getElementById("leader-roster-panel").style.display = "none";
     document.getElementById("leader-roster-panel").innerHTML = "";
@@ -467,7 +489,11 @@ function renderSeats(data) {
     memberUsageEl.style.display = "none";
   }
   document.getElementById("member-low-warning").style.display = (!memberLocked && memberLow) ? "block" : "none";
-  document.getElementById("member-block-purchase").style.display = (!memberLocked && memberPurchased) ? "block" : "none";
+  if (memberLocked) {
+    document.getElementById("member-block-purchase").style.display = "none";
+  } else {
+    showBlockPurchaseIfLow("member", data.member_exchanges_used, data.member_exchanges_cap);
+  }
   if (!memberHasRoster) {
     document.getElementById("member-roster-panel").style.display = "none";
     document.getElementById("member-roster-panel").innerHTML = "";
@@ -563,7 +589,7 @@ function openBuySeatsModal(seatType) {
   _buySeatsType = seatType;
   const purchased = seatType === "leader" ? orgStatus.leader_seats_purchased : orgStatus.member_seats_purchased;
 
-  document.getElementById("buy-seats-title").textContent = `Add ${SEAT_LABEL[seatType]} seats`;
+  document.getElementById("buy-seats-title").textContent = `Add ${SEAT_LABEL[seatType]} Seats`;
   renderPricingTiers(seatType);
   document.getElementById("buy-seats-error").style.display = "none";
 
@@ -575,7 +601,7 @@ function openBuySeatsModal(seatType) {
   } else {
     qtyInput.value = "";
     qtyInput.placeholder = seatType === "member" ? "e.g. 15" : "e.g. 3";
-    document.getElementById("buy-seats-qty-label").textContent = "Number of seats to purchase";
+    document.getElementById("buy-seats-qty-label").textContent = "Number of seats to add";
   }
 
   document.getElementById("buy-seats-step-input").style.display = "block";
@@ -622,9 +648,15 @@ async function submitBuySeats() {
     submitBtn.disabled = false;
     if (data.error) { errBox.textContent = data.error; errBox.style.display = "block"; return; }
 
+    const added = data.new_quantity - data.current_quantity;
+    const rateLine = data.new_price_per_seat === data.current_price_per_seat
+      ? `Rate: $${data.new_price_per_seat.toFixed(2)}/seat`
+      : `New rate: $${data.new_price_per_seat.toFixed(2)}/seat -- down from $${data.current_price_per_seat.toFixed(2)}/seat at ${data.current_quantity}`;
     document.getElementById("buy-seats-confirm-text").innerHTML =
-      `New total: ${data.new_quantity} seats -- prorated charge due now: ` +
-      `<strong>$${data.prorated_amount_due_now.toFixed(2)} ${data.currency.toUpperCase()}</strong>`;
+      `<div style="margin-bottom:8px;">Adding ${added} brings your total to ${data.new_quantity} ${SEAT_LABEL[seatType]} seats.</div>` +
+      `<div style="margin-bottom:8px;">${rateLine}</div>` +
+      `<div style="margin-bottom:8px;">New monthly total: $${data.new_monthly_total.toFixed(2)}/month</div>` +
+      `<div><strong>Prorated charge due today: $${data.prorated_amount_due_now.toFixed(2)} ${data.currency.toUpperCase()}</strong></div>`;
     document.getElementById("buy-seats-confirm-btn").onclick = () => confirmSeatUpdate(seatType, data.new_quantity);
     document.getElementById("buy-seats-step-input").style.display = "none";
     document.getElementById("buy-seats-step-confirm").style.display = "block";
@@ -669,7 +701,7 @@ async function confirmSeatUpdate(seatType, newQty) {
     confirmBtn.disabled = false;
     if (data.error) { alert(data.error); return; }
     closeBuySeatsModal();
-    showBanner(data.note || "Seat purchase is processing.", "success");
+    showBanner(data.note || "Seat change is processing.", "success");
     loadStatus();
   } catch (e) {
     confirmBtn.disabled = false;
@@ -687,7 +719,7 @@ async function generateInvite() {
   const invite_type = document.getElementById("invite-type").value;
   const invited_email = document.getElementById("invite-email").value.trim();
   if (invite_type === "leader" && !invited_email) {
-    alert("A Leadership invite needs the person's email -- it's single-use and tied to them.");
+    alert("A Leadership invitation needs the person's email -- it's single-use and tied to them.");
     return;
   }
   try {
@@ -719,7 +751,7 @@ async function loadInvites() {
     const data = await res.json();
     const invites = data.invites || [];
     if (!invites.length) {
-      box.innerHTML = '<span class="placeholder">No invites yet.</span>';
+      box.innerHTML = '<span class="placeholder">No invitations yet.</span>';
       return;
     }
     box.innerHTML = invites.map(inv => {
@@ -740,12 +772,12 @@ async function loadInvites() {
       </div>`;
     }).join("");
   } catch (e) {
-    box.innerHTML = '<span class="placeholder">Could not load invites.</span>';
+    box.innerHTML = '<span class="placeholder">Could not load invitations.</span>';
   }
 }
 
 async function revokeInvite(tokenId) {
-  if (!confirm("Revoke this invite? It can no longer be used to join.")) return;
+  if (!confirm("Revoke this invitation? It can no longer be used to join.")) return;
   try {
     const res = await fetch("/pro/org/invites/revoke", {
       method: "POST",
@@ -793,7 +825,7 @@ function openMemberActionModal(id) {
   if (person.is_org_admin) {
     actions.push({
       label: "Remove admin access", danger: false,
-      desc: "Removes admin access. They'll keep their seat but won't be able to manage seats, invites, or the roster.",
+      desc: "Removes admin access. They'll keep their seat but won't be able to manage seats, invitations, or the roster.",
       run: () => rosterAction("/pro/org/admins/demote", id),
     });
   } else {
@@ -891,11 +923,11 @@ async function removeMemberConfirmed(id) {
 // ── Init ─────────────────────────────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
 if (params.get("checkout") === "success") {
-  showBanner("Purchase confirmed -- seats will update automatically once payment is confirmed.", "success");
+  showBanner("Confirmed -- seats will update automatically once payment is confirmed.", "success");
 } else if (params.get("checkout") === "cancelled") {
   showBanner("Checkout cancelled.", "info");
 } else if (params.get("checkout") === "block_success") {
-  showBanner("Exchange block purchase confirmed -- it will apply to this month's pool automatically once payment is confirmed.", "success");
+  showBanner("Confirmed -- exchanges will apply to this month's pool automatically once payment is confirmed.", "success");
 } else if (params.get("checkout") === "block_cancelled") {
   showBanner("Checkout cancelled.", "info");
 }

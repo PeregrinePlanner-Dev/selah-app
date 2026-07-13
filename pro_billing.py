@@ -182,6 +182,28 @@ CHURCH_EXCHANGES_PER_BLOCK = 100
 # pro_chat.py's TIER_CONVERSATION_CAPS if either ever changes.
 BASE_CHURCH_CAP = {"leader": 200, "member": 100}
 
+# Volume-tier brackets, duplicated from the actual Stripe Price objects
+# (price_1TsOtu3UvhMXNeQuBmBBPR1G / price_1TsOu43UvhMXNeQuqLxlrnpf) rather
+# than fetched live -- needed here only to tell the admin, before they
+# confirm a seat-quantity change, what rate the WHOLE new quantity will
+# bill at (Stripe's tiers_mode='volume' means crossing a bracket re-prices
+# every seat, not just the new ones -- Rick, 2026-07-13, flagged this as a
+# real clarity gap: an admin going from 3 to 5 Leadership seats needs to see
+# that all 5 move to the $12 bracket, not just "here's today's charge").
+# Each tuple is (upper bound inclusive, price/seat); last entry's bound is
+# None for "and up". Keep in sync with Stripe if either price ever changes.
+CHURCH_SEAT_TIERS = {
+    "leader": [(4, 14.00), (9, 12.00), (None, 10.00)],
+    "member": [(24, 8.00), (99, 7.50), (999, 7.00), (None, 6.50)],
+}
+
+
+def _price_per_seat(seat_type: str, quantity: int) -> float:
+    for upper, price in CHURCH_SEAT_TIERS[seat_type]:
+        if upper is None or quantity <= upper:
+            return price
+    return CHURCH_SEAT_TIERS[seat_type][-1][1]
+
 
 def _get_org_id_and_email():
     """Shared lookup -- every route here needs the caller's own
@@ -744,9 +766,16 @@ def preview_seat_change():
     except Exception as e:
         return jsonify({"error": f"Could not preview the change: {e}"}), 502
 
+    current_quantity = item["quantity"]
+    current_price_per_seat = _price_per_seat(seat_type, current_quantity)
+    new_price_per_seat = _price_per_seat(seat_type, new_quantity)
+
     return jsonify({
-        "current_quantity": item["quantity"],
+        "current_quantity": current_quantity,
         "new_quantity": new_quantity,
+        "current_price_per_seat": current_price_per_seat,
+        "new_price_per_seat": new_price_per_seat,
+        "new_monthly_total": round(new_price_per_seat * new_quantity, 2),
         "prorated_amount_due_now": upcoming["amount_due"] / 100.0,
         "currency": upcoming["currency"],
     })
