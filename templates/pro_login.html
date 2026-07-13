@@ -58,7 +58,25 @@
         <input type="password" id="login-password" name="password" required>
         <button type="submit">Sign In</button>
       </form>
+      <div class="toggle"><a onclick="showForgotPanel()">Forgot password?</a></div>
       <div class="toggle">No account yet? <a onclick="toggle()">Create one</a></div>
+    </div>
+
+    <!-- ── Forgot password -- request the reset email, added 2026-07-13.
+    Kept as a third panel alongside login/signup rather than a separate
+    page, same lightweight toggle pattern already used for signup. Posts
+    to /pro/forgot-password (pro_auth.py forgot_password_request()), which
+    always shows the same generic notice regardless of whether the email
+    has an account -- see that route's docstring for why. ── -->
+    <div id="forgot-panel" style="display:none;">
+      <h1>Reset your password</h1>
+      <div class="sub">Enter your account email and we'll send you a link to set a new password.</div>
+      <form method="POST" action="/pro/forgot-password">
+        <label for="forgot-email">Email</label>
+        <input type="email" id="forgot-email" name="email" required>
+        <button type="submit">Send Reset Link</button>
+      </form>
+      <div class="toggle"><a onclick="showLoginPanel()">Back to sign in</a></div>
     </div>
 
     <div id="signup-panel" style="display:none;">
@@ -90,6 +108,17 @@ function toggle() {
     document.getElementById('login-panel').style.display === 'none' ? 'block' : 'none';
   document.getElementById('signup-panel').style.display =
     document.getElementById('signup-panel').style.display === 'none' ? 'block' : 'none';
+}
+
+function showForgotPanel() {
+  document.getElementById('login-panel').style.display = 'none';
+  document.getElementById('signup-panel').style.display = 'none';
+  document.getElementById('forgot-panel').style.display = 'block';
+}
+function showLoginPanel() {
+  document.getElementById('forgot-panel').style.display = 'none';
+  document.getElementById('signup-panel').style.display = 'none';
+  document.getElementById('login-panel').style.display = 'block';
 }
 
 // An invite link (generated on the church dashboard) looks like

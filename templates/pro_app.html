@@ -511,6 +511,7 @@
 
 <footer class="app-footer">
   <span><a href="/legal">Terms &amp; Privacy</a></span>
+  <span><a onclick="openChangePasswordModal()" style="cursor:pointer;">Change Password</a></span>
   <span><a onclick="openDeleteAccountModal()" style="cursor:pointer;">Delete Account</a></span>
 </footer>
 
@@ -1029,6 +1030,57 @@ function closeDeleteAccountModalBg(e) {
   if (e.target === document.getElementById("delete-account-modal")) closeDeleteAccountModal();
 }
 
+// ── Change password -- added 2026-07-13. Logged-in flow, distinct from
+// the emailed forgot-password link (pro_login.html) -- this is for someone
+// who still has access and just wants to change it. Submits via fetch to
+// /pro/account/change-password (pro_auth.py change_password()) rather than
+// a plain form POST, so a wrong current-password guess shows inline
+// instead of bouncing through a page reload. ─────────────────────────────
+function openChangePasswordModal() {
+  document.getElementById("cp-current").value = "";
+  document.getElementById("cp-new").value = "";
+  document.getElementById("cp-confirm").value = "";
+  document.getElementById("change-password-error").style.display = "none";
+  document.getElementById("change-password-modal").classList.add("show");
+}
+function closeChangePasswordModal() {
+  document.getElementById("change-password-modal").classList.remove("show");
+}
+function closeChangePasswordModalBg(e) {
+  if (e.target === document.getElementById("change-password-modal")) closeChangePasswordModal();
+}
+async function submitChangePassword() {
+  const current = document.getElementById("cp-current").value;
+  const next = document.getElementById("cp-new").value;
+  const confirm = document.getElementById("cp-confirm").value;
+  const errBox = document.getElementById("change-password-error");
+  errBox.style.display = "none";
+
+  if (!current) { errBox.textContent = "Enter your current password."; errBox.style.display = "block"; return; }
+  if (next.length < 6) { errBox.textContent = "New password must be at least 6 characters."; errBox.style.display = "block"; return; }
+  if (next !== confirm) { errBox.textContent = "New passwords don't match."; errBox.style.display = "block"; return; }
+
+  const btn = document.getElementById("cp-submit-btn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/pro/account/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: current, new_password: next }),
+    });
+    const data = await res.json();
+    btn.disabled = false;
+    if (data.error) { errBox.textContent = data.error; errBox.style.display = "block"; return; }
+    closeChangePasswordModal();
+    document.getElementById("top-notice-text").textContent = "Your password has been changed.";
+    document.getElementById("top-notice-banner").style.display = "flex";
+  } catch (e) {
+    btn.disabled = false;
+    errBox.textContent = "Something went wrong -- try again.";
+    errBox.style.display = "block";
+  }
+}
+
 // ── Notice banner (?notice= query param -- e.g. an invite that didn't
 // resolve, a waitlist notice, or the confirmation after account deletion
 // redirects back here) ── never silently swallowed, per Section 11.
@@ -1462,6 +1514,29 @@ showTopNotice();
       <div class="recap-done-actions">
         <button class="recap-secondary-btn" onclick="closeDeleteSessionModal()">Cancel</button>
         <button class="session-delete-confirm-btn" onclick="performDeleteSession()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Change Password -- added 2026-07-13 ── -->
+<div class="modal-overlay" id="change-password-modal" onclick="closeChangePasswordModalBg(event)">
+  <div class="modal" style="width:400px;">
+    <div class="modal-header">
+      <h2>Change your password</h2>
+      <button class="modal-close" onclick="closeChangePasswordModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="error-text" id="change-password-error" style="display:none; margin-bottom:12px;"></div>
+      <label for="cp-current" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Current password</label>
+      <input type="password" id="cp-current" style="width:100%; margin-bottom:12px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
+      <label for="cp-new" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">New password</label>
+      <input type="password" id="cp-new" minlength="6" style="width:100%; margin-bottom:12px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
+      <label for="cp-confirm" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Confirm new password</label>
+      <input type="password" id="cp-confirm" minlength="6" style="width:100%; margin-bottom:4px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
+      <div class="recap-done-actions">
+        <button class="recap-secondary-btn" onclick="closeChangePasswordModal()">Cancel</button>
+        <button class="session-delete-confirm-btn" id="cp-submit-btn" onclick="submitChangePassword()" style="background:#2f6b66;">Change Password</button>
       </div>
     </div>
   </div>

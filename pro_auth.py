@@ -262,6 +262,109 @@ def logout():
     return redirect(url_for("pro.pro_home"))
 
 
+@pro_bp.route("/forgot-password", methods=["POST"])
+def forgot_password_request():
+    """Sends a password-reset email via Supabase's own reset flow, added
+    2026-07-13. reset_password_for_email() emails a recovery link that
+    redirects the browser to /pro/reset-password with session tokens in
+    the URL FRAGMENT (never sent to this server directly -- that page's
+    own JS reads them and POSTs to reset_password_submit() below).
+
+    Uses Supabase's own built-in reset email (subject/body configurable in
+    the Supabase dashboard's Auth > Email Templates), NOT pro_email.py/
+    Resend -- reset_password_for_email() is the single well-documented,
+    stable call that both sends the email AND sets up the recovery token
+    the way Supabase's own redirect flow expects. Revisit if branding
+    consistency with the rest of pro_email.py's templates matters enough
+    to justify swapping to admin.generate_link() + a Resend template.
+
+    REQUIRES a matching entry in the Supabase dashboard's Authentication ->
+    URL Configuration -> Redirect URLs allow-list (e.g.
+    https://selah-app.onrender.com/pro/reset-password) -- without it,
+    Supabase silently ignores redirect_to and sends the link to the
+    project's default Site URL instead, which would land on the wrong page
+    with no error shown anywhere. Not something this code can verify or
+    fix itself.
+
+    Always redirects with the same generic notice regardless of whether
+    the email actually has an account -- standard anti-enumeration
+    practice, so this endpoint can't be used to check who has a Selah
+    account."""
+    email = request.form.get("email", "").strip()
+    generic_notice = "If an account exists for that email, a password reset link is on its way."
+    if not email:
+        return redirect(url_for("pro.pro_home", notice=generic_notice))
+
+    try:
+        get_supabase().auth.reset_password_for_email(
+            email,
+            {"redirect_to": url_for("pro.reset_password_page", _external=True)},
+        )
+    except Exception:
+        # Never reveal whether this failed because the email doesn't exist
+        # vs. a real error -- same generic message either way.
+        pass
+
+    return redirect(url_for("pro.pro_home", notice=generic_notice))
+
+
+@pro_bp.route("/reset-password", methods=["GET"])
+def reset_password_page():
+    """Renders the 'set a new password' page. The actual recovery tokens
+    arrive in the URL FRAGMENT (#access_token=...&refresh_token=...&
+    type=recovery), which browsers never send to the server on a plain
+    GET -- reset_password.html's own inline JS reads window.location.hash
+    and POSTs the tokens to reset_password_submit() below alongside the
+    new password. supabase-py has no client-side 'detect session in URL'
+    magic the way the JS SDK does, so this hand-off is required. If
+    someone lands here with no fragment at all (direct navigation, or an
+    already-used/expired link), the page's own JS shows an error instead
+    of the form -- nothing server-side to check at this GET."""
+    return render_template("reset_password.html")
+
+
+@pro_bp.route("/reset-password", methods=["POST"])
+def reset_password_submit():
+    """JSON endpoint reset_password.html's JS calls with the fragment
+    tokens plus the new password. set_session() first (proves the tokens
+    are a real, unexpired Supabase recovery session) then update_user()
+    actually changes the password -- the same two-call sequence Supabase's
+    own docs specify for a Python/server backend. Uses a throwaway client,
+    never the shared get_supabase()/get_user_supabase() singletons, so an
+    invalid or expired recovery token from one request can't affect any
+    other concurrent request in this process."""
+    body = request.json or {}
+    access_token = body.get("access_token")
+    refresh_token = body.get("refresh_token")
+    new_password = body.get("new_password", "")
+
+    if not access_token or not refresh_token:
+        return jsonify({"error": "This reset link is invalid or has expired -- request a new one."}), 400
+    if len(new_password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+
+    try:
+        sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        sb.auth.set_session(access_token, refresh_token)
+        sb.auth.update_user({"password": new_password})
+    except Exception as e:
+        return jsonify({"error": f"Could not reset password -- the link may have expired: {e}"}), 400
+
+    # Log them straight into the app -- they just proved account ownership
+    # via the emailed recovery link, no reason to make them log in again
+    # with the password they just set.
+    try:
+        user_resp = sb.auth.get_user()
+        session["sb_access_token"] = access_token
+        session["sb_refresh_token"] = refresh_token
+        session["sb_email"] = user_resp.user.email if user_resp and user_resp.user else None
+        session["sb_user_id"] = user_resp.user.id if user_resp and user_resp.user else None
+    except Exception:
+        pass
+
+    return jsonify({"ok": True})
+
+
 @pro_bp.route("/account/delete", methods=["POST"])
 @login_required
 def delete_account():
@@ -305,6 +408,56 @@ def delete_account():
     session.pop("sb_email", None)
     session.pop("sb_user_id", None)
     return redirect(url_for("pro.pro_home", notice="Your account and all associated data have been permanently deleted."))
+
+
+@pro_bp.route("/account/change-password", methods=["POST"])
+@login_required
+def change_password():
+    """Logged-in password change, added 2026-07-13 -- distinct from the
+    forgot-password flow above (that's for someone locked OUT; this is for
+    someone who still has access and just wants to change it). body:
+    {"current_password": str, "new_password": str}, JSON.
+
+    Verifies the current password via sign_in_with_password() before
+    allowing the change -- a real safety check: without it, anyone who
+    found an already-open, unattended session could silently lock the
+    real owner out. That check runs on a throwaway client, never the
+    shared get_supabase() singleton (which login()/signup() also use) --
+    calling sign_in_with_password on that shared, module-level instance
+    would overwrite its internal session state for every concurrent
+    request in this process, a real risk here since this route runs a
+    second, DIFFERENT person's credentials through it on every call.
+
+    update_user() itself needs set_session() first, same as
+    reset_password_submit() above -- get_user_supabase()'s
+    postgrest.auth(token) only authenticates REST table calls, not the
+    auth.* client itself."""
+    body = request.json or {}
+    current_password = body.get("current_password", "")
+    new_password = body.get("new_password", "")
+
+    email = session.get("sb_email")
+    if not email:
+        return jsonify({"error": "Not logged in."}), 401
+    if len(new_password) < 6:
+        return jsonify({"error": "New password must be at least 6 characters."}), 400
+
+    try:
+        create_client(SUPABASE_URL, SUPABASE_ANON_KEY).auth.sign_in_with_password(
+            {"email": email, "password": current_password}
+        )
+    except Exception:
+        return jsonify({"error": "Current password is incorrect."}), 400
+
+    _ensure_fresh_access_token()
+    try:
+        sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        sb.auth.set_session(session["sb_access_token"], session["sb_refresh_token"])
+        sb.auth.update_user({"password": new_password})
+    except Exception as e:
+        return jsonify({"error": f"Could not update password: {e}"}), 400
+
+    return jsonify({"ok": True})
 
 
 # Refresh the access token this many seconds before its actual expiry, so a
