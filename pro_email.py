@@ -82,7 +82,7 @@ def send_roster_removal_email(to: str, org_name: str, upgrade_link: str = "") ->
     )
     html = _wrap(f"""
       <p>You've been removed from <strong>{org_name}</strong>'s roster on Selah for Ministry.</p>
-      <p>Your seat there is gone, but your account still works -- you've been moved to your own individual trial (14 days, 25 exchanges) so you're not locked out.</p>
+      <p>Your seat there is gone, but your account still works -- you've been moved to your own individual trial (14 days, 25 exchanges) so you're not locked out. Every session and everything you've studied so far is still there, exactly as you left it.</p>
       {upgrade_html}
       <p>If this wasn't expected, contact {org_name}'s admin directly.</p>
     """)

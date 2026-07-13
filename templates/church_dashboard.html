@@ -159,7 +159,7 @@
 
   <!-- ── View: not yet a church org ── -->
   <div id="start-view" class="card" style="display:none;">
-    <h2>Start a Church / Organization account</h2>
+    <h2>Connect Your Church / Organization</h2>
     <div class="sub">Turns your account into a church organization -- you become its first admin, and can then add Leadership seats for staff and, once that's active, Membership seats for the congregation.</div>
     <div style="margin-bottom: 14px;">
       <label for="start-org-name">Church / organization name</label>
@@ -170,7 +170,7 @@
       <input type="text" id="start-org-zip" style="width:160px;" placeholder="e.g. 30301" required>
       <div class="invite-meta" style="margin-top:4px;">Required -- there are a lot of "First Baptist Church"s. This is what tells yours apart in Stripe, support, and this dashboard.</div>
     </div>
-    <button class="btn-primary" onclick="startChurch()" id="start-church-btn">Make this a Church Organization</button>
+    <button class="btn-primary" onclick="startChurch()" id="start-church-btn">Connect My Church</button>
   </div>
 
   <!-- ── View: seat holder, not an admin ── -->
@@ -574,7 +574,7 @@ async function startChurch() {
     });
     const data = await res.json();
     if (data.error) { alert(data.error); btn.disabled = false; return; }
-    showBanner(data.note || "This is now a church organization.", "success");
+    showBanner(data.note || "Your church is now connected.", "success");
     loadStatus();
   } catch (e) {
     alert("Something went wrong -- try again.");

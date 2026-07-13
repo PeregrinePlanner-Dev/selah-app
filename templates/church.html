@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah for Church</title>
+<meta name="description" content="Selah for Church: leader and congregation-member seats, a shared roster and dashboard, and church-scale pricing for bringing Selah to your whole church.">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FG9VBEVGZQ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-FG9VBEVGZQ');
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5; color: #111827; line-height: 1.55;
+  }
+  a { color: #2f6b66; }
+
+  /* ── Header ── */
+  .site-header {
+    background: #2f6b66; color: white;
+    padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .site-header .brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+  .site-header .brand-sub { font-size: 0.72rem; opacity: 0.85; margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .site-header .back-link {
+    color: white; text-decoration: none; font-size: 0.82rem;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 6px 12px;
+  }
+  .site-header .back-link:hover { background: rgba(255,255,255,0.12); }
+
+  /* ── Layout ── */
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 40px 0; }
+  section.tight { padding: 26px 0; }
+  h1 { font-size: 1.9rem; font-weight: 700; color: #1f2937; letter-spacing: -0.01em; margin-bottom: 14px; }
+  h2 { font-size: 1.3rem; font-weight: 700; color: #1f2937; margin-bottom: 14px; }
+  p  { color: #374151; margin-bottom: 12px; }
+  .lede { font-size: 1.05rem; color: #1f2937; }
+
+  /* ── Hero ── */
+  .hero { padding-top: 46px; padding-bottom: 12px; text-align: left; }
+  .hero .eyebrow { color: #2f6b66; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .cta-btn-primary {
+    display: inline-block; margin-top: 16px; background: #2f6b66; color: white;
+    font-weight: 700; padding: 13px 28px; border-radius: 8px; text-decoration: none; font-size: 0.95rem;
+  }
+  .cta-btn-primary:hover { background: #234f4b; }
+
+  /* ── How it works / feature list ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  .tile {
+    background: white; border: 1px solid #e2e4e9; border-radius: 10px;
+    padding: 14px 16px; text-align: left;
+  }
+  .tile .tile-title { font-weight: 700; font-size: 0.92rem; color: #1f2937; margin-bottom: 4px; }
+  .tile .tile-teaser { font-size: 0.82rem; color: #6b7280; }
+
+  /* ── Pricing ── */
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+  @media (max-width: 620px) { .price-grid { grid-template-columns: 1fr; } }
+  .price-card {
+    background: white; border: 1px solid #e2e4e9; border-radius: 12px;
+    padding: 22px 22px 20px; display: flex; flex-direction: column;
+  }
+  .price-card .price-name { font-weight: 700; font-size: 1.02rem; color: #1f2937; margin-bottom: 2px; }
+  .price-card .price-sub { font-size: 0.8rem; color: #6b7280; margin-bottom: 14px; }
+  .price-card .price-note { font-size: 0.8rem; color: #6b7280; margin: 6px 0 14px; }
+  .price-card ul { padding-left: 0; margin-bottom: 14px; }
+  .price-card li { list-style: none; padding-left: 20px; position: relative; font-size: 0.88rem; color: #374151; margin-bottom: 7px; }
+  .price-card li::before { content: "✓"; color: #2f6b66; font-weight: 700; position: absolute; left: 0; }
+  .seat-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 0.88rem; }
+  .seat-table td { padding: 6px 0; color: #374151; }
+  .seat-table td:last-child { text-align: right; font-weight: 700; color: #1f2937; }
+  .seat-table tr + tr td { border-top: 1px solid #f0f1f3; }
+  .trial-note {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 14px 18px; font-size: 0.88rem; color: #1e3a5f; margin-top: 16px;
+  }
+
+  /* ── CTA ── */
+  .cta-box {
+    background: #2f6b66; color: white; border-radius: 12px;
+    padding: 30px 28px; text-align: center;
+  }
+  .cta-box h2 { color: white; }
+  .cta-box p { color: rgba(255,255,255,0.9); }
+  .cta-btn {
+    display: inline-block; margin-top: 12px; background: white; color: #2f6b66;
+    font-weight: 700; padding: 12px 26px; border-radius: 8px; text-decoration: none; font-size: 0.95rem;
+  }
+  .cta-btn:hover { background: #f0fdf4; }
+
+  footer { text-align: center; padding: 30px 0 40px; color: #9ca3af; font-size: 0.8rem; }
+  footer a { color: #2f6b66; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="brand">Selah for Church</div>
+    <div class="brand-sub">One shared setup for your whole church or ministry team.</div>
+  </div>
+  <a class="back-link" href="/ministry">← Selah for Ministry</a>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">For pastors, staff, teaching teams, and congregations</div>
+    <h1>Bring Selah to your whole church.</h1>
+    <p class="lede">Selah for Church puts everyone -- pastors, staff, small-group leaders, and members -- on one shared setup instead of separate individual accounts. A church admin manages seats and a roster from one dashboard; everyone gets their own private study conversations underneath it.</p>
+    <a class="cta-btn-primary" href="/pro/?notice=Create%20your%20account%20below%20--%20once%20you%27re%20in%2C%20connect%20your%20church%20from%20the%20dashboard%20menu.">Start your free trial →</a>
+  </section>
+
+  <section class="tight">
+    <h2>How it works</h2>
+    <div class="grid">
+      <div class="tile">
+        <div class="tile-title">Leader seats</div>
+        <div class="tile-teaser">For pastors, staff, and teaching leaders. Full access for sermon prep, teaching, and deep study, plus roster and billing admin for the first leader.</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">Member seats</div>
+        <div class="tile-teaser">For congregation members. Personal study access under the church's umbrella, added once your church has an active leader plan.</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">One shared dashboard</div>
+        <div class="tile-teaser">A church admin adds and removes people, sees seat usage, and manages billing in one place -- no one juggling separate personal subscriptions.</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">Private by person</div>
+        <div class="tile-teaser">Everyone's own conversations and study history stay their own. The shared setup is for seats and billing, not for reading anyone's conversations.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <h2>Plans &amp; pricing</h2>
+    <div class="price-grid">
+
+      <div class="price-card">
+        <div class="price-name">Leadership seats</div>
+        <div class="price-sub">Pastors, staff, and teaching leaders</div>
+        <table class="seat-table">
+          <tr><td>Seats 1–4</td><td>$14/seat/mo</td></tr>
+          <tr><td>Seats 5–9</td><td>$12/seat/mo</td></tr>
+          <tr><td>Seats 10+</td><td>$10/seat/mo</td></tr>
+        </table>
+        <div class="price-note">Volume pricing: crossing a bracket re-prices all seats, not just the new ones. 200 pooled exchanges/month per seat.</div>
+        <ul>
+          <li>Full study &amp; teaching-prep access</li>
+          <li>First leader manages the church's roster and billing</li>
+        </ul>
+        <a class="cta-btn-primary" style="text-align:center;" href="/pro/?notice=Create%20your%20account%20below%20--%20once%20you%27re%20in%2C%20connect%20your%20church%20from%20the%20dashboard%20menu.">Start free trial →</a>
+      </div>
+
+      <div class="price-card">
+        <div class="price-name">Membership seats</div>
+        <div class="price-sub">Congregation members</div>
+        <table class="seat-table">
+          <tr><td>Seats 1–24</td><td>$8/seat/mo</td></tr>
+          <tr><td>Seats 25–99</td><td>$7.50/seat/mo</td></tr>
+          <tr><td>Seats 100–999</td><td>$7/seat/mo</td></tr>
+          <tr><td>Seats 1000+</td><td>$6.50/seat/mo</td></tr>
+        </table>
+        <div class="price-note">10-seat minimum. Opens up once your church has an active Leadership plan -- not sold on its own. 100 pooled exchanges/month per seat.</div>
+        <ul>
+          <li>Personal study access for congregation members</li>
+          <li>Added and removed anytime from the church dashboard</li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="trial-note">Leadership plans start with a free trial -- no card required. Add Membership seats for your congregation whenever you're ready.</div>
+  </section>
+
+  <section>
+    <div class="cta-box">
+      <h2>Ready to bring your church in?</h2>
+      <p>Start with a Leadership seat, then add your congregation whenever you're ready.</p>
+      <a class="cta-btn" href="/pro/?notice=Create%20your%20account%20below%20--%20once%20you%27re%20in%2C%20connect%20your%20church%20from%20the%20dashboard%20menu.">Let's begin →</a>
+    </div>
+  </section>
+
+  <footer>
+    Selah for Church is built on <a href="/ministry">Selah for Ministry</a>, itself a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
+  </footer>
+
+</div>
+
+</body>
+</html>

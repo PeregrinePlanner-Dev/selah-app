@@ -485,7 +485,7 @@ def start_church_org():
     # its seat count. Matches the existing comped-seat precedent (Rick,
     # Clark) rather than inventing a new status for this one moment.
 
-    return jsonify({"ok": True, "note": "This is now a church organization. Purchase Leadership seats to activate it."})
+    return jsonify({"ok": True, "note": "Your church is now connected. Purchase Leadership seats to activate it."})
 
 
 @pro_billing_bp.route("/church/checkout", methods=["POST"])

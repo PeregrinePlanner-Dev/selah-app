@@ -130,6 +130,14 @@ def index():
 def ministry():
     return render_template("ministry.html")
 
+@app.route("/church")
+def church():
+    # Dedicated Church/Org marketing page -- linked from the brief teaser
+    # section on ministry.html. Replaces the old approach of just noting
+    # church pricing wasn't ready yet; pricing is locked now (Task #7),
+    # pulled from pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13.
+    return render_template("church.html")
+
 @app.route("/invite")
 def invite():
     # Shareable invitation page for the free tool -- built 2026-07-08 at Rick's

@@ -609,7 +609,7 @@ async function sendMessage(text, forceNode) {
       if (badge) badge.textContent = nodeDisplayName(data.node); // badge commented out for now
     }
   } catch (err) {
-    addBubble("assistant", "Something went wrong — check the terminal.");
+    addBubble("assistant", "Something went wrong — please try again.");
   } finally {
     setLoading(false);
     const inp = document.getElementById("chat-input");
