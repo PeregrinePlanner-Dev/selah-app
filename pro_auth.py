@@ -73,10 +73,23 @@ def login_required(view):
     """Route decorator -- redirects to /pro (login screen) if no valid
     session is present. Does not itself re-verify the token against Supabase
     on every request in this first pass -- that's a known simplification,
-    noted for the next hardening pass once this is live."""
+    noted for the next hardening pass once this is live.
+
+    Carries a ?promo= param through the redirect (added 2026-07-13, fix for
+    a bug caught the same day it shipped): the win-back link sent by
+    send_roster_removal_email() points straight at /pro/app?promo=winback,
+    but a roster-removed person reading that email later is almost always
+    logged OUT by then -- without this, the redirect to the login screen
+    silently dropped promo and the discount never reached anyone. Only
+    promo is carried (not a general "next" mechanism) -- deliberately
+    narrow, matching this file's existing additive-only pattern, since
+    that's the one param anything currently depends on surviving login."""
     @wraps(view)
     def wrapped(*args, **kwargs):
         if not session.get("sb_access_token"):
+            promo = request.args.get("promo")
+            if promo:
+                return redirect(url_for("pro.pro_home", promo=promo))
             return redirect(url_for("pro.pro_home"))
         return view(*args, **kwargs)
     return wrapped
@@ -88,12 +101,16 @@ def pro_home():
     real Selah for Ministry chat UI. Updated 2026-07-07 -- pro_app.html now
     exists (pro_chat.pro_app), so the earlier placeholder landing spot is no
     longer needed."""
+    promo = request.args.get("promo", "")
     if session.get("sb_access_token"):
+        if promo:
+            return redirect(url_for("pro_chat.pro_app", promo=promo))
         return redirect(url_for("pro_chat.pro_app"))
     return render_template(
         "pro_login.html",
         error=request.args.get("error", ""),
         notice=request.args.get("notice", ""),
+        promo=promo,
     )
 
 
@@ -235,20 +252,27 @@ def signup():
 def login():
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
+    # Carried via a hidden field on pro_login.html's login form (Jinja-
+    # rendered from pro_home()'s own promo passthrough above) -- see
+    # login_required()'s docstring for why this exists. Blank/absent for an
+    # ordinary login, same as today.
+    promo = request.form.get("promo", "").strip()
 
     if not email or not password:
-        return redirect(url_for("pro.pro_home", error="Email and password are required."))
+        return redirect(url_for("pro.pro_home", error="Email and password are required.", promo=promo or None))
 
     try:
         result = get_supabase().auth.sign_in_with_password({"email": email, "password": password})
     except Exception as e:
-        return redirect(url_for("pro.pro_home", error="Login failed -- check your email and password."))
+        return redirect(url_for("pro.pro_home", error="Login failed -- check your email and password.", promo=promo or None))
 
     session["sb_access_token"] = result.session.access_token
     session["sb_refresh_token"] = result.session.refresh_token
     session["sb_expires_at"] = result.session.expires_at
     session["sb_email"] = email
     session["sb_user_id"] = result.user.id
+    if promo:
+        return redirect(url_for("pro_chat.pro_app", promo=promo))
     return redirect(url_for("pro.pro_home"))
 
 

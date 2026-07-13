@@ -52,6 +52,12 @@
       <h1>Sign in</h1>
       <div class="sub">Welcome back to Selah for Ministry.</div>
       <form method="POST" action="/pro/login">
+        <!-- Carries a ?promo= param through login -- added 2026-07-13 fix.
+        See pro_auth.py's login_required()/login() docstrings: without this,
+        the win-back link sent to a roster-removed person (who's normally
+        logged OUT when they click it) silently lost the offer at the
+        login screen. -->
+        <input type="hidden" name="promo" value="{{ promo }}">
         <label for="login-email">Email</label>
         <input type="email" id="login-email" name="email" required>
         <label for="login-password">Password</label>
