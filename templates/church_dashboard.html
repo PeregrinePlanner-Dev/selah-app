@@ -120,6 +120,12 @@
   .modal-box h3 { font-size: 1.05rem; color: #1f2937; margin-bottom: 10px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .error-text { color: #991b1b; font-size: 0.8rem; margin-top: 8px; }
+  .pricing-tiers { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+  .pricing-tiers .tier-row {
+    display: flex; justify-content: space-between; padding: 6px 10px;
+    background: #f9fafb; border-radius: 6px; font-size: 0.82rem;
+  }
+  .pricing-tiers .tier-note { font-size: 0.76rem; color: #6b7280; margin-top: 4px; }
   .action-btn-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
   .action-btn-list button {
     text-align: left; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
@@ -212,7 +218,7 @@
           <button class="btn-primary" id="member-roster-btn" onclick="toggleRoster('member')" style="display:none;">View roster</button>
           <button class="btn-secondary" id="member-buy-btn" onclick="openBuySeatsModal('member')">Add Membership seats</button>
         </div>
-        <div class="seat-warning" id="member-low-warning" style="display:none;">All Membership seats are in use -- add more to bring on another member.</div>
+        <div class="seat-warning" id="member-low-warning" style="display:none;">Membership seats are running low -- add more to keep room for your congregation.</div>
         <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Add at least one Leadership seat above to unlock Membership for your congregation.</div>
         <div class="seat-roster-panel" id="member-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="member-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
@@ -262,7 +268,7 @@
     <h3 id="buy-seats-title">Add seats</h3>
 
     <div id="buy-seats-step-input">
-      <div class="sub" id="buy-seats-pricing"></div>
+      <div class="pricing-tiers" id="buy-seats-pricing"></div>
       <label for="buy-seats-qty" id="buy-seats-qty-label">Number of seats</label>
       <input type="number" id="buy-seats-qty" style="width:140px;">
       <div class="error-text" id="buy-seats-error" style="display:none;"></div>
@@ -306,10 +312,24 @@
 
 <script>
 const SEAT_LABEL = { leader: "Leadership", member: "Membership" };
-const SEAT_PRICING_TEXT = {
-  leader: "$14/seat for 1–4 · $12/seat for 5–9 · $10/seat for 10+. Includes a shared pool of 200 exchanges/month across all Leadership seats.",
-  member: "$8/seat for 10–24 · $7.50/seat for 25–99 · $7/seat for 100–999 · $6.50/seat for 1000+. 10-seat minimum. Includes a shared pool of 100 exchanges/month across all Membership seats.",
+const SEAT_PRICING_TIERS = {
+  leader: {
+    rows: [["1–4 seats", "$14/seat"], ["5–9 seats", "$12/seat"], ["10+ seats", "$10/seat"]],
+    note: "Includes a shared pool of 200 exchanges/month across all Leadership seats.",
+  },
+  member: {
+    rows: [["10–24 seats", "$8/seat"], ["25–99 seats", "$7.50/seat"], ["100–999 seats", "$7/seat"], ["1000+ seats", "$6.50/seat"]],
+    note: "10-seat minimum. Includes a shared pool of 100 exchanges/month across all Membership seats.",
+  },
 };
+
+function renderPricingTiers(seatType) {
+  const t = SEAT_PRICING_TIERS[seatType];
+  const rows = t.rows.map(([range, price]) =>
+    `<div class="tier-row"><span>${escapeHtml(range)}</span><span><strong>${escapeHtml(price)}</strong></span></div>`
+  ).join("");
+  document.getElementById("buy-seats-pricing").innerHTML = rows + `<div class="tier-note">${escapeHtml(t.note)}</div>`;
+}
 let orgStatus = null;
 let _buySeatsType = null;
 let _memberActionId = null;
@@ -395,7 +415,13 @@ function renderSeats(data) {
     ? `Total: ${leaderPurchased} · Active: ${leaderOccupied} · Available: ${leaderAvailable}`
     : (leaderHasRoster ? `${leaderOccupied} active (comped) -- no paid seats yet` : "No Leadership seats yet.");
   document.getElementById("leader-roster-btn").style.display = leaderHasRoster ? "inline-block" : "none";
-  document.getElementById("leader-buy-btn").textContent = leaderPurchased ? "Add more Leadership seats" : "Add Leadership seats";
+  // Add Leadership Seats only surfaces when it's actually needed -- before
+  // any purchase (nothing to onboard with yet) or once available hits 0
+  // (Rick, 2026-07-13: don't clutter the card with a buy button when there's
+  // no reason to buy).
+  const leaderNeedsSeats = leaderPurchased === 0 || leaderAvailable === 0;
+  document.getElementById("leader-buy-btn").style.display = leaderNeedsSeats ? "inline-block" : "none";
+  document.getElementById("leader-buy-btn").textContent = "Add Leadership Seats";
   const leaderUsageEl = document.getElementById("leader-usage");
   if (data.leader_exchanges_cap != null) {
     leaderUsageEl.style.display = "block";
@@ -423,7 +449,16 @@ function renderSeats(data) {
     ? (memberHasRoster ? `${memberOccupied} active (comped)` : "")
     : (memberPurchased ? `Total: ${memberPurchased} · Active: ${memberOccupied} · Available: ${memberAvailable}` : (memberHasRoster ? `${memberOccupied} active (comped) -- no paid seats yet` : "No Membership seats yet."));
   document.getElementById("member-roster-btn").style.display = memberHasRoster ? "inline-block" : "none";
-  document.getElementById("member-buy-btn").textContent = memberPurchased ? "Add more Membership seats" : "Add Membership seats";
+  // Membership pools run much larger than Leadership -- waiting for literal
+  // zero before surfacing "Add Seats" would mean people are already getting
+  // waitlisted before an admin sees a prompt. Threshold: 10% or fewer
+  // available for orgs under 500 purchased seats, 5% for 500+ (Rick,
+  // 2026-07-13).
+  const memberThresholdPct = memberPurchased < 500 ? 0.10 : 0.05;
+  const memberLow = memberPurchased > 0 && (memberAvailable / memberPurchased) <= memberThresholdPct;
+  const memberNeedsSeats = memberPurchased === 0 || memberLow;
+  document.getElementById("member-buy-btn").style.display = (memberLocked || memberNeedsSeats) ? "inline-block" : "none";
+  document.getElementById("member-buy-btn").textContent = "Add Membership Seats";
   const memberUsageEl = document.getElementById("member-usage");
   if (data.member_exchanges_cap != null) {
     memberUsageEl.style.display = "block";
@@ -431,7 +466,7 @@ function renderSeats(data) {
   } else {
     memberUsageEl.style.display = "none";
   }
-  document.getElementById("member-low-warning").style.display = (!memberLocked && memberPurchased && memberAvailable <= 0) ? "block" : "none";
+  document.getElementById("member-low-warning").style.display = (!memberLocked && memberLow) ? "block" : "none";
   document.getElementById("member-block-purchase").style.display = (!memberLocked && memberPurchased) ? "block" : "none";
   if (!memberHasRoster) {
     document.getElementById("member-roster-panel").style.display = "none";
@@ -529,7 +564,7 @@ function openBuySeatsModal(seatType) {
   const purchased = seatType === "leader" ? orgStatus.leader_seats_purchased : orgStatus.member_seats_purchased;
 
   document.getElementById("buy-seats-title").textContent = `Add ${SEAT_LABEL[seatType]} seats`;
-  document.getElementById("buy-seats-pricing").textContent = SEAT_PRICING_TEXT[seatType];
+  renderPricingTiers(seatType);
   document.getElementById("buy-seats-error").style.display = "none";
 
   const qtyInput = document.getElementById("buy-seats-qty");
