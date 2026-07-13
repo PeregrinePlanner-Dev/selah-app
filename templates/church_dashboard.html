@@ -29,6 +29,8 @@
 
   .wrap { max-width: 880px; margin: 0 auto; padding: 24px 20px 60px; }
 
+  .org-name-line { font-size: 0.8rem; color: #6b7280; font-weight: 600; margin: 0 0 14px; }
+
   .card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
   .card h2 { font-size: 1.05rem; color: #1f2937; margin-bottom: 4px; }
   .card .sub { color: #6b7280; font-size: 0.82rem; margin-bottom: 16px; }
@@ -69,15 +71,19 @@
   .seat-block:last-child { margin-bottom: 0; }
   .seat-block-title { font-weight: 700; font-size: 0.9rem; color: #1f2937; margin-bottom: 2px; }
   .seat-block-stat { font-size: 0.78rem; color: #6b7280; margin-bottom: 10px; }
+  .seat-block-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .seat-controls { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-  .preview-box { margin-top: 10px; background: #f9fafb; border-radius: 7px; padding: 10px 12px; font-size: 0.82rem; display: none; }
-
-  table.roster-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-  table.roster-table th {
-    text-align: left; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
-    color: #6b7280; padding: 7px 8px; border-bottom: 1px solid #e5e7eb;
+  .seat-warning {
+    margin-top: 10px; background: #fffbeb; color: #92400e; border: 1px solid #fde68a;
+    border-radius: 7px; padding: 8px 12px; font-size: 0.8rem;
   }
-  table.roster-table td { padding: 9px 8px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  .seat-roster-panel { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e7eb; }
+
+  .member-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.82rem; gap: 10px;
+  }
+  .member-row:last-child { border-bottom: none; }
 
   .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-right: 3px; }
   .badge-admin     { background: #ede9fe; color: #6d28d9; }
@@ -93,12 +99,34 @@
   .invite-row:last-child { border-bottom: none; }
   .invite-meta { color: #6b7280; font-size: 0.74rem; }
   .invite-link-box {
-    display: flex; gap: 8px; align-items: center; margin-top: 8px;
-    background: #f9fafb; border-radius: 7px; padding: 8px 10px; font-size: 0.78rem; word-break: break-all;
+    display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+    background: #f9fafb; border-radius: 7px; padding: 10px 12px; font-size: 0.78rem;
   }
+  .invite-link-box .link-row { display: flex; gap: 8px; align-items: center; word-break: break-all; }
+  .invite-link-help { color: #6b7280; font-size: 0.76rem; }
 
   .placeholder { color: #9ca3af; font-size: 0.85rem; font-style: italic; }
   .loading { color: #9ca3af; font-size: 0.85rem; }
+
+  /* ── Modals ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(17,24,39,0.45);
+    display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100;
+  }
+  .modal-box {
+    background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 420px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .modal-box h3 { font-size: 1.05rem; color: #1f2937; margin-bottom: 10px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .error-text { color: #991b1b; font-size: 0.8rem; margin-top: 8px; }
+  .action-btn-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+  .action-btn-list button {
+    text-align: left; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 9px 12px; font-size: 0.82rem; font-weight: 600; color: #1f2937; cursor: pointer;
+  }
+  .action-btn-list button:hover { background: #f3f4f6; }
+  .action-btn-list button.danger { color: #991b1b; }
 </style>
 </head>
 <body>
@@ -148,26 +176,21 @@
   <!-- ── View: admin dashboard ── -->
   <div id="admin-view" style="display:none;">
 
-    <div class="card">
-      <h2 id="admin-org-heading">Your organization</h2>
-      <div class="sub" style="margin-bottom:0;">This name and ZIP are what distinguish your organization from any other church of the same name -- shown here and in support/billing conversations.</div>
-    </div>
+    <div class="org-name-line" id="org-name-line"></div>
 
     <div class="card">
       <h2>Seats</h2>
       <div class="sub">Leadership and Membership are two separate seat pools, billed and capped independently.</div>
 
-      <div class="seat-block">
+      <div class="seat-block" id="leader-seat-block">
         <div class="seat-block-title">Leadership</div>
         <div class="seat-block-stat" id="leader-stat">—</div>
-        <div class="seat-controls">
-          <div>
-            <label for="leader-qty">Total Leadership seats</label>
-            <input type="number" id="leader-qty" min="1" value="1" style="width:100px;">
-          </div>
-          <button class="btn-secondary" id="leader-action-btn" onclick="handleSeatAction('leader')">Purchase</button>
+        <div class="seat-block-actions">
+          <button class="btn-secondary" id="leader-roster-btn" onclick="toggleRoster('leader')" style="display:none;">View roster</button>
+          <button class="btn-primary" id="leader-buy-btn" onclick="openBuySeatsModal('leader')">Buy Leadership seats</button>
         </div>
-        <div class="preview-box" id="leader-preview"></div>
+        <div class="seat-warning" id="leader-low-warning" style="display:none;">All Leadership seats are in use -- buy more to add another leader.</div>
+        <div class="seat-roster-panel" id="leader-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="leader-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
           <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
           <div class="seat-controls">
@@ -183,15 +206,13 @@
       <div class="seat-block" id="member-seat-block">
         <div class="seat-block-title">Membership</div>
         <div class="seat-block-stat" id="member-stat">—</div>
-        <div class="seat-controls">
-          <div>
-            <label for="member-qty">Total Membership seats</label>
-            <input type="number" id="member-qty" min="10" value="10" style="width:100px;">
-          </div>
-          <button class="btn-secondary" id="member-action-btn" onclick="handleSeatAction('member')">Purchase</button>
+        <div class="seat-block-actions">
+          <button class="btn-secondary" id="member-roster-btn" onclick="toggleRoster('member')" style="display:none;">View roster</button>
+          <button class="btn-primary" id="member-buy-btn" onclick="openBuySeatsModal('member')">Buy Membership seats</button>
         </div>
-        <div class="preview-box" id="member-preview"></div>
-        <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Membership seats open up once a Leadership subscription is active.</div>
+        <div class="seat-warning" id="member-low-warning" style="display:none;">All Membership seats are in use -- buy more to add another member.</div>
+        <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Buy Leadership seats above to unlock Membership seats for your congregation.</div>
+        <div class="seat-roster-panel" id="member-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="member-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
           <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
           <div class="seat-controls">
@@ -229,18 +250,67 @@
       <div id="invites-list"><span class="placeholder">Loading invites…</span></div>
     </div>
 
-    <div class="card">
-      <h2>Roster</h2>
-      <div id="roster-list"><span class="placeholder">Loading roster…</span></div>
-    </div>
-
   </div>
 
 </div>
 
+<!-- ── Buy Seats modal ── -->
+<div id="buy-seats-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="buy-seats-title">Buy seats</h3>
+
+    <div id="buy-seats-step-input">
+      <div class="sub" id="buy-seats-pricing"></div>
+      <label for="buy-seats-qty" id="buy-seats-qty-label">Number of seats</label>
+      <input type="number" id="buy-seats-qty" style="width:140px;">
+      <div class="error-text" id="buy-seats-error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeBuySeatsModal()">Cancel</button>
+        <button class="btn-primary" id="buy-seats-submit-btn" onclick="submitBuySeats()">Continue</button>
+      </div>
+    </div>
+
+    <div id="buy-seats-step-confirm" style="display:none;">
+      <div class="sub" id="buy-seats-confirm-text"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="backToBuySeatsInput()">Back</button>
+        <button class="btn-primary" id="buy-seats-confirm-btn">Confirm &amp; Charge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Member action modal ── -->
+<div id="member-action-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="member-action-name">—</h3>
+    <div class="invite-meta" id="member-action-email"></div>
+
+    <div id="member-action-list" class="action-btn-list"></div>
+
+    <div id="member-action-confirm" style="display:none;">
+      <div class="sub" id="member-action-confirm-text"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="cancelMemberActionConfirm()">Cancel</button>
+        <button class="btn-primary" id="member-action-confirm-btn">Confirm</button>
+      </div>
+    </div>
+
+    <div class="modal-actions" id="member-action-close-row">
+      <button class="btn-secondary" onclick="closeMemberActionModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SEAT_LABEL = { leader: "Leadership", member: "Membership" };
+const SEAT_PRICING_TEXT = {
+  leader: "$14/seat for 1–4 · $12/seat for 5–9 · $10/seat for 10+. Includes a shared pool of 200 exchanges/month across all Leadership seats.",
+  member: "$8/seat for 10–24 · $7.50/seat for 25–99 · $7/seat for 100–999 · $6.50/seat for 1000+. 10-seat minimum. Includes a shared pool of 100 exchanges/month across all Membership seats.",
+};
 let orgStatus = null;
+let _buySeatsType = null;
+let _memberActionId = null;
 
 function showBanner(text, type) {
   document.getElementById("top-banner").innerHTML =
@@ -295,7 +365,7 @@ async function loadStatus() {
     }
 
     document.getElementById("admin-view").style.display = "block";
-    document.getElementById("admin-org-heading").textContent = orgDisplayName(data);
+    document.getElementById("org-name-line").textContent = orgDisplayName(data);
     renderSeats(data);
     loadRoster();
     loadInvites();
@@ -311,44 +381,80 @@ function orgDisplayName(data) {
 }
 
 function renderSeats(data) {
+  const roster = window._rosterCache || [];
+
   const leaderPurchased = data.leader_seats_purchased || 0;
-  const leaderOccupied = (window._rosterCache || []).filter(
+  const leaderOccupied = roster.filter(
     r => r.seat_type === "leader" && ["paid", "comped"].includes(r.seat_status)
   ).length;
-  document.getElementById("leader-stat").textContent =
-    leaderPurchased ? `${leaderPurchased} purchased · ${leaderOccupied} occupied` : "No Leadership seats purchased yet.";
+  const leaderAvailable = Math.max(leaderPurchased - leaderOccupied, 0);
+  document.getElementById("leader-stat").textContent = leaderPurchased
+    ? `Total: ${leaderPurchased} · Active: ${leaderOccupied} · Available: ${leaderAvailable}`
+    : "No Leadership seats purchased yet.";
+  document.getElementById("leader-roster-btn").style.display = leaderPurchased ? "inline-block" : "none";
+  document.getElementById("leader-buy-btn").textContent = leaderPurchased ? "Buy more Leadership seats" : "Buy Leadership seats";
+  document.getElementById("leader-low-warning").style.display = (leaderPurchased && leaderAvailable <= 0) ? "block" : "none";
   document.getElementById("leader-block-purchase").style.display = leaderPurchased ? "block" : "none";
-  const leaderBtn = document.getElementById("leader-action-btn");
-  const leaderQty = document.getElementById("leader-qty");
-  if (leaderPurchased) {
-    leaderBtn.textContent = "Update Seats";
-    leaderQty.value = leaderPurchased;
-  } else {
-    leaderBtn.textContent = "Purchase";
-    leaderQty.value = 1;
+  if (!leaderPurchased) {
+    document.getElementById("leader-roster-panel").style.display = "none";
+    document.getElementById("leader-roster-panel").innerHTML = "";
   }
 
   const memberPurchased = data.member_seats_purchased || 0;
-  const memberOccupied = (window._rosterCache || []).filter(
+  const memberOccupied = roster.filter(
     r => r.seat_type === "member" && ["paid", "comped"].includes(r.seat_status)
   ).length;
+  const memberAvailable = Math.max(memberPurchased - memberOccupied, 0);
   const memberLocked = !leaderPurchased;
   document.getElementById("member-locked-note").style.display = memberLocked ? "block" : "none";
-  document.getElementById("member-qty").disabled = memberLocked;
-  document.getElementById("member-action-btn").disabled = memberLocked;
+  document.getElementById("member-buy-btn").disabled = memberLocked;
   document.getElementById("member-stat").textContent = memberLocked
     ? ""
-    : (memberPurchased ? `${memberPurchased} purchased · ${memberOccupied} occupied` : "No Membership seats purchased yet.");
+    : (memberPurchased ? `Total: ${memberPurchased} · Active: ${memberOccupied} · Available: ${memberAvailable}` : "No Membership seats purchased yet.");
+  document.getElementById("member-roster-btn").style.display = (!memberLocked && memberPurchased) ? "inline-block" : "none";
+  document.getElementById("member-buy-btn").textContent = memberPurchased ? "Buy more Membership seats" : "Buy Membership seats";
+  document.getElementById("member-low-warning").style.display = (!memberLocked && memberPurchased && memberAvailable <= 0) ? "block" : "none";
   document.getElementById("member-block-purchase").style.display = (!memberLocked && memberPurchased) ? "block" : "none";
-  const memberBtn = document.getElementById("member-action-btn");
-  const memberQty = document.getElementById("member-qty");
-  if (memberPurchased) {
-    memberBtn.textContent = "Update Seats";
-    memberQty.value = memberPurchased;
-  } else {
-    memberBtn.textContent = "Purchase";
-    memberQty.value = 10;
+  if (memberLocked || !memberPurchased) {
+    document.getElementById("member-roster-panel").style.display = "none";
+    document.getElementById("member-roster-panel").innerHTML = "";
   }
+}
+
+// ── Roster: shown per seat type, on demand (not a standalone table -- an
+// admin with a large congregation would otherwise be scrolling past a huge
+// list to reach Invites every time). ────────────────────────────────────
+function toggleRoster(seatType) {
+  const panel = document.getElementById(`${seatType}-roster-panel`);
+  const btn = document.getElementById(`${seatType}-roster-btn`);
+  const opening = panel.style.display === "none";
+  if (opening) {
+    renderRosterPanel(seatType);
+    panel.style.display = "block";
+    btn.textContent = "Hide roster";
+  } else {
+    panel.style.display = "none";
+    btn.textContent = "View roster";
+  }
+}
+
+function renderRosterPanel(seatType) {
+  const panel = document.getElementById(`${seatType}-roster-panel`);
+  const roster = (window._rosterCache || []).filter(r => r.seat_type === seatType);
+  if (!roster.length) {
+    panel.innerHTML = '<span class="placeholder">Nobody has a seat here yet.</span>';
+    return;
+  }
+  panel.innerHTML = roster.map(r => {
+    const displayName = [r.first_name, r.last_name].filter(Boolean).join(" ") || r.email;
+    const badges = (r.is_org_admin ? '<span class="badge badge-admin">Admin</span>' : "") +
+      (r.suspended_at ? '<span class="badge badge-suspended">Suspended</span>' :
+        r.seat_status === "pending" ? '<span class="badge badge-pending">Waitlisted</span>' : "");
+    return `<div class="member-row">
+      <div>${escapeHtml(displayName)} ${badges}</div>
+      <button class="btn-row-sm" onclick="openMemberActionModal('${r.id}')">Actions</button>
+    </div>`;
+  }).join("");
 }
 
 // ── Exchange blocks (2026-07-12) -- one-time top-up, current month only,
@@ -397,23 +503,89 @@ async function startChurch() {
   }
 }
 
-// ── Seats: purchase (first time) or preview+update (increase) ───────────
-function handleSeatAction(seatType) {
+// ── Buy Seats modal: first purchase goes straight to Stripe Checkout;
+// once a seat_type already has an active subscription, this instead shows
+// a proration preview and requires an explicit confirm before charging. ──
+function openBuySeatsModal(seatType) {
+  _buySeatsType = seatType;
   const purchased = seatType === "leader" ? orgStatus.leader_seats_purchased : orgStatus.member_seats_purchased;
-  const qty = parseInt(document.getElementById(`${seatType}-qty`).value, 10);
-  if (!qty || qty < 1) { alert("Enter a valid seat count."); return; }
-  if (seatType === "member" && qty < 10) { alert("Membership seats have a 10-seat minimum."); return; }
+
+  document.getElementById("buy-seats-title").textContent = `Buy ${SEAT_LABEL[seatType]} seats`;
+  document.getElementById("buy-seats-pricing").textContent = SEAT_PRICING_TEXT[seatType];
+  document.getElementById("buy-seats-error").style.display = "none";
+
+  const qtyInput = document.getElementById("buy-seats-qty");
+  qtyInput.min = seatType === "member" ? 10 : 1;
+  if (purchased) {
+    qtyInput.value = purchased;
+    document.getElementById("buy-seats-qty-label").textContent = `Total ${SEAT_LABEL[seatType]} seats (currently ${purchased})`;
+  } else {
+    qtyInput.value = "";
+    qtyInput.placeholder = seatType === "member" ? "e.g. 15" : "e.g. 3";
+    document.getElementById("buy-seats-qty-label").textContent = "Number of seats to purchase";
+  }
+
+  document.getElementById("buy-seats-step-input").style.display = "block";
+  document.getElementById("buy-seats-step-confirm").style.display = "none";
+  document.getElementById("buy-seats-submit-btn").disabled = false;
+  document.getElementById("buy-seats-submit-btn").textContent = "Continue";
+  document.getElementById("buy-seats-modal").style.display = "flex";
+}
+
+function closeBuySeatsModal() {
+  document.getElementById("buy-seats-modal").style.display = "none";
+  _buySeatsType = null;
+}
+
+function backToBuySeatsInput() {
+  document.getElementById("buy-seats-step-input").style.display = "block";
+  document.getElementById("buy-seats-step-confirm").style.display = "none";
+}
+
+async function submitBuySeats() {
+  const seatType = _buySeatsType;
+  const purchased = seatType === "leader" ? orgStatus.leader_seats_purchased : orgStatus.member_seats_purchased;
+  const qty = parseInt(document.getElementById("buy-seats-qty").value, 10);
+  const errBox = document.getElementById("buy-seats-error");
+  errBox.style.display = "none";
+
+  if (!qty || qty < 1) { errBox.textContent = "Enter a valid seat count."; errBox.style.display = "block"; return; }
+  if (seatType === "member" && qty < 10) { errBox.textContent = "Membership seats have a 10-seat minimum."; errBox.style.display = "block"; return; }
 
   if (!purchased) {
-    purchaseSeats(seatType, qty);
-  } else {
-    previewSeatUpdate(seatType, qty);
+    await purchaseSeats(seatType, qty);
+    return;
+  }
+
+  const submitBtn = document.getElementById("buy-seats-submit-btn");
+  submitBtn.disabled = true;
+  try {
+    const res = await fetch("/pro/billing/church/seats/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seat_type: seatType, new_quantity: qty }),
+    });
+    const data = await res.json();
+    submitBtn.disabled = false;
+    if (data.error) { errBox.textContent = data.error; errBox.style.display = "block"; return; }
+
+    document.getElementById("buy-seats-confirm-text").innerHTML =
+      `New total: ${data.new_quantity} seats -- prorated charge due now: ` +
+      `<strong>$${data.prorated_amount_due_now.toFixed(2)} ${data.currency.toUpperCase()}</strong>`;
+    document.getElementById("buy-seats-confirm-btn").onclick = () => confirmSeatUpdate(seatType, data.new_quantity);
+    document.getElementById("buy-seats-step-input").style.display = "none";
+    document.getElementById("buy-seats-step-confirm").style.display = "block";
+  } catch (e) {
+    submitBtn.disabled = false;
+    errBox.textContent = "Something went wrong -- try again.";
+    errBox.style.display = "block";
   }
 }
 
 async function purchaseSeats(seatType, qty) {
-  const btn = document.getElementById(`${seatType}-action-btn`);
-  btn.disabled = true;
+  const submitBtn = document.getElementById("buy-seats-submit-btn");
+  submitBtn.disabled = true;
+  const errBox = document.getElementById("buy-seats-error");
   try {
     const res = await fetch("/pro/billing/church/checkout", {
       method: "POST",
@@ -422,40 +594,18 @@ async function purchaseSeats(seatType, qty) {
     });
     const data = await res.json();
     if (data.url) { window.location.href = data.url; return; }
-    alert(data.error || "Could not start checkout.");
+    errBox.textContent = data.error || "Could not start checkout.";
+    errBox.style.display = "block";
   } catch (e) {
-    alert("Something went wrong -- try again.");
+    errBox.textContent = "Something went wrong -- try again.";
+    errBox.style.display = "block";
   }
-  btn.disabled = false;
-}
-
-async function previewSeatUpdate(seatType, newQty) {
-  const btn = document.getElementById(`${seatType}-action-btn`);
-  btn.disabled = true;
-  try {
-    const res = await fetch("/pro/billing/church/seats/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seat_type: seatType, new_quantity: newQty }),
-    });
-    const data = await res.json();
-    btn.disabled = false;
-    if (data.error) { alert(data.error); return; }
-
-    const box = document.getElementById(`${seatType}-preview`);
-    box.style.display = "block";
-    box.innerHTML =
-      `New total: ${data.new_quantity} seats -- prorated charge due now: ` +
-      `<strong>$${data.prorated_amount_due_now.toFixed(2)} ${data.currency.toUpperCase()}</strong><br><br>` +
-      `<button class="btn-secondary" onclick="confirmSeatUpdate('${seatType}', ${data.new_quantity})">Confirm &amp; Charge</button> ` +
-      `<button class="btn-secondary" onclick="document.getElementById('${seatType}-preview').style.display='none';">Cancel</button>`;
-  } catch (e) {
-    btn.disabled = false;
-    alert("Something went wrong -- try again.");
-  }
+  submitBtn.disabled = false;
 }
 
 async function confirmSeatUpdate(seatType, newQty) {
+  const confirmBtn = document.getElementById("buy-seats-confirm-btn");
+  confirmBtn.disabled = true;
   try {
     const res = await fetch("/pro/billing/church/seats/update", {
       method: "POST",
@@ -463,11 +613,13 @@ async function confirmSeatUpdate(seatType, newQty) {
       body: JSON.stringify({ seat_type: seatType, new_quantity: newQty }),
     });
     const data = await res.json();
+    confirmBtn.disabled = false;
     if (data.error) { alert(data.error); return; }
-    document.getElementById(`${seatType}-preview`).style.display = "none";
+    closeBuySeatsModal();
     showBanner(data.note || "Seat purchase is processing.", "success");
     loadStatus();
   } catch (e) {
+    confirmBtn.disabled = false;
     alert("Something went wrong -- try again.");
   }
 }
@@ -495,8 +647,11 @@ async function generateInvite() {
     if (data.error) { alert(data.error); return; }
     const link = `${window.location.origin}/pro/?invite=${data.token}`;
     document.getElementById("new-invite-link-box").innerHTML =
-      `<div class="invite-link-box"><span style="flex:1;">${escapeHtml(link)}</span>` +
-      `<button class="btn-row-sm" onclick="copyText('${link}')">Copy</button></div>`;
+      `<div class="invite-link-box">
+        <div class="link-row"><span style="flex:1;">${escapeHtml(link)}</span>
+        <button class="btn-row-sm" onclick="copyText('${link}')">Copy</button></div>
+        <div class="invite-link-help">Copy this link and send it directly to ${invite_type === "leader" ? "them" : "your congregation"} -- they'll use it to create their account.</div>
+      </div>`;
     document.getElementById("invite-email").value = "";
     loadInvites();
   } catch (e) {
@@ -518,6 +673,9 @@ async function loadInvites() {
       const kind = SEAT_LABEL[inv.invite_type] || inv.invite_type;
       const status = inv.used_at ? "Used" : "Available";
       const who = inv.invited_email ? ` -- ${escapeHtml(inv.invited_email)}` : "";
+      const link = `${window.location.origin}/pro/?invite=${inv.token}`;
+      const copyBtn = inv.used_at ? "" :
+        `<button class="btn-row-sm" onclick="copyText('${link}')">Copy Link</button>`;
       const revokeBtn = inv.used_at ? "" :
         `<button class="btn-row-sm danger" onclick="revokeInvite('${inv.id}')">Revoke</button>`;
       return `<div class="invite-row">
@@ -525,7 +683,7 @@ async function loadInvites() {
           <div>${kind}${who} <span class="badge ${inv.used_at ? 'badge-paid' : 'badge-pending'}">${status}</span></div>
           <div class="invite-meta">Expires ${inv.expires_at ? new Date(inv.expires_at).toLocaleDateString() : "—"}</div>
         </div>
-        <div>${revokeBtn}</div>
+        <div>${copyBtn}${revokeBtn}</div>
       </div>`;
     }).join("");
   } catch (e) {
@@ -549,59 +707,99 @@ async function revokeInvite(tokenId) {
   }
 }
 
-// ── Roster ───────────────────────────────────────────────────────────
+// ── Roster data load (feeds both seat-block stats and the per-type panels) ──
 async function loadRoster() {
-  const box = document.getElementById("roster-list");
   try {
     const res = await fetch("/pro/org/roster");
     const data = await res.json();
-    const roster = data.roster || [];
-    window._rosterCache = roster;
-    if (orgStatus) renderSeats(orgStatus); // refresh occupied counts now that roster is in
-
-    if (!roster.length) {
-      box.innerHTML = '<span class="placeholder">Nobody on the roster yet.</span>';
-      return;
-    }
-    box.innerHTML = `<table class="roster-table"><thead><tr>
-      <th>Name</th><th>Seat</th><th>Status</th><th></th><th>Actions</th>
-    </tr></thead><tbody>` + roster.map(rosterRow).join("") + `</tbody></table>`;
+    window._rosterCache = data.roster || [];
+    if (orgStatus) renderSeats(orgStatus);
+    // Refresh any open roster panel so a just-changed status shows immediately.
+    ["leader", "member"].forEach(seatType => {
+      const panel = document.getElementById(`${seatType}-roster-panel`);
+      if (panel.style.display === "block") renderRosterPanel(seatType);
+    });
   } catch (e) {
-    box.innerHTML = '<span class="placeholder">Could not load the roster.</span>';
+    // Seat stats just stay at "—" / previous values; not worth a banner for this.
   }
 }
 
-function rosterRow(r) {
-  const kind = SEAT_LABEL[r.seat_type] || (r.seat_type || "—");
-  let statusBadge = "";
-  if (r.seat_status === "pending") statusBadge = '<span class="badge badge-pending">Waitlisted</span>';
-  else if (r.seat_status === "comped") statusBadge = '<span class="badge badge-comped">Comped</span>';
-  else if (r.seat_status === "paid") statusBadge = '<span class="badge badge-paid">Paid</span>';
-  const badges = (r.is_org_admin ? '<span class="badge badge-admin">Admin</span>' : "") +
-    (r.suspended_at ? '<span class="badge badge-suspended">Suspended</span>' : "");
+// ── Member action modal -- every roster action requires opening this modal,
+// picking the action, reading a one-line explanation, and confirming. No
+// single click on the roster panel itself can change or remove anyone. ──
+function openMemberActionModal(id) {
+  const person = (window._rosterCache || []).find(r => r.id === id);
+  if (!person) return;
+  _memberActionId = id;
 
-  const adminBtn = r.is_org_admin
-    ? `<button class="btn-row-sm" onclick="demoteAdmin('${r.id}')">Demote</button>`
-    : `<button class="btn-row-sm" onclick="promoteAdmin('${r.id}')">Promote</button>`;
-  const suspendBtn = r.suspended_at
-    ? `<button class="btn-row-sm" onclick="reactivateMember('${r.id}')">Reactivate</button>`
-    : `<button class="btn-row-sm" onclick="suspendMember('${r.id}')">Suspend</button>`;
-  const removeBtn = `<button class="btn-row-sm danger" onclick="removeMember('${r.id}')">Remove</button>`;
+  const displayName = [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email;
+  document.getElementById("member-action-name").textContent = displayName;
+  document.getElementById("member-action-email").textContent = person.email;
 
-  const displayName = [r.first_name, r.last_name].filter(Boolean).join(" ");
-  return `<tr>
-    <td>${escapeHtml(displayName || r.email)}${displayName ? `<div class="invite-meta">${escapeHtml(r.email)}</div>` : ""}</td>
-    <td>${kind}</td>
-    <td>${statusBadge}</td>
-    <td>${badges}</td>
-    <td>${adminBtn}${suspendBtn}${removeBtn}</td>
-  </tr>`;
+  const actions = [];
+  if (person.is_org_admin) {
+    actions.push({
+      label: "Remove admin access", danger: false,
+      desc: "Removes admin access. They'll keep their seat but won't be able to manage seats, invites, or the roster.",
+      run: () => rosterAction("/pro/org/admins/demote", id),
+    });
+  } else {
+    actions.push({
+      label: "Make admin", danger: false,
+      desc: "Gives this person full admin access -- they'll be able to manage seats, invites, and the roster.",
+      run: () => rosterAction("/pro/org/admins/promote", id),
+    });
+  }
+  if (person.suspended_at) {
+    actions.push({
+      label: "Reactivate", danger: false,
+      desc: "Restores this person's access immediately.",
+      run: () => rosterAction("/pro/org/roster/reactivate", id),
+    });
+  } else {
+    actions.push({
+      label: "Suspend", danger: true,
+      desc: "Immediately blocks this person from using their seat. Their seat stays reserved -- they just can't sign in until reactivated.",
+      run: () => rosterAction("/pro/org/roster/suspend", id),
+    });
+  }
+  actions.push({
+    label: "Remove from roster", danger: true,
+    desc: `Frees ${displayName}'s seat and moves them to their own individual trial account. This can't be undone from here.`,
+    run: () => removeMemberConfirmed(id),
+  });
+
+  document.getElementById("member-action-list").innerHTML = actions.map((a, i) =>
+    `<button class="${a.danger ? 'danger' : ''}" onclick="showMemberActionConfirm(${i})">${a.label}</button>`
+  ).join("");
+  window._memberActions = actions;
+
+  document.getElementById("member-action-list").style.display = "flex";
+  document.getElementById("member-action-confirm").style.display = "none";
+  document.getElementById("member-action-close-row").style.display = "flex";
+  document.getElementById("member-action-modal").style.display = "flex";
 }
 
-async function promoteAdmin(id) { await rosterAction("/pro/org/admins/promote", id); }
-async function demoteAdmin(id) { await rosterAction("/pro/org/admins/demote", id); }
-async function suspendMember(id) { await rosterAction("/pro/org/roster/suspend", id); }
-async function reactivateMember(id) { await rosterAction("/pro/org/roster/reactivate", id); }
+function showMemberActionConfirm(i) {
+  const action = window._memberActions[i];
+  document.getElementById("member-action-confirm-text").textContent = action.desc;
+  const confirmBtn = document.getElementById("member-action-confirm-btn");
+  confirmBtn.onclick = action.run;
+  document.getElementById("member-action-list").style.display = "none";
+  document.getElementById("member-action-confirm").style.display = "block";
+  document.getElementById("member-action-close-row").style.display = "none";
+}
+
+function cancelMemberActionConfirm() {
+  document.getElementById("member-action-list").style.display = "flex";
+  document.getElementById("member-action-confirm").style.display = "none";
+  document.getElementById("member-action-close-row").style.display = "flex";
+}
+
+function closeMemberActionModal() {
+  document.getElementById("member-action-modal").style.display = "none";
+  _memberActionId = null;
+}
 
 async function rosterAction(url, profile_id) {
   try {
@@ -612,17 +810,14 @@ async function rosterAction(url, profile_id) {
     });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
+    closeMemberActionModal();
     loadRoster();
   } catch (e) {
     alert("Something went wrong -- try again.");
   }
 }
 
-async function removeMember(id) {
-  const person = (window._rosterCache || []).find(r => r.id === id);
-  const personName = person ? [person.first_name, person.last_name].filter(Boolean).join(" ") : "";
-  const who = personName || (person ? person.email : "this person");
-  if (!confirm(`Remove ${who} from the roster? This frees their seat and moves them to their own individual trial account.`)) return;
+async function removeMemberConfirmed(id) {
   try {
     const res = await fetch("/pro/org/roster/remove", {
       method: "POST",
@@ -631,6 +826,7 @@ async function removeMember(id) {
     });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
+    closeMemberActionModal();
     showBanner(data.note || "Removed.", "success");
     loadRoster();
     loadStatus();
