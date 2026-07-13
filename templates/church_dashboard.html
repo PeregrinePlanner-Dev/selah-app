@@ -180,16 +180,16 @@
 
     <div class="card">
       <h2>Seats</h2>
-      <div class="sub">Leadership and Membership are two separate seat pools, billed and capped independently.</div>
+      <div class="sub">Invite staff under Leadership, your congregation under Membership -- each is managed and capped separately.</div>
 
       <div class="seat-block" id="leader-seat-block">
         <div class="seat-block-title">Leadership</div>
         <div class="seat-block-stat" id="leader-stat">—</div>
         <div class="seat-block-actions">
-          <button class="btn-secondary" id="leader-roster-btn" onclick="toggleRoster('leader')" style="display:none;">View roster</button>
-          <button class="btn-primary" id="leader-buy-btn" onclick="openBuySeatsModal('leader')">Buy Leadership seats</button>
+          <button class="btn-primary" id="leader-roster-btn" onclick="toggleRoster('leader')" style="display:none;">View roster</button>
+          <button class="btn-secondary" id="leader-buy-btn" onclick="openBuySeatsModal('leader')">Add Leadership seats</button>
         </div>
-        <div class="seat-warning" id="leader-low-warning" style="display:none;">All Leadership seats are in use -- buy more to add another leader.</div>
+        <div class="seat-warning" id="leader-low-warning" style="display:none;">All Leadership seats are in use -- add more to bring on another leader.</div>
         <div class="seat-roster-panel" id="leader-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="leader-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
           <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
@@ -207,11 +207,11 @@
         <div class="seat-block-title">Membership</div>
         <div class="seat-block-stat" id="member-stat">—</div>
         <div class="seat-block-actions">
-          <button class="btn-secondary" id="member-roster-btn" onclick="toggleRoster('member')" style="display:none;">View roster</button>
-          <button class="btn-primary" id="member-buy-btn" onclick="openBuySeatsModal('member')">Buy Membership seats</button>
+          <button class="btn-primary" id="member-roster-btn" onclick="toggleRoster('member')" style="display:none;">View roster</button>
+          <button class="btn-secondary" id="member-buy-btn" onclick="openBuySeatsModal('member')">Add Membership seats</button>
         </div>
-        <div class="seat-warning" id="member-low-warning" style="display:none;">All Membership seats are in use -- buy more to add another member.</div>
-        <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Buy Leadership seats above to unlock Membership seats for your congregation.</div>
+        <div class="seat-warning" id="member-low-warning" style="display:none;">All Membership seats are in use -- add more to bring on another member.</div>
+        <div class="invite-meta" id="member-locked-note" style="display:none; margin-top:8px;">Add at least one Leadership seat above to unlock Membership for your congregation.</div>
         <div class="seat-roster-panel" id="member-roster-panel" style="display:none;"></div>
         <div class="block-purchase" id="member-block-purchase" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #e5e7eb;">
           <div class="invite-meta" style="margin-bottom:6px;">Running low this month? Buy exchange blocks (100 exchanges each, added to this month only).</div>
@@ -257,7 +257,7 @@
 <!-- ── Buy Seats modal ── -->
 <div id="buy-seats-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box">
-    <h3 id="buy-seats-title">Buy seats</h3>
+    <h3 id="buy-seats-title">Add seats</h3>
 
     <div id="buy-seats-step-input">
       <div class="sub" id="buy-seats-pricing"></div>
@@ -387,15 +387,16 @@ function renderSeats(data) {
   const leaderOccupied = roster.filter(
     r => r.seat_type === "leader" && ["paid", "comped"].includes(r.seat_status)
   ).length;
+  const leaderHasRoster = leaderOccupied > 0;
   const leaderAvailable = Math.max(leaderPurchased - leaderOccupied, 0);
   document.getElementById("leader-stat").textContent = leaderPurchased
     ? `Total: ${leaderPurchased} · Active: ${leaderOccupied} · Available: ${leaderAvailable}`
-    : "No Leadership seats purchased yet.";
-  document.getElementById("leader-roster-btn").style.display = leaderPurchased ? "inline-block" : "none";
-  document.getElementById("leader-buy-btn").textContent = leaderPurchased ? "Buy more Leadership seats" : "Buy Leadership seats";
+    : (leaderHasRoster ? `${leaderOccupied} active (comped) -- no paid seats yet` : "No Leadership seats yet.");
+  document.getElementById("leader-roster-btn").style.display = leaderHasRoster ? "inline-block" : "none";
+  document.getElementById("leader-buy-btn").textContent = leaderPurchased ? "Add more Leadership seats" : "Add Leadership seats";
   document.getElementById("leader-low-warning").style.display = (leaderPurchased && leaderAvailable <= 0) ? "block" : "none";
   document.getElementById("leader-block-purchase").style.display = leaderPurchased ? "block" : "none";
-  if (!leaderPurchased) {
+  if (!leaderHasRoster) {
     document.getElementById("leader-roster-panel").style.display = "none";
     document.getElementById("leader-roster-panel").innerHTML = "";
   }
@@ -404,18 +405,19 @@ function renderSeats(data) {
   const memberOccupied = roster.filter(
     r => r.seat_type === "member" && ["paid", "comped"].includes(r.seat_status)
   ).length;
+  const memberHasRoster = memberOccupied > 0;
   const memberAvailable = Math.max(memberPurchased - memberOccupied, 0);
   const memberLocked = !leaderPurchased;
   document.getElementById("member-locked-note").style.display = memberLocked ? "block" : "none";
   document.getElementById("member-buy-btn").disabled = memberLocked;
   document.getElementById("member-stat").textContent = memberLocked
-    ? ""
-    : (memberPurchased ? `Total: ${memberPurchased} · Active: ${memberOccupied} · Available: ${memberAvailable}` : "No Membership seats purchased yet.");
-  document.getElementById("member-roster-btn").style.display = (!memberLocked && memberPurchased) ? "inline-block" : "none";
-  document.getElementById("member-buy-btn").textContent = memberPurchased ? "Buy more Membership seats" : "Buy Membership seats";
+    ? (memberHasRoster ? `${memberOccupied} active (comped)` : "")
+    : (memberPurchased ? `Total: ${memberPurchased} · Active: ${memberOccupied} · Available: ${memberAvailable}` : (memberHasRoster ? `${memberOccupied} active (comped) -- no paid seats yet` : "No Membership seats yet."));
+  document.getElementById("member-roster-btn").style.display = memberHasRoster ? "inline-block" : "none";
+  document.getElementById("member-buy-btn").textContent = memberPurchased ? "Add more Membership seats" : "Add Membership seats";
   document.getElementById("member-low-warning").style.display = (!memberLocked && memberPurchased && memberAvailable <= 0) ? "block" : "none";
   document.getElementById("member-block-purchase").style.display = (!memberLocked && memberPurchased) ? "block" : "none";
-  if (memberLocked || !memberPurchased) {
+  if (!memberHasRoster) {
     document.getElementById("member-roster-panel").style.display = "none";
     document.getElementById("member-roster-panel").innerHTML = "";
   }
@@ -510,7 +512,7 @@ function openBuySeatsModal(seatType) {
   _buySeatsType = seatType;
   const purchased = seatType === "leader" ? orgStatus.leader_seats_purchased : orgStatus.member_seats_purchased;
 
-  document.getElementById("buy-seats-title").textContent = `Buy ${SEAT_LABEL[seatType]} seats`;
+  document.getElementById("buy-seats-title").textContent = `Add ${SEAT_LABEL[seatType]} seats`;
   document.getElementById("buy-seats-pricing").textContent = SEAT_PRICING_TEXT[seatType];
   document.getElementById("buy-seats-error").style.display = "none";
 
