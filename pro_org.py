@@ -72,6 +72,49 @@ def _get_org_name(svc, organization_id: str) -> str:
     return (resp.data[0].get("name") if resp.data else None) or "your organization"
 
 
+def transfer_profile_to_individual_trial(svc, profile_id: str, email: str) -> str:
+    """Moves one profile onto a brand-new individual org on the standard
+    14-day/25-exchange trial -- the exact mechanism handle_new_user() gives
+    every fresh signup (Rick's 2026-07-12 decision, originally built for
+    remove_from_roster() below). Extracted 2026-07-13 (Task #41) so
+    pro_scheduler.py's whole-org cancellation cascade can reuse the
+    identical transfer, person by person, instead of duplicating it.
+
+    Does NOT send any email or touch waitlist promotion -- those differ by
+    caller (remove_from_roster() promotes a waitlisted replacement since
+    one seat just freed up in an otherwise-live pool; the cascade never
+    does, since the whole pool is gone). Callers handle both themselves.
+
+    Returns the new organization_id."""
+    new_org = (
+        svc.table("organizations")
+        .insert({"name": email or "New User", "org_type": "individual"})
+        .execute()
+    )
+    new_org_id = new_org.data[0]["id"]
+
+    svc.table("profiles").update({
+        "organization_id": new_org_id,
+        "seat_type": None,
+        "seat_status": None,
+        "is_org_admin": False,
+        "waitlisted_at": None,
+        "suspended_at": None,
+    }).eq("id", profile_id).execute()
+
+    # Same shape handle_new_user() gives a brand-new signup -- 'trial'/
+    # 'active'/trial_end NULL, "hasn't started yet." pro_chat.py flips this
+    # to 'trialing' and starts the 14-day clock the moment their first real
+    # exchange happens on the new org, exactly like any fresh account.
+    svc.table("subscriptions").insert({
+        "organization_id": new_org_id,
+        "tier_slug": "trial",
+        "status": "active",
+    }).execute()
+
+    return new_org_id
+
+
 @pro_org_bp.route("/roster", methods=["GET"])
 @login_required
 def get_roster():
@@ -164,31 +207,7 @@ def remove_from_roster():
         if len(admin_count.data or []) <= 1:
             return jsonify({"error": "Can't remove the last remaining admin -- promote someone else first."}), 400
 
-    new_org = (
-        svc.table("organizations")
-        .insert({"name": target_row.get("email") or "New User", "org_type": "individual"})
-        .execute()
-    )
-    new_org_id = new_org.data[0]["id"]
-
-    svc.table("profiles").update({
-        "organization_id": new_org_id,
-        "seat_type": None,
-        "seat_status": None,
-        "is_org_admin": False,
-        "waitlisted_at": None,
-        "suspended_at": None,
-    }).eq("id", profile_id).execute()
-
-    # Same shape handle_new_user() gives a brand-new signup -- 'trial'/
-    # 'active'/trial_end NULL, "hasn't started yet." pro_chat.py flips this
-    # to 'trialing' and starts the 14-day clock the moment their first real
-    # exchange happens on the new org, exactly like any fresh account.
-    svc.table("subscriptions").insert({
-        "organization_id": new_org_id,
-        "tier_slug": "trial",
-        "status": "active",
-    }).execute()
+    transfer_profile_to_individual_trial(svc, profile_id, target_row.get("email"))
 
     # This just freed a seat -- if anyone's waitlisted for this same
     # seat_type at this org, promote the longest-waiting one automatically

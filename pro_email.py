@@ -196,3 +196,39 @@ def send_account_deletion_email(to: str) -> bool:
       <p>If you didn't request this, contact us immediately at admin@selahexploringtheology.com.</p>
     """)
     return send_email(to, subject, html)
+
+
+def send_cancellation_reminder_email(to: str, org_name: str, seat_type: str, period_end: str) -> bool:
+    """Sent to org admins a few days before a canceled subscription's paid
+    period actually ends -- pro_scheduler.py's daily job, added 2026-07-13
+    (Task #41). Access is still live and paid-for at this point
+    (cancel_at_period_end=true, status still 'active'); this is a heads-up
+    with a real window to reverse course, not a notice that anything has
+    happened yet. If they do nothing, the whole {seat_type} roster
+    transfers to individual trials automatically once the period ends --
+    that's the cascade this reminder is warning about."""
+    kind = "Leadership" if seat_type == "leader" else "Membership"
+    subject = f"{org_name}'s {kind} plan ends {period_end} -- action needed?"
+    html = _wrap(f"""
+      <p><strong>{org_name}</strong>'s {kind} plan on Selah for Ministry is set to end on <strong>{period_end}</strong> and won't renew.</p>
+      <p>Access continues as normal until then -- nothing changes today. If this is expected, there's nothing to do. If it's not, you can reactivate any time before {period_end} to keep the plan going without interruption.</p>
+      <p>If the plan does lapse, everyone on the {kind} roster is automatically moved to their own individual trial (14 days, 25 exchanges) so no one is locked out -- you'll get a summary once that happens.</p>
+    """)
+    return send_email(to, subject, html)
+
+
+def send_cascade_admin_summary_email(to: str, org_name: str, seat_type: str, migrated_count: int) -> bool:
+    """Sent to org admins once the whole-org cancellation cascade actually
+    runs for one seat pool -- pro_scheduler.py's daily job, added
+    2026-07-13 (Task #41). By the time this sends, the transfer has already
+    happened for everyone affected -- each person also got their own
+    send_roster_removal_email() individually; this is the admin-facing
+    rollup, not a per-person notice."""
+    kind = "Leadership" if seat_type == "leader" else "Membership"
+    people = "person" if migrated_count == 1 else "people"
+    subject = f"{org_name}'s {kind} plan has ended"
+    html = _wrap(f"""
+      <p><strong>{org_name}</strong>'s {kind} plan on Selah for Ministry has ended, and {migrated_count} {people} on that roster {"has" if migrated_count == 1 else "have"} been automatically moved to their own individual trial (14 days, 25 exchanges) so no one was locked out.</p>
+      <p>Each of them was emailed directly about the change. If this wasn't expected, you can start a new {kind} plan any time from your Church/Org dashboard.</p>
+    """)
+    return send_email(to, subject, html)

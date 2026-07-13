@@ -1048,7 +1048,20 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
         "stripe_subscription_id": subscription.get("id"),
         "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
         "seat_quantity": seat_quantity,
+        # Permanent marker of which pool this row is -- set every sync
+        # (not just on creation), and deliberately NEVER cleared by the
+        # customer.subscription.deleted handler below, which overwrites
+        # tier_slug to 'free' on full cancellation. Task #41's cascade job
+        # (pro_scheduler.py) reads this after cancellation to know which
+        # roster to migrate, once tier_slug itself no longer says so.
+        "seat_type": seat_type,
     }
+    if not update_fields["cancel_at_period_end"]:
+        # Reset the reminder-sent guard on reactivation (cancel_at_period_end
+        # flipping back to false) -- otherwise a stale timestamp from a
+        # months-earlier cancel/reactivate cycle would silently block a
+        # real future reminder. Added 2026-07-13, Task #41.
+        update_fields["cancellation_reminder_sent_at"] = None
     if subscription.get("current_period_end"):
         update_fields["current_period_end"] = _epoch_to_iso(subscription["current_period_end"])
 
@@ -1139,6 +1152,13 @@ def _sync_subscription_row(subscription, organization_id=None):
         "stripe_subscription_id": subscription.get("id"),
         "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
     }
+    if not update_fields["cancel_at_period_end"]:
+        # Same reactivation reset as _sync_church_subscription_row above --
+        # harmless here since Task #41's reminder job only ever queries
+        # rows with seat_type set (Church/Org only), but kept symmetric so
+        # this column behaves consistently across every subscriptions row
+        # regardless of tier.
+        update_fields["cancellation_reminder_sent_at"] = None
     if needs_price_lock and price_info:
         # Anchor the 24-month price-lock promise to the moment this org
         # FIRST gets a real paid price -- set once, here, and never touched
