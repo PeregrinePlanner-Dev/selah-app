@@ -57,6 +57,7 @@ import stripe
 from flask import Blueprint, request, jsonify, url_for, session
 
 from pro_auth import login_required, get_user_supabase, get_service_client
+from pro_email import send_waitlist_promoted_email
 
 pro_billing_bp = Blueprint("pro_billing", __name__, url_prefix="/pro/billing")
 
@@ -689,7 +690,7 @@ def promote_waitlisted_if_room(organization_id: str, seat_type: str) -> int:
 
     waiting = (
         svc.table("profiles")
-        .select("id, waitlisted_at")
+        .select("id, email, waitlisted_at")
         .eq("organization_id", organization_id)
         .eq("seat_type", seat_type)
         .eq("seat_status", "pending")
@@ -697,13 +698,25 @@ def promote_waitlisted_if_room(organization_id: str, seat_type: str) -> int:
         .limit(open_slots)
         .execute()
     )
-    for row in (waiting.data or []):
+    rows = waiting.data or []
+    for row in rows:
         svc.table("profiles").update({
             "seat_status": "paid",
             "waitlisted_at": None,
         }).eq("id", row["id"]).execute()
 
-    return len(waiting.data or [])
+    # Promotion can be triggered by someone else entirely (another member
+    # removed, or an admin buying more seats) -- email is the only way the
+    # promoted person finds out without logging in on the chance of
+    # checking (Rick, 2026-07-13).
+    if rows:
+        org_resp = svc.table("organizations").select("name").eq("id", organization_id).limit(1).execute()
+        org_name = (org_resp.data[0].get("name") if org_resp.data else None) or "your organization"
+        for row in rows:
+            if row.get("email"):
+                send_waitlist_promoted_email(row["email"], org_name, seat_type)
+
+    return len(rows)
 
 
 def _get_church_stripe_subscription(organization_id, seat_type):

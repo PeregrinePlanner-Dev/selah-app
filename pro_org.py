@@ -22,6 +22,7 @@ from flask import Blueprint, request, jsonify, session, render_template
 
 from pro_auth import login_required, get_user_supabase, get_service_client
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
+from pro_email import send_roster_removal_email
 
 pro_org_bp = Blueprint("pro_org", __name__, url_prefix="/pro/org")
 
@@ -182,9 +183,16 @@ def remove_from_roster():
     if target_row.get("seat_type"):
         promoted = promote_waitlisted_if_room(organization_id, target_row["seat_type"])
 
+    email_sent = False
+    if target_row.get("email"):
+        org_resp = svc.table("organizations").select("name").eq("id", organization_id).limit(1).execute()
+        org_name = (org_resp.data[0].get("name") if org_resp.data else None) or "your organization"
+        email_sent = send_roster_removal_email(target_row["email"], org_name)
+
     return jsonify({
         "ok": True,
-        "note": "Removed from roster. Their account now has its own individual trial (14 days / 25 exchanges) -- no email sent yet (transactional email isn't built).",
+        "note": "Removed from roster. Their account now has its own individual trial (14 days / 25 exchanges)."
+                + (" They've been emailed." if email_sent else " Email notice could not be sent -- check Render logs."),
         "waitlisted_promoted": promoted,
     })
 
