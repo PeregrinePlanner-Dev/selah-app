@@ -16,7 +16,7 @@ something an ordinary seat-holder can trigger themselves.
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, render_template
 
@@ -521,6 +521,26 @@ def org_status():
         by_tier = {r["tier_slug"]: r.get("seat_quantity") for r in (subs.data or [])}
         result["leader_seats_purchased"] = by_tier.get(CHURCH_SEAT_TIER_SLUGS["leader"])
         result["member_seats_purchased"] = by_tier.get(CHURCH_SEAT_TIER_SLUGS["member"])
+
+        # Exchanges used this month, per pooled seat_type -- Rick, 2026-07-13:
+        # admins need to see actual community activity, not just seat counts.
+        # Same usage_records row _apply_church_exchange_block() in
+        # pro_billing.py credits blocks onto (module_slug IS NULL, one row
+        # per seat_type per calendar month).
+        usage = (
+            svc.table("usage_records")
+            .select("seat_type, conversations_used, conversations_cap")
+            .eq("organization_id", organization_id)
+            .eq("billing_month", date.today().replace(day=1).isoformat())
+            .is_("module_slug", "null")
+            .in_("seat_type", ["leader", "member"])
+            .execute()
+        )
+        usage_by_type = {r["seat_type"]: r for r in (usage.data or [])}
+        result["leader_exchanges_used"] = (usage_by_type.get("leader") or {}).get("conversations_used", 0)
+        result["leader_exchanges_cap"] = (usage_by_type.get("leader") or {}).get("conversations_cap")
+        result["member_exchanges_used"] = (usage_by_type.get("member") or {}).get("conversations_used", 0)
+        result["member_exchanges_cap"] = (usage_by_type.get("member") or {}).get("conversations_cap")
 
     return jsonify(result)
 

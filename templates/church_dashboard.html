@@ -185,6 +185,7 @@
       <div class="seat-block" id="leader-seat-block">
         <div class="seat-block-title">Leadership</div>
         <div class="seat-block-stat" id="leader-stat">—</div>
+        <div class="seat-block-stat" id="leader-usage" style="display:none;"></div>
         <div class="seat-block-actions">
           <button class="btn-primary" id="leader-roster-btn" onclick="toggleRoster('leader')" style="display:none;">View roster</button>
           <button class="btn-secondary" id="leader-buy-btn" onclick="openBuySeatsModal('leader')">Add Leadership seats</button>
@@ -206,6 +207,7 @@
       <div class="seat-block" id="member-seat-block">
         <div class="seat-block-title">Membership</div>
         <div class="seat-block-stat" id="member-stat">—</div>
+        <div class="seat-block-stat" id="member-usage" style="display:none;"></div>
         <div class="seat-block-actions">
           <button class="btn-primary" id="member-roster-btn" onclick="toggleRoster('member')" style="display:none;">View roster</button>
           <button class="btn-secondary" id="member-buy-btn" onclick="openBuySeatsModal('member')">Add Membership seats</button>
@@ -394,6 +396,13 @@ function renderSeats(data) {
     : (leaderHasRoster ? `${leaderOccupied} active (comped) -- no paid seats yet` : "No Leadership seats yet.");
   document.getElementById("leader-roster-btn").style.display = leaderHasRoster ? "inline-block" : "none";
   document.getElementById("leader-buy-btn").textContent = leaderPurchased ? "Add more Leadership seats" : "Add Leadership seats";
+  const leaderUsageEl = document.getElementById("leader-usage");
+  if (data.leader_exchanges_cap != null) {
+    leaderUsageEl.style.display = "block";
+    leaderUsageEl.textContent = `Exchanges this month: ${data.leader_exchanges_used || 0} used of ${data.leader_exchanges_cap}`;
+  } else {
+    leaderUsageEl.style.display = "none";
+  }
   document.getElementById("leader-low-warning").style.display = (leaderPurchased && leaderAvailable <= 0) ? "block" : "none";
   document.getElementById("leader-block-purchase").style.display = leaderPurchased ? "block" : "none";
   if (!leaderHasRoster) {
@@ -415,6 +424,13 @@ function renderSeats(data) {
     : (memberPurchased ? `Total: ${memberPurchased} · Active: ${memberOccupied} · Available: ${memberAvailable}` : (memberHasRoster ? `${memberOccupied} active (comped) -- no paid seats yet` : "No Membership seats yet."));
   document.getElementById("member-roster-btn").style.display = memberHasRoster ? "inline-block" : "none";
   document.getElementById("member-buy-btn").textContent = memberPurchased ? "Add more Membership seats" : "Add Membership seats";
+  const memberUsageEl = document.getElementById("member-usage");
+  if (data.member_exchanges_cap != null) {
+    memberUsageEl.style.display = "block";
+    memberUsageEl.textContent = `Exchanges this month: ${data.member_exchanges_used || 0} used of ${data.member_exchanges_cap}`;
+  } else {
+    memberUsageEl.style.display = "none";
+  }
   document.getElementById("member-low-warning").style.display = (!memberLocked && memberPurchased && memberAvailable <= 0) ? "block" : "none";
   document.getElementById("member-block-purchase").style.display = (!memberLocked && memberPurchased) ? "block" : "none";
   if (!memberHasRoster) {
