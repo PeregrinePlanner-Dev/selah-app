@@ -88,6 +88,16 @@ TIER_PRICE_IDS = {
 # note on STRIPE_PRICE_EXCHANGE_BLOCK above.
 STRIPE_PRICE_EXCHANGE_BLOCK = os.environ.get("STRIPE_PRICE_EXCHANGE_BLOCK", "")
 
+# Win-back discount, added 2026-07-13 -- pre-applied (not a typed-in promo
+# code) via Checkout Session's `discounts` param when the client sends
+# {"promo": "winback"}. Offered to anyone who's just lost a church-provided
+# seat (pro_org.py remove_from_roster(), and later the whole-org
+# cancellation cascade once #41 is built) and landed back on the free
+# individual trial. Live Stripe coupon: selah_winback_30off_3mo (30% off,
+# repeating for 3 months). Blank-safe: if unset, the promo param is just
+# ignored and checkout proceeds at full price.
+STRIPE_COUPON_WINBACK = os.environ.get("STRIPE_COUPON_WINBACK", "")
+
 # What each tier+cycle actually costs and which TIER_CONVERSATION_CAPS key
 # (pro_chat.py) it maps to -- kept here rather than re-derived from Stripe,
 # since Stripe's Price objects don't carry our own tier-slug naming.
@@ -257,6 +267,7 @@ def create_checkout_session():
     body = request.json or {}
     tier = body.get("tier", "")
     plan = body.get("plan", "monthly")
+    promo = body.get("promo", "")
 
     if tier not in TIER_PRICE_IDS:
         return jsonify({"error": f"Unknown plan tier: {tier!r}"}), 400
@@ -306,6 +317,14 @@ def create_checkout_session():
         checkout_kwargs["customer"] = existing_customer_id
     elif email:
         checkout_kwargs["customer_email"] = email
+
+    # Win-back offer -- pre-applied, not a typed-in promo code (mutually
+    # exclusive with allow_promotion_codes, which this route doesn't set).
+    # promo="winback" arrives from pro_app.html's checkPromoParam(), set
+    # when the page loads with ?promo=winback (the link sent in
+    # send_roster_removal_email()). See STRIPE_COUPON_WINBACK above.
+    if promo == "winback" and STRIPE_COUPON_WINBACK:
+        checkout_kwargs["discounts"] = [{"coupon": STRIPE_COUPON_WINBACK}]
 
     try:
         checkout_session = stripe.checkout.Session.create(**checkout_kwargs)

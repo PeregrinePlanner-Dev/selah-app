@@ -1343,7 +1343,7 @@ async function selectPlan(tier, plan) {
     const res = await fetch("/pro/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier, plan }),
+      body: JSON.stringify({ tier, plan, promo: _activePromo }),
     });
     const data = await res.json();
     if (data.url) {
@@ -1357,11 +1357,29 @@ async function selectPlan(tier, plan) {
   btn.disabled = false;
 }
 
+// Win-back offer, added 2026-07-13 -- ?promo=winback arrives via the link
+// in send_roster_removal_email() (pro_email.py), sent to anyone who's just
+// lost a church-provided seat. Threaded through to /pro/billing/checkout's
+// body so pro_billing.py can pre-apply the selah_winback_30off_3mo Stripe
+// coupon. Reuses the existing top-notice banner rather than a new UI
+// element -- one less thing to maintain.
+let _activePromo = null;
+function checkPromoParam() {
+  const params = new URLSearchParams(window.location.search);
+  const promo = params.get("promo");
+  if (promo !== "winback") return;
+  _activePromo = "winback";
+  document.getElementById("top-notice-text").textContent =
+    "Welcome back -- choose a plan below and get 30% off your first 3 months.";
+  document.getElementById("top-notice-banner").style.display = "flex";
+}
+
 // ── Init ────────────────────────────────────────────────────────────────
 loadSessionList();
 loadBillingStatus();
 loadOrgLink();
 showTopNotice();
+checkPromoParam();
 </script>
 
 <!-- ── How to Use Modal ── -->

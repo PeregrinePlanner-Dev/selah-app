@@ -18,7 +18,7 @@ something an ordinary seat-holder can trigger themselves.
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
-from flask import Blueprint, request, jsonify, session, render_template
+from flask import Blueprint, request, jsonify, session, render_template, url_for
 
 from pro_auth import login_required, get_user_supabase, get_service_client
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
@@ -199,7 +199,14 @@ def remove_from_roster():
 
     email_sent = False
     if target_row.get("email"):
-        email_sent = send_roster_removal_email(target_row["email"], _get_org_name(svc, organization_id))
+        # ?promo=winback -- read by pro_app.html's checkPromoParam() and
+        # threaded through to /pro/billing/checkout, pre-applying the
+        # selah_winback_30off_3mo Stripe coupon (30% off, 3 months). Added
+        # 2026-07-13 as an independent win-back offer for anyone who's just
+        # lost a church-provided seat and landed back on the free individual
+        # trial -- see pro_email.py's send_roster_removal_email() docstring.
+        upgrade_link = url_for("pro_chat.pro_app", promo="winback", _external=True)
+        email_sent = send_roster_removal_email(target_row["email"], _get_org_name(svc, organization_id), upgrade_link)
 
     return jsonify({
         "ok": True,

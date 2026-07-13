@@ -62,14 +62,28 @@ def _wrap(body_html: str) -> str:
     """
 
 
-def send_roster_removal_email(to: str, org_name: str) -> bool:
+def send_roster_removal_email(to: str, org_name: str, upgrade_link: str = "") -> bool:
     """Sent when an admin removes someone from a church org's roster
     (pro_org.py remove_from_roster()) -- they're moved to their own
-    individual trial (14 days / 25 exchanges), same as any fresh signup."""
+    individual trial (14 days / 25 exchanges), same as any fresh signup.
+
+    upgrade_link (added 2026-07-13), when provided, carries a
+    ?promo=winback query param that pro_app.html's checkPromoParam() reads
+    and threads through to /pro/billing/checkout, auto-applying the
+    selah_winback_30off_3mo Stripe coupon (30% off, first 3 months) --
+    this is the moment someone who's just lost a church-provided seat is
+    deciding whether to keep going on their own. Optional/blank-safe so
+    this function still works if a caller has no request context to build
+    the link from (url_for requires one)."""
     subject = f"You've been removed from {org_name} on Selah for Ministry"
+    upgrade_html = (
+        f'<p><a href="{upgrade_link}" style="color:#2f6b66; font-weight:600;">Keep going on your own -- 30% off your first 3 months</a></p>'
+        if upgrade_link else ""
+    )
     html = _wrap(f"""
       <p>You've been removed from <strong>{org_name}</strong>'s roster on Selah for Ministry.</p>
       <p>Your seat there is gone, but your account still works -- you've been moved to your own individual trial (14 days, 25 exchanges) so you're not locked out.</p>
+      {upgrade_html}
       <p>If this wasn't expected, contact {org_name}'s admin directly.</p>
     """)
     return send_email(to, subject, html)
