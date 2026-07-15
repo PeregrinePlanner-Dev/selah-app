@@ -935,7 +935,19 @@ def _apply_church_exchange_block(organization_id: str, metadata: dict) -> None:
         svc.table("usage_records").update({"conversations_cap": new_cap}).eq("id", row["id"]).execute()
     else:
         try:
-            new_cap = BASE_CHURCH_CAP[seat_type] + exchanges_to_add
+            # Per-seat cap scaling (2026-07-15): a brand-new month's row
+            # (rare here -- see docstring) starts from seat_quantity x the
+            # per-seat rate, not the old flat BASE_CHURCH_CAP value alone.
+            seat_sub = (
+                svc.table("subscriptions")
+                .select("seat_quantity")
+                .eq("organization_id", organization_id)
+                .eq("tier_slug", CHURCH_SEAT_TIER_SLUGS[seat_type])
+                .limit(1)
+                .execute()
+            )
+            seat_qty = (seat_sub.data[0].get("seat_quantity") if seat_sub.data else None) or 1
+            new_cap = (seat_qty * BASE_CHURCH_CAP[seat_type]) + exchanges_to_add
             svc.table("usage_records").insert({
                 "organization_id": organization_id,
                 "module_slug": None,
@@ -1067,12 +1079,13 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
 
     existing = (
         svc.table("subscriptions")
-        .select("id")
+        .select("id, seat_quantity")
         .eq("organization_id", organization_id)
         .eq("tier_slug", tier_slug)
         .limit(1)
         .execute()
     )
+    previous_seat_quantity = existing.data[0].get("seat_quantity") if existing.data else None
     if existing.data:
         svc.table("subscriptions").update(update_fields).eq("id", existing.data[0]["id"]).execute()
     else:
@@ -1086,6 +1099,43 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
     # Harmless no-op if seat_quantity didn't grow or nobody's waiting.
     if seat_quantity:
         promote_waitlisted_if_room(organization_id, seat_type)
+
+    # Church/Org per-seat cap scaling (2026-07-15): bump the CURRENT
+    # billing month's usage_records.conversations_cap the moment a seat
+    # increase is confirmed paid, rather than waiting for next month's
+    # fresh row to pick up the new seat_quantity. Adds the DELTA
+    # (new_seats - previous_seats) * per-seat-rate rather than overwriting
+    # conversations_cap outright -- overwriting would silently erase any
+    # exchange-block top-up already purchased against this month's pool
+    # (see _apply_church_exchange_block below). Only fires on a genuine
+    # increase (never shrinks the cap -- seat decreases are rejected
+    # elsewhere, update_seat_quantity()) and only touches a row that
+    # already exists this month; a brand-new month's row is created fresh
+    # by pro_chat.py's _check_and_reserve_usage(), which already reads the
+    # current seat_quantity directly.
+    if (
+        seat_quantity
+        and previous_seat_quantity
+        and seat_quantity > previous_seat_quantity
+        and seat_type in BASE_CHURCH_CAP
+    ):
+        added_seats = seat_quantity - previous_seat_quantity
+        cap_increase = added_seats * BASE_CHURCH_CAP[seat_type]
+        billing_month = date.today().replace(day=1).isoformat()
+        current_row = (
+            svc.table("usage_records")
+            .select("id, conversations_cap")
+            .eq("organization_id", organization_id)
+            .eq("billing_month", billing_month)
+            .eq("seat_type", seat_type)
+            .is_("module_slug", "null")
+            .limit(1)
+            .execute()
+        )
+        if current_row.data:
+            row = current_row.data[0]
+            bumped_cap = (row.get("conversations_cap") or 0) + cap_increase
+            svc.table("usage_records").update({"conversations_cap": bumped_cap}).eq("id", row["id"]).execute()
 
 
 def _sync_subscription_row(subscription, organization_id=None):

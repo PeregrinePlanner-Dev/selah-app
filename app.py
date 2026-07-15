@@ -14,6 +14,7 @@ from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
     format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags, client,
+    attach_scripture_verification,
 )
 
 load_dotenv()
@@ -264,6 +265,10 @@ def chat():
 
     except Exception as e:
         print(f"[ANCHOR/CHIPS/SOURCE ERROR] {e}")
+
+    # Non-blocking reference-existence check on any scripture-type sources
+    # this turn produced -- see engine.attach_scripture_verification().
+    sources = attach_scripture_verification(sources)
 
     return jsonify({
         "reply":    parsed["reply"],

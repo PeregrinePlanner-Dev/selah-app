@@ -13,6 +13,7 @@ in app.py -- this is a pure relocation, not a rewrite.
 
 import os
 import re
+import json
 from pathlib import Path
 from anthropic import Anthropic
 
@@ -99,6 +100,179 @@ def route_to_node(message: str) -> str:
             if node in NODES:
                 return node
     return "Grace"
+
+# ── Scripture reference verification ───────────────────────────────────────
+# Catches hallucinated/nonexistent Scripture references in [SOURCE:scripture|...]
+# tags and generate_translation_comparison() calls -- the audit's Section 2.2
+# "highest-stakes trust risk" finding: nothing previously checked whether a
+# quoted verse reference (or its text) was real. This pass checks REFERENCE
+# EXISTENCE (does "Book Chapter:Verse" resolve to a real passage) at two
+# confidence tiers:
+#   - "exact": the 33 books in scripture_index.json fetched from real,
+#     public-domain KJV text (github.com/aruljohn/Bible-kjv) -- checked
+#     against the actual chapter+verse count for that specific chapter.
+#   - "chapter-level": the remaining 33 books, checked against well-
+#     established chapter-count reference data (not fetched verse-by-verse
+#     this pass) -- validates the chapter exists and the verse number is
+#     within the KJV's longest-chapter bound (Psalm 119 = 176 verses), but
+#     can't catch "chapter 3 only has 20 verses and this says 45."
+# Flag-only, never blocking, per the audit's own recommendation -- a failed
+# check means "could not confirm this reference exists," not "this is
+# definitely wrong." Exact QUOTED-TEXT verification (does the wording match
+# canonical text, not just does the reference exist) is a larger follow-up
+# noted in Selah_Full_Stack_Audit_2026-07-14.md Section 2.2 -- it requires
+# full canonical text for the 33 "chapter-level" books, which hit real
+# acquisition friction this pass (the fetch tooling available caps around
+# ~100K characters per call, and several of those books -- Genesis, Psalms,
+# Isaiah -- need chunked multi-call fetches to get in full). Reference-
+# existence checking ships now because it's the cheaper, still-valuable
+# half of the problem: it catches a fabricated "Isaiah 84:12" outright,
+# just not a real "John 3:16" quoted with one word silently changed.
+# Added 2026-07-15.
+SCRIPTURE_INDEX = json.loads((BASE_DIR / "scripture_index.json").read_text(encoding="utf-8"))
+
+_BOOK_ALIASES = {
+    "gen": "Genesis", "ge": "Genesis",
+    "exod": "Exodus", "exo": "Exodus", "ex": "Exodus",
+    "lev": "Leviticus", "le": "Leviticus",
+    "num": "Numbers", "numb": "Numbers", "nu": "Numbers",
+    "deut": "Deuteronomy", "dt": "Deuteronomy", "de": "Deuteronomy",
+    "josh": "Joshua", "jos": "Joshua",
+    "judg": "Judges", "jdg": "Judges", "jg": "Judges",
+    "1 sam": "1 Samuel", "1sam": "1 Samuel", "i samuel": "1 Samuel", "1st samuel": "1 Samuel",
+    "2 sam": "2 Samuel", "2sam": "2 Samuel", "ii samuel": "2 Samuel", "2nd samuel": "2 Samuel",
+    "1 kgs": "1 Kings", "1kgs": "1 Kings", "i kings": "1 Kings", "1st kings": "1 Kings",
+    "2 kgs": "2 Kings", "2kgs": "2 Kings", "ii kings": "2 Kings", "2nd kings": "2 Kings",
+    "1 chr": "1 Chronicles", "1chr": "1 Chronicles", "i chronicles": "1 Chronicles", "1st chronicles": "1 Chronicles",
+    "2 chr": "2 Chronicles", "2chr": "2 Chronicles", "ii chronicles": "2 Chronicles", "2nd chronicles": "2 Chronicles",
+    "neh": "Nehemiah",
+    "esth": "Esther", "est": "Esther",
+    "ps": "Psalms", "psa": "Psalms", "psalm": "Psalms", "pss": "Psalms",
+    "prov": "Proverbs", "pr": "Proverbs",
+    "eccl": "Ecclesiastes", "ecc": "Ecclesiastes", "qoheleth": "Ecclesiastes",
+    "song": "Song of Solomon", "song of songs": "Song of Solomon", "sos": "Song of Solomon", "canticles": "Song of Solomon",
+    "isa": "Isaiah",
+    "jer": "Jeremiah",
+    "lam": "Lamentations",
+    "ezek": "Ezekiel", "eze": "Ezekiel",
+    "dan": "Daniel",
+    "hos": "Hosea",
+    "obad": "Obadiah", "ob": "Obadiah",
+    "jon": "Jonah",
+    "mic": "Micah",
+    "nah": "Nahum",
+    "hab": "Habakkuk",
+    "zeph": "Zephaniah",
+    "hag": "Haggai",
+    "zech": "Zechariah",
+    "mal": "Malachi",
+    "matt": "Matthew", "mt": "Matthew",
+    "mk": "Mark", "mr": "Mark",
+    "lk": "Luke",
+    "jn": "John",
+    "rom": "Romans",
+    "1 cor": "1 Corinthians", "1cor": "1 Corinthians", "i corinthians": "1 Corinthians", "1st corinthians": "1 Corinthians",
+    "2 cor": "2 Corinthians", "2cor": "2 Corinthians", "ii corinthians": "2 Corinthians", "2nd corinthians": "2 Corinthians",
+    "gal": "Galatians",
+    "eph": "Ephesians",
+    "phil": "Philippians", "php": "Philippians",
+    "col": "Colossians",
+    "1 thess": "1 Thessalonians", "1thess": "1 Thessalonians", "i thessalonians": "1 Thessalonians", "1st thessalonians": "1 Thessalonians",
+    "2 thess": "2 Thessalonians", "2thess": "2 Thessalonians", "ii thessalonians": "2 Thessalonians", "2nd thessalonians": "2 Thessalonians",
+    "1 tim": "1 Timothy", "1tim": "1 Timothy", "i timothy": "1 Timothy", "1st timothy": "1 Timothy",
+    "2 tim": "2 Timothy", "2tim": "2 Timothy", "ii timothy": "2 Timothy", "2nd timothy": "2 Timothy",
+    "tit": "Titus",
+    "philem": "Philemon", "phlm": "Philemon",
+    "heb": "Hebrews",
+    "jas": "James",
+    "1 pet": "1 Peter", "1pet": "1 Peter", "i peter": "1 Peter", "1st peter": "1 Peter",
+    "2 pet": "2 Peter", "2pet": "2 Peter", "ii peter": "2 Peter", "2nd peter": "2 Peter",
+    "1 jn": "1 John", "1jn": "1 John", "i john": "1 John", "1st john": "1 John",
+    "2 jn": "2 John", "2jn": "2 John", "ii john": "2 John", "2nd john": "2 John",
+    "3 jn": "3 John", "3jn": "3 John", "iii john": "3 John", "3rd john": "3 John",
+    "rev": "Revelation", "revelations": "Revelation", "apocalypse": "Revelation",
+}
+# Every canonical name maps to itself too (lowercase key -> canonical value).
+for _book in SCRIPTURE_INDEX:
+    _BOOK_ALIASES.setdefault(_book.lower(), _book)
+
+_REF_RE = re.compile(
+    r'^\s*([1-3]?\s*[A-Za-z][A-Za-z .]*?)\s+(\d+)\s*:\s*(\d+)(?:\s*[-–]\s*(\d+))?'
+)
+
+
+def parse_scripture_reference(label: str):
+    """Parses a SOURCE tag label or translation-compare reference like
+    'John 3:16 (NIV)' or '1 Corinthians 13:4-7' into a normalized dict:
+    {book, chapter, verse_start, verse_end}. Returns None if the label
+    doesn't parse as book+chapter:verse at all (rare -- most SOURCE tags
+    follow the documented format)."""
+    clean = format_reference_for_lookup(label)
+    m = _REF_RE.match(clean)
+    if not m:
+        return None
+    raw_book, chapter, v_start, v_end = m.groups()
+    book_key = re.sub(r'\s+', ' ', raw_book.strip().lower())
+    book = _BOOK_ALIASES.get(book_key)
+    if not book:
+        return None
+    return {
+        "book": book,
+        "chapter": int(chapter),
+        "verse_start": int(v_start),
+        "verse_end": int(v_end) if v_end else int(v_start),
+    }
+
+
+def verify_scripture_reference(label: str) -> dict:
+    """Checks whether a Scripture reference plausibly exists against
+    SCRIPTURE_INDEX. Returns {"status": ..., "confidence": ..., "reason": ...}:
+      - status="unparsed": label didn't look like a reference at all.
+      - status="unverified": parsed, but doesn't resolve to a real passage
+        -- likely hallucinated. This is the signal worth surfacing.
+      - status="valid": parsed and exists; confidence is "exact" (checked
+        against real fetched KJV text) or "chapter-level" (checked against
+        chapter-count reference data only -- see module docstring above).
+    Never blocks or alters content -- purely an additional signal attached
+    to a source entry."""
+    parsed = parse_scripture_reference(label)
+    if not parsed:
+        return {"status": "unparsed", "confidence": None}
+
+    book_data = SCRIPTURE_INDEX.get(parsed["book"])
+    if not book_data:
+        return {"status": "unverified", "confidence": None, "reason": "unrecognized book"}
+
+    if not (1 <= parsed["chapter"] <= book_data["chapters"]):
+        return {"status": "unverified", "confidence": None,
+                "reason": f"{parsed['book']} has {book_data['chapters']} chapters"}
+
+    verse_counts = book_data["verse_counts"]
+    if verse_counts is None:
+        if parsed["verse_start"] < 1 or parsed["verse_end"] > 176:
+            return {"status": "unverified", "confidence": None,
+                    "reason": "verse number outside plausible range"}
+        return {"status": "valid", "confidence": "chapter-level"}
+
+    max_verse = verse_counts[parsed["chapter"] - 1]
+    if parsed["verse_start"] < 1 or parsed["verse_end"] > max_verse:
+        return {"status": "unverified", "confidence": None,
+                "reason": f"{parsed['book']} {parsed['chapter']} has {max_verse} verses"}
+    return {"status": "valid", "confidence": "exact"}
+
+
+def attach_scripture_verification(sources: list) -> list:
+    """Attaches a `verified` field (see verify_scripture_reference()) to
+    every scripture-type entry in a sources list. Mutates and returns the
+    same list; theologian-type entries are left untouched. Idempotent and
+    cheap (pure local lookup, no API calls) -- safe to call on freshly
+    generated sources, backfilled sources, or sources already read back
+    from storage."""
+    for s in sources:
+        if s.get("type") == "scripture":
+            s["verified"] = verify_scripture_reference(s.get("label", ""))
+    return sources
+
 
 # ── Response format instructions appended to system prompt ────────────────────
 RESPONSE_FORMAT = """
@@ -514,8 +688,25 @@ def generate_translation_comparison(reference: str) -> dict:
     four major translations plus a short note on whether the wording
     differences actually carry theological weight. Mirrors
     generate_prep_doc()'s shape: no history, no tags, direct prompt-in,
-    parsed-text-out."""
+    parsed-text-out.
+
+    Checks reference existence via verify_scripture_reference() BEFORE
+    calling the model -- if the reference doesn't resolve to a real
+    passage, returns the same "not recognized" shape the model itself was
+    already instructed to produce, without spending an API call on it.
+    Cheaper AND more reliable than trusting the model's own self-check
+    (added 2026-07-15, see the Scripture reference verification block
+    above)."""
     clean_reference = format_reference_for_lookup(reference)
+    check = verify_scripture_reference(clean_reference)
+    if check["status"] == "unverified":
+        return {
+            "translations": [
+                {"version": v, "text": "(reference not recognized)"}
+                for v in _TRANSLATION_VERSIONS
+            ],
+            "note": "This doesn't match a recognizable Bible reference -- please check the citation.",
+        }
     prompt = TRANSLATION_COMPARE_INSTRUCTIONS.format(reference=clean_reference)
     response = client.messages.create(
         model="claude-sonnet-4-6",

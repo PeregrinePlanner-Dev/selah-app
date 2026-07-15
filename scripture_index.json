@@ -1,0 +1,558 @@
+{
+ "Genesis": {
+  "chapters": 50,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Exodus": {
+  "chapters": 40,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Leviticus": {
+  "chapters": 27,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Numbers": {
+  "chapters": 36,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Deuteronomy": {
+  "chapters": 34,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Joshua": {
+  "chapters": 24,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Judges": {
+  "chapters": 21,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Ruth": {
+  "chapters": 4,
+  "verse_counts": [
+   22,
+   23,
+   18,
+   22
+  ],
+  "source": "fetched"
+ },
+ "1 Samuel": {
+  "chapters": 31,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "2 Samuel": {
+  "chapters": 24,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "1 Kings": {
+  "chapters": 22,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "2 Kings": {
+  "chapters": 25,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "1 Chronicles": {
+  "chapters": 29,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "2 Chronicles": {
+  "chapters": 36,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Ezra": {
+  "chapters": 10,
+  "verse_counts": [
+   11,
+   70,
+   13,
+   24,
+   17,
+   22,
+   28,
+   36,
+   15,
+   44
+  ],
+  "source": "fetched"
+ },
+ "Nehemiah": {
+  "chapters": 13,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Esther": {
+  "chapters": 10,
+  "verse_counts": [
+   22,
+   23,
+   15,
+   17,
+   14,
+   14,
+   10,
+   17,
+   32,
+   3
+  ],
+  "source": "fetched"
+ },
+ "Job": {
+  "chapters": 42,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Psalms": {
+  "chapters": 150,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Proverbs": {
+  "chapters": 31,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Ecclesiastes": {
+  "chapters": 12,
+  "verse_counts": [
+   18,
+   26,
+   22,
+   16,
+   20,
+   12,
+   29,
+   17,
+   18,
+   20,
+   10,
+   14
+  ],
+  "source": "fetched"
+ },
+ "Song of Solomon": {
+  "chapters": 8,
+  "verse_counts": [
+   17,
+   17,
+   11,
+   16,
+   16,
+   13,
+   13,
+   14
+  ],
+  "source": "fetched"
+ },
+ "Isaiah": {
+  "chapters": 66,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Jeremiah": {
+  "chapters": 52,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Lamentations": {
+  "chapters": 5,
+  "verse_counts": [
+   22,
+   22,
+   66,
+   22,
+   22
+  ],
+  "source": "fetched"
+ },
+ "Ezekiel": {
+  "chapters": 48,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Daniel": {
+  "chapters": 12,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Hosea": {
+  "chapters": 14,
+  "verse_counts": [
+   11,
+   23,
+   5,
+   19,
+   15,
+   11,
+   16,
+   14,
+   17,
+   15,
+   12,
+   14,
+   16,
+   9
+  ],
+  "source": "fetched"
+ },
+ "Joel": {
+  "chapters": 3,
+  "verse_counts": [
+   20,
+   32,
+   21
+  ],
+  "source": "fetched"
+ },
+ "Amos": {
+  "chapters": 9,
+  "verse_counts": [
+   15,
+   16,
+   15,
+   13,
+   27,
+   14,
+   17,
+   14,
+   15
+  ],
+  "source": "fetched"
+ },
+ "Obadiah": {
+  "chapters": 1,
+  "verse_counts": [
+   21
+  ],
+  "source": "fetched"
+ },
+ "Jonah": {
+  "chapters": 4,
+  "verse_counts": [
+   17,
+   10,
+   10,
+   11
+  ],
+  "source": "fetched"
+ },
+ "Micah": {
+  "chapters": 7,
+  "verse_counts": [
+   16,
+   13,
+   12,
+   13,
+   15,
+   16,
+   20
+  ],
+  "source": "fetched"
+ },
+ "Nahum": {
+  "chapters": 3,
+  "verse_counts": [
+   15,
+   13,
+   19
+  ],
+  "source": "fetched"
+ },
+ "Habakkuk": {
+  "chapters": 3,
+  "verse_counts": [
+   17,
+   20,
+   19
+  ],
+  "source": "fetched"
+ },
+ "Zephaniah": {
+  "chapters": 3,
+  "verse_counts": [
+   18,
+   15,
+   20
+  ],
+  "source": "fetched"
+ },
+ "Haggai": {
+  "chapters": 2,
+  "verse_counts": [
+   15,
+   23
+  ],
+  "source": "fetched"
+ },
+ "Zechariah": {
+  "chapters": 14,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Malachi": {
+  "chapters": 4,
+  "verse_counts": [
+   14,
+   17,
+   18,
+   6
+  ],
+  "source": "fetched"
+ },
+ "Matthew": {
+  "chapters": 28,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Mark": {
+  "chapters": 16,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Luke": {
+  "chapters": 24,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "John": {
+  "chapters": 21,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Acts": {
+  "chapters": 28,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Romans": {
+  "chapters": 16,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "1 Corinthians": {
+  "chapters": 16,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "2 Corinthians": {
+  "chapters": 13,
+  "verse_counts": [
+   24,
+   17,
+   18,
+   18,
+   21,
+   18,
+   16,
+   24,
+   15,
+   18,
+   33,
+   21,
+   14
+  ],
+  "source": "fetched"
+ },
+ "Galatians": {
+  "chapters": 6,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Ephesians": {
+  "chapters": 6,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Philippians": {
+  "chapters": 4,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "Colossians": {
+  "chapters": 4,
+  "verse_counts": null,
+  "source": "reference"
+ },
+ "1 Thessalonians": {
+  "chapters": 5,
+  "verse_counts": [
+   10,
+   20,
+   13,
+   18,
+   28
+  ],
+  "source": "fetched"
+ },
+ "2 Thessalonians": {
+  "chapters": 3,
+  "verse_counts": [
+   12,
+   17,
+   18
+  ],
+  "source": "fetched"
+ },
+ "1 Timothy": {
+  "chapters": 6,
+  "verse_counts": [
+   20,
+   15,
+   16,
+   16,
+   25,
+   21
+  ],
+  "source": "fetched"
+ },
+ "2 Timothy": {
+  "chapters": 4,
+  "verse_counts": [
+   18,
+   26,
+   17,
+   22
+  ],
+  "source": "fetched"
+ },
+ "Titus": {
+  "chapters": 3,
+  "verse_counts": [
+   16,
+   15,
+   15
+  ],
+  "source": "fetched"
+ },
+ "Philemon": {
+  "chapters": 1,
+  "verse_counts": [
+   25
+  ],
+  "source": "fetched"
+ },
+ "Hebrews": {
+  "chapters": 13,
+  "verse_counts": [
+   14,
+   18,
+   19,
+   16,
+   14,
+   20,
+   28,
+   13,
+   28,
+   39,
+   40,
+   29,
+   25
+  ],
+  "source": "fetched"
+ },
+ "James": {
+  "chapters": 5,
+  "verse_counts": [
+   27,
+   26,
+   18,
+   17,
+   20
+  ],
+  "source": "fetched"
+ },
+ "1 Peter": {
+  "chapters": 5,
+  "verse_counts": [
+   25,
+   25,
+   22,
+   19,
+   14
+  ],
+  "source": "fetched"
+ },
+ "2 Peter": {
+  "chapters": 3,
+  "verse_counts": [
+   21,
+   22,
+   18
+  ],
+  "source": "fetched"
+ },
+ "1 John": {
+  "chapters": 5,
+  "verse_counts": [
+   10,
+   29,
+   24,
+   21,
+   21
+  ],
+  "source": "fetched"
+ },
+ "2 John": {
+  "chapters": 1,
+  "verse_counts": [
+   13
+  ],
+  "source": "fetched"
+ },
+ "3 John": {
+  "chapters": 1,
+  "verse_counts": [
+   14
+  ],
+  "source": "fetched"
+ },
+ "Jude": {
+  "chapters": 1,
+  "verse_counts": [
+   25
+  ],
+  "source": "fetched"
+ },
+ "Revelation": {
+  "chapters": 22,
+  "verse_counts": [
+   20,
+   29,
+   22,
+   11,
+   14,
+   17,
+   17,
+   13,
+   21,
+   11,
+   19,
+   17,
+   18,
+   20,
+   8,
+   21,
+   18,
+   24,
+   21,
+   15,
+   27,
+   21
+  ],
+  "source": "fetched"
+ }
+}

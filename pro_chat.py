@@ -24,6 +24,7 @@ from engine import (
     build_system_blocks, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
     generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
+    attach_scripture_verification,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client
 
@@ -253,7 +254,7 @@ def _backfill_sources_from_history(convo: dict) -> list:
                 "label": label,
                 "content": match.group(3).strip(),
             })
-    return sources
+    return attach_scripture_verification(sources)
 
 
 def _billing_month_today() -> str:
@@ -427,7 +428,7 @@ def pro_chat():
         wanted_tier_slug = "church_leadership" if profile_seat_type == "leader" else "church_member"
         sub_resp = (
             sb.table("subscriptions")
-            .select("id, tier_slug, status, trial_end")
+            .select("id, tier_slug, status, trial_end, seat_quantity")
             .eq("organization_id", organization_id)
             .eq("tier_slug", wanted_tier_slug)
             .order("created_at", desc=True)
@@ -437,7 +438,7 @@ def pro_chat():
     else:
         sub_resp = (
             sb.table("subscriptions")
-            .select("id, tier_slug, status, trial_end")
+            .select("id, tier_slug, status, trial_end, seat_quantity")
             .eq("organization_id", organization_id)
             .order("created_at", desc=True)
             .limit(1)
@@ -492,12 +493,33 @@ def pro_chat():
     # canceled/free all fall through to the normal tier-based cap.
     cap_override = TRIAL_EXCHANGE_CAP if sub_status == "trialing" else None
 
+    # Church/Org per-seat cap scaling (2026-07-15, decided after live-data
+    # margin checks held up at every seat-count scenario tested -- see
+    # Selah_Full_Stack_Audit_2026-07-14.md Section 1.4): TIER_CONVERSATION_CAPS'
+    # church_leadership/church_member values (200/100) are read here as a
+    # PER-SEAT rate, not an org-wide flat total. This only supplies the cap
+    # _check_and_reserve_usage() uses when creating a brand-NEW usage_records
+    # row (first exchange of a new billing month) -- an EXISTING row's real
+    # ceiling lives in its own stored conversations_cap, kept in sync by
+    # _sync_church_subscription_row() in pro_billing.py whenever seat_quantity
+    # changes mid-cycle. Deliberately no proration against days-remaining-in-
+    # -month: a seat confirmed paid on day 15 gets its full per-seat
+    # allotment immediately, matched only by Stripe's own dollar proration --
+    # fractionalizing a SHARED pool's grant to mirror a per-seat dollar
+    # proration adds real complexity for a gap that's financially trivial
+    # given the margin cushion (see the audit section above for the numbers).
+    church_seat_cap = None
+    if tier_slug in ("church_leadership", "church_member") and sub_row:
+        seat_qty = sub_row.get("seat_quantity") or 0
+        per_seat_rate = TIER_CONVERSATION_CAPS.get(tier_slug, DEFAULT_CAP)
+        church_seat_cap = seat_qty * per_seat_rate
+
     # Cap-check gate -- BEFORE the Anthropic call, never after. Uses the
     # service-role client internally; never checked or written via the
     # user's own token. Comped seats skip this entirely -- no usage-record
     # row is even written for them, since there's nothing to cap.
     if not is_comped and not _check_and_reserve_usage(
-        organization_id, tier_slug, cap=cap_override, seat_type=profile_seat_type
+        organization_id, tier_slug, cap=cap_override or church_seat_cap, seat_type=profile_seat_type
     ):
         # upgrade_required signals the frontend to auto-open the plan-
         # choice modal (Rick's "door 2" -- running out mid-session) rather
@@ -620,6 +642,10 @@ def pro_chat():
                     })
     except Exception as e:
         print(f"[PRO ANCHOR/CHIPS/SOURCE ERROR] {e}")
+
+    # Non-blocking reference-existence check on any scripture-type sources
+    # this turn produced -- see engine.attach_scripture_verification().
+    sources = attach_scripture_verification(sources)
 
     # Persist this turn's sources into the session so resuming a conversation
     # (get_session) can restore the Source Material panel, not just the
@@ -907,7 +933,10 @@ def get_session(session_id):
         "messages": convo.get("messages", []),
         "node": convo.get("node"),
         "anchor": convo.get("anchor"),
-        "sources": convo.get("sources", []),
+        # attach_scripture_verification() re-runs here (not just at the live-
+        # turn/backfill call sites) so sessions persisted before this feature
+        # existed still get a `verified` field on read, not just going forward.
+        "sources": attach_scripture_verification(convo.get("sources", [])),
         "turn": row["turn_count"],
     })
 
