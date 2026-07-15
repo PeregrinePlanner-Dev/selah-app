@@ -306,6 +306,16 @@
       <div class="pricing-tiers" id="buy-seats-pricing" style="margin-top:16px;"></div>
     </div>
 
+    <div id="buy-seats-step-remove" style="display:none;">
+      <div class="sub" id="buy-seats-remove-instructions"></div>
+      <div id="buy-seats-remove-list" style="margin-bottom:14px;"></div>
+      <div class="error-text" id="buy-seats-remove-error" style="display:none;"></div>
+      <div class="modal-actions" style="justify-content: flex-start;">
+        <button class="btn-secondary" onclick="backToBuySeatsInput()">Back</button>
+        <button class="btn-primary" onclick="proceedFromRemovePicker()">Continue</button>
+      </div>
+    </div>
+
     <div id="buy-seats-step-confirm" style="display:none;">
       <div class="modal-actions" style="justify-content: flex-start; margin-top: 0; margin-bottom: 16px;">
         <button class="btn-secondary" onclick="backToBuySeatsInput()">Back</button>
@@ -361,6 +371,14 @@ function renderPricingTiers(seatType) {
 let orgStatus = null;
 let _buySeatsType = null;
 let _memberActionId = null;
+// Decrease-with-removal-picker state (2026-07-15) -- null unless the
+// current buy-seats flow is a decrease that requires picking who loses
+// their seat. Set in submitBuySeats() (preview came back with
+// must_remove_count), consumed in proceedFromRemovePicker()/
+// submitSeatChange(), cleared on modal close so a stale value never
+// leaks into the next, unrelated seat change.
+let _lastPreviewData = null;
+let _pendingRemoveIds = null;
 
 function showBanner(text, type) {
   document.getElementById("top-banner").innerHTML =
@@ -644,11 +662,15 @@ function openBuySeatsModal(seatType) {
 function closeBuySeatsModal() {
   document.getElementById("buy-seats-modal").style.display = "none";
   _buySeatsType = null;
+  _lastPreviewData = null;
+  _pendingRemoveIds = null;
 }
 
 function backToBuySeatsInput() {
   document.getElementById("buy-seats-step-input").style.display = "block";
+  document.getElementById("buy-seats-step-remove").style.display = "none";
   document.getElementById("buy-seats-step-confirm").style.display = "none";
+  _pendingRemoveIds = null;
 }
 
 async function submitBuySeats() {
@@ -678,22 +700,109 @@ async function submitBuySeats() {
     submitBtn.disabled = false;
     if (data.error) { errBox.textContent = data.error; errBox.style.display = "block"; return; }
 
-    const added = data.new_quantity - data.current_quantity;
-    const rateLine = data.new_price_per_seat === data.current_price_per_seat
-      ? `Rate: $${data.new_price_per_seat.toFixed(2)}/seat`
-      : `New rate: $${data.new_price_per_seat.toFixed(2)}/seat -- down from $${data.current_price_per_seat.toFixed(2)}/seat at ${data.current_quantity}`;
-    document.getElementById("buy-seats-confirm-text").innerHTML =
-      `<div style="margin-bottom:8px;">Adding ${added} brings your total to ${data.new_quantity} ${SEAT_LABEL[seatType]} seats.</div>` +
-      `<div style="margin-bottom:8px;">${rateLine}</div>` +
-      `<div style="margin-bottom:8px;">New monthly total: $${data.new_monthly_total.toFixed(2)}/month</div>` +
-      `<div><strong>Prorated charge due today: $${data.prorated_amount_due_now.toFixed(2)} ${data.currency.toUpperCase()}</strong></div>`;
-    document.getElementById("buy-seats-confirm-btn").onclick = () => confirmSeatUpdate(seatType, data.new_quantity);
-    document.getElementById("buy-seats-step-input").style.display = "none";
-    document.getElementById("buy-seats-step-confirm").style.display = "block";
+    _lastPreviewData = data;
+
+    // Decrease below occupied count (2026-07-15) -- admin has to pick who
+    // loses their seat before seeing the final confirm step. Plain
+    // increases (the common case, must_remove_count absent) skip straight
+    // to confirm exactly as before.
+    if (data.must_remove_count) {
+      renderRemovePicker(seatType, data);
+      document.getElementById("buy-seats-step-input").style.display = "none";
+      document.getElementById("buy-seats-step-remove").style.display = "block";
+      return;
+    }
+
+    _pendingRemoveIds = null;
+    showBuySeatsConfirmStep(seatType, data);
   } catch (e) {
     submitBtn.disabled = false;
     errBox.textContent = "Something went wrong -- try again.";
     errBox.style.display = "block";
+  }
+}
+
+function showBuySeatsConfirmStep(seatType, data) {
+  const added = data.new_quantity - data.current_quantity;
+  const rateLine = data.new_price_per_seat === data.current_price_per_seat
+    ? `Rate: $${data.new_price_per_seat.toFixed(2)}/seat`
+    : `${added >= 0 ? "New" : "New"} rate: $${data.new_price_per_seat.toFixed(2)}/seat -- ${added >= 0 ? "down" : "changed"} from $${data.current_price_per_seat.toFixed(2)}/seat at ${data.current_quantity}`;
+  const changeLine = added >= 0
+    ? `Adding ${added} brings your total to ${data.new_quantity} ${SEAT_LABEL[seatType]} seats.`
+    : `Removing ${Math.abs(added)} brings your total to ${data.new_quantity} ${SEAT_LABEL[seatType]} seats.`;
+  const removalsLine = _pendingRemoveIds && _pendingRemoveIds.length
+    ? `<div style="margin-bottom:8px;">${_pendingRemoveIds.length} ${_pendingRemoveIds.length === 1 ? "person" : "people"} will be removed from the roster and moved to an individual trial.</div>`
+    : "";
+  document.getElementById("buy-seats-confirm-text").innerHTML =
+    `<div style="margin-bottom:8px;">${changeLine}</div>` +
+    removalsLine +
+    `<div style="margin-bottom:8px;">${rateLine}</div>` +
+    `<div style="margin-bottom:8px;">New monthly total: $${data.new_monthly_total.toFixed(2)}/month</div>` +
+    `<div><strong>Prorated ${data.prorated_amount_due_now >= 0 ? "charge due today" : "credit"}: $${Math.abs(data.prorated_amount_due_now).toFixed(2)} ${data.currency.toUpperCase()}</strong></div>`;
+  document.getElementById("buy-seats-confirm-btn").onclick = () => submitSeatChange(seatType, data.new_quantity);
+  document.getElementById("buy-seats-step-input").style.display = "none";
+  document.getElementById("buy-seats-step-remove").style.display = "none";
+  document.getElementById("buy-seats-step-confirm").style.display = "block";
+}
+
+// ── Removal picker (2026-07-15) -- shown between the quantity input and
+// the confirm step only when a decrease drops below occupied count.
+// Reuses the same checkbox-list pattern as the roster panel elsewhere on
+// this page rather than inventing a new one. ────────────────────────────
+function renderRemovePicker(seatType, data) {
+  document.getElementById("buy-seats-remove-instructions").textContent =
+    `Dropping to ${data.new_quantity} ${SEAT_LABEL[seatType]} seats means at least ${data.must_remove_count} ${data.must_remove_count === 1 ? "person" : "people"} on this roster ${data.must_remove_count === 1 ? "needs" : "need"} to be removed. Choose who -- they'll move to their own individual trial account.`;
+  const list = document.getElementById("buy-seats-remove-list");
+  list.innerHTML = data.occupied_roster.map(p => {
+    const displayName = [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email;
+    return `<label class="member-row" style="cursor:pointer;">
+      <span><input type="checkbox" class="remove-picker-check" value="${p.id}" style="margin-right:8px;">${escapeHtml(displayName)} <span class="invite-meta">${escapeHtml(p.email || "")}</span></span>
+    </label>`;
+  }).join("");
+  document.getElementById("buy-seats-remove-error").style.display = "none";
+}
+
+function proceedFromRemovePicker() {
+  const data = _lastPreviewData;
+  const checked = Array.from(document.querySelectorAll(".remove-picker-check:checked")).map(c => c.value);
+  const errBox = document.getElementById("buy-seats-remove-error");
+  if (checked.length < data.must_remove_count) {
+    errBox.textContent = `Select at least ${data.must_remove_count} ${data.must_remove_count === 1 ? "person" : "people"} to continue.`;
+    errBox.style.display = "block";
+    return;
+  }
+  _pendingRemoveIds = checked;
+  showBuySeatsConfirmStep(_buySeatsType, data);
+}
+
+// ── Unified confirm-step submit -- routes to /seats/decrease when
+// removals were picked, /seats/update otherwise (2026-07-15). Replaces
+// the old confirmSeatUpdate() name/shape; kept the same overall structure
+// (disable button, POST, reload status) so this behaves identically to
+// the pre-decrease increase flow when _pendingRemoveIds is null. ────────
+async function submitSeatChange(seatType, newQty) {
+  const confirmBtn = document.getElementById("buy-seats-confirm-btn");
+  confirmBtn.disabled = true;
+  const isDecreaseWithRemovals = Array.isArray(_pendingRemoveIds);
+  const url = isDecreaseWithRemovals ? "/pro/billing/church/seats/decrease" : "/pro/billing/church/seats/update";
+  const payload = isDecreaseWithRemovals
+    ? { seat_type: seatType, new_quantity: newQty, remove_profile_ids: _pendingRemoveIds }
+    : { seat_type: seatType, new_quantity: newQty };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    confirmBtn.disabled = false;
+    if (data.error) { alert(data.error); return; }
+    closeBuySeatsModal();
+    showBanner(data.note || "Seat change is processing.", "success");
+    loadStatus();
+  } catch (e) {
+    confirmBtn.disabled = false;
+    alert("Something went wrong -- try again.");
   }
 }
 
@@ -716,27 +825,6 @@ async function purchaseSeats(seatType, qty) {
     errBox.style.display = "block";
   }
   submitBtn.disabled = false;
-}
-
-async function confirmSeatUpdate(seatType, newQty) {
-  const confirmBtn = document.getElementById("buy-seats-confirm-btn");
-  confirmBtn.disabled = true;
-  try {
-    const res = await fetch("/pro/billing/church/seats/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seat_type: seatType, new_quantity: newQty }),
-    });
-    const data = await res.json();
-    confirmBtn.disabled = false;
-    if (data.error) { alert(data.error); return; }
-    closeBuySeatsModal();
-    showBanner(data.note || "Seat change is processing.", "success");
-    loadStatus();
-  } catch (e) {
-    confirmBtn.disabled = false;
-    alert("Something went wrong -- try again.");
-  }
 }
 
 // ── Invites ───────────────────────────────────────────────────────────

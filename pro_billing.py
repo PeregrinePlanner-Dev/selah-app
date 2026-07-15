@@ -806,7 +806,7 @@ def preview_seat_change():
     current_price_per_seat = _price_per_seat(seat_type, current_quantity)
     new_price_per_seat = _price_per_seat(seat_type, new_quantity)
 
-    return jsonify({
+    result = {
         "current_quantity": current_quantity,
         "new_quantity": new_quantity,
         "current_price_per_seat": current_price_per_seat,
@@ -814,7 +814,31 @@ def preview_seat_change():
         "new_monthly_total": round(new_price_per_seat * new_quantity, 2),
         "prorated_amount_due_now": upcoming["amount_due"] / 100.0,
         "currency": upcoming["currency"],
-    })
+    }
+
+    # Decrease-with-removal-picker (2026-07-15, Rick's call): if the new
+    # count is below how many seats are actually occupied, the admin has to
+    # choose who loses their seat as part of this same flow -- surfaced
+    # here as the occupied roster + how many must be picked, so the
+    # frontend can render that step before /church/seats/decrease is ever
+    # called. Price preview above still applies regardless of who's picked
+    # (Stripe only cares about quantity), so both are returned together.
+    svc = get_service_client()
+    occupied = (
+        svc.table("profiles")
+        .select("id, email, first_name, last_name")
+        .eq("organization_id", organization_id)
+        .eq("seat_type", seat_type)
+        .in_("seat_status", ["paid", "comped"])
+        .execute()
+    )
+    occupied_rows = occupied.data or []
+    must_remove = len(occupied_rows) - new_quantity
+    if must_remove > 0:
+        result["must_remove_count"] = must_remove
+        result["occupied_roster"] = occupied_rows
+
+    return jsonify(result)
 
 
 @pro_billing_bp.route("/church/seats/update", methods=["POST"])
@@ -854,11 +878,13 @@ def update_seat_quantity():
 
     item = sub["items"]["data"][0]
     if new_quantity < item["quantity"]:
-        # Decreasing seat count (e.g. downsizing) is real functionality but
-        # genuinely different (what happens to the now-excess occupied
-        # seats? who gets removed?) -- not designed yet, deliberately out
-        # of scope for today. Increases only for now.
-        return jsonify({"error": "Reducing seat count isn't supported yet -- contact Selah admin directly for now."}), 400
+        # Decreases go through /church/seats/decrease instead (2026-07-15)
+        # -- that route requires the admin to pick who loses their seat
+        # first, which this one has no way to collect. Keeping this route
+        # increase-only rather than branching internally keeps the
+        # increase path (tested, in production) completely untouched by
+        # the newer decrease logic.
+        return jsonify({"error": "Use the seat-decrease flow to reduce seat count -- it needs you to choose who loses their seat first."}), 400
 
     try:
         stripe.Subscription.modify(
@@ -880,6 +906,123 @@ def update_seat_quantity():
     return jsonify({
         "ok": True,
         "note": "Seat purchase is processing -- your organization's available seats will update automatically once payment is confirmed.",
+    })
+
+
+@pro_billing_bp.route("/church/seats/decrease", methods=["POST"])
+@login_required
+def decrease_seat_quantity():
+    """Reduces seat count, with the admin choosing who loses their seat as
+    part of the same request (Rick's call, 2026-07-15 -- the alternative
+    was blocking the decrease until seats were freed manually first;
+    combining them was chosen instead). body: {"seat_type": "leader"|
+    "member", "new_quantity": int, "remove_profile_ids": [str, ...]}.
+
+    remove_profile_ids must cover at least enough people that occupied
+    count minus removals fits within new_quantity -- validated against the
+    SAME occupied-roster query /church/seats/preview used to tell the
+    frontend who to offer as choices, so a stale or tampered list can't
+    slip through. Each removal runs through pro_org.py's
+    _execute_roster_removal() (imported locally here -- pro_org.py already
+    imports FROM this module at load time, so importing pro_org back at
+    module level would be circular; deferring the import to inside this
+    function avoids that entirely), with promote_waitlist=False -- these
+    seats aren't being freed for someone else, the pool itself is
+    shrinking by the same amount.
+
+    Removals are applied FIRST, then the Stripe quantity decrease -- if a
+    removal fails partway through (last-admin guard, self-removal guard,
+    a profile that's no longer on the roster), the Stripe change never
+    happens and nothing is billed for a decrease that didn't fully clear
+    its own precondition."""
+    if not stripe.api_key:
+        return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
+
+    body = request.json or {}
+    seat_type = body.get("seat_type", "")
+    new_quantity = body.get("new_quantity")
+    remove_profile_ids = body.get("remove_profile_ids") or []
+
+    if seat_type not in CHURCH_SEAT_PRICE_IDS:
+        return jsonify({"error": f"Unknown seat type: {seat_type!r}"}), 400
+    if not isinstance(new_quantity, int) or new_quantity < 1:
+        return jsonify({"error": "new_quantity must be a positive integer"}), 400
+    if seat_type == "member" and new_quantity < 10:
+        return jsonify({"error": "Membership seats have a 10-seat minimum."}), 400
+
+    organization_id, _email, is_admin = _get_org_id_email_and_admin_status()
+    if not organization_id:
+        return jsonify({"error": "no profile found for this account"}), 400
+    if not is_admin:
+        return jsonify({"error": "Only an organization admin can change seat counts."}), 403
+
+    sub = _get_church_stripe_subscription(organization_id, seat_type)
+    if not sub:
+        return jsonify({"error": f"No active {seat_type} subscription found -- use /church/checkout for a first purchase."}), 400
+
+    item = sub["items"]["data"][0]
+    if new_quantity >= item["quantity"]:
+        return jsonify({"error": "new_quantity isn't a decrease -- use /church/seats/update for an increase."}), 400
+
+    svc = get_service_client()
+    occupied = (
+        svc.table("profiles")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .eq("seat_type", seat_type)
+        .in_("seat_status", ["paid", "comped"])
+        .execute()
+    )
+    occupied_ids = {r["id"] for r in (occupied.data or [])}
+    must_remove = len(occupied_ids) - new_quantity
+
+    # Every id in remove_profile_ids must actually be an occupied seat on
+    # THIS org/seat_type -- guards against a tampered request removing
+    # someone from a different org or seat_type entirely.
+    invalid = [pid for pid in remove_profile_ids if pid not in occupied_ids]
+    if invalid:
+        return jsonify({"error": "One or more selected people aren't an occupied seat on this roster -- refresh and try again."}), 400
+    if must_remove > 0 and len(remove_profile_ids) < must_remove:
+        return jsonify({"error": f"Dropping to {new_quantity} seats requires removing at least {must_remove} people -- only {len(remove_profile_ids)} selected."}), 400
+
+    from pro_org import _execute_roster_removal
+
+    acting_user_id = session.get("sb_user_id")
+    removed = []
+    for profile_id in remove_profile_ids:
+        ok, error, result = _execute_roster_removal(
+            svc, organization_id, profile_id, acting_user_id,
+            promote_waitlist=False, log_detail_extra={"reason": "seat_decrease"},
+        )
+        if not ok:
+            # Applied removals so far stay applied (each one already fully
+            # committed, real people already transferred) -- only the
+            # Stripe quantity change is skipped. Reported plainly rather
+            # than attempting a rollback, which real account state
+            # (transferred orgs, sent emails) can't cleanly support anyway.
+            return jsonify({
+                "error": f"Stopped after removing {len(removed)} of {len(remove_profile_ids)}: {error} Seat count was NOT changed -- fix this and retry the decrease.",
+                "removed_so_far": removed,
+            }), 400
+        removed.append(profile_id)
+
+    try:
+        stripe.Subscription.modify(
+            sub["id"],
+            items=[{"id": item["id"], "quantity": new_quantity}],
+            proration_behavior="create_prorations",
+        )
+        stripe.Invoice.create(customer=sub["customer"], subscription=sub["id"])
+    except Exception as e:
+        return jsonify({
+            "error": f"Roster removals succeeded, but the Stripe seat-count change failed: {e}. Contact Selah admin to reconcile billing.",
+            "removed_so_far": removed,
+        }), 502
+
+    return jsonify({
+        "ok": True,
+        "note": f"Removed {len(removed)} from the roster and reduced to {new_quantity} seats -- billing updates automatically once the proration credit/charge is confirmed.",
+        "removed_count": len(removed),
     })
 
 
@@ -1108,11 +1251,15 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
     # conversations_cap outright -- overwriting would silently erase any
     # exchange-block top-up already purchased against this month's pool
     # (see _apply_church_exchange_block below). Only fires on a genuine
-    # increase (never shrinks the cap -- seat decreases are rejected
-    # elsewhere, update_seat_quantity()) and only touches a row that
-    # already exists this month; a brand-new month's row is created fresh
-    # by pro_chat.py's _check_and_reserve_usage(), which already reads the
-    # current seat_quantity directly.
+    # increase (seat_quantity > previous_seat_quantity) -- a decrease
+    # (now supported via decrease_seat_quantity(), 2026-07-15) never
+    # shrinks the current month's already-granted cap, deliberately: the
+    # lower per-seat cap only takes effect starting next month's fresh row,
+    # matching the same "no proration on the exchange grant itself" stance
+    # increases already use. Also only touches a row that already exists
+    # this month; a brand-new month's row is created fresh by pro_chat.py's
+    # _check_and_reserve_usage(), which already reads the current
+    # seat_quantity directly.
     if (
         seat_quantity
         and previous_seat_quantity

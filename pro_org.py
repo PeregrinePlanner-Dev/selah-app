@@ -187,6 +187,79 @@ def get_roster():
     return jsonify({"roster": roster.data})
 
 
+def _execute_roster_removal(
+    svc, organization_id: str, profile_id: str, acting_user_id: str,
+    promote_waitlist: bool = True, log_detail_extra: dict | None = None,
+):
+    """Shared removal logic -- transfer to individual trial, audit log,
+    email notice, optional waitlist promotion. Extracted 2026-07-15 so the
+    seat-decrease flow (pro_billing.py's /church/seats/decrease, imported
+    here locally to dodge the circular pro_org<->pro_billing import) can
+    reuse the exact same guards and mechanics as an ordinary roster removal
+    instead of a second, easy-to-drift copy of this logic.
+
+    promote_waitlist=False is what the seat-decrease flow uses: a removal
+    that's happening BECAUSE the pool itself is shrinking shouldn't also
+    hand that just-freed seat to someone on the waitlist -- there's no
+    seat left to give them. Ordinary roster removal (unchanged pool size)
+    keeps promote_waitlist=True, its existing behavior.
+
+    Callers must already know acting_user_id is a confirmed org admin for
+    organization_id -- this function only carries the self-removal and
+    last-admin guards, not the admin check itself.
+
+    Returns (ok: bool, error_message: str | None, result: dict | None)."""
+    if profile_id == acting_user_id:
+        return False, "Can't remove yourself from the roster through this route.", None
+
+    target = (
+        svc.table("profiles")
+        .select("id, email, is_org_admin, seat_type")
+        .eq("id", profile_id)
+        .eq("organization_id", organization_id)
+        .limit(1)
+        .execute()
+    )
+    if not target.data:
+        return False, "That person isn't on your roster.", None
+    target_row = target.data[0]
+
+    if target_row.get("is_org_admin"):
+        admin_count = (
+            svc.table("profiles")
+            .select("id")
+            .eq("organization_id", organization_id)
+            .eq("is_org_admin", True)
+            .execute()
+        )
+        if len(admin_count.data or []) <= 1:
+            return False, "Can't remove the last remaining admin -- promote someone else first.", None
+
+    transfer_profile_to_individual_trial(svc, profile_id, target_row.get("email"))
+
+    detail = {"seat_type": target_row.get("seat_type"), "was_admin": bool(target_row.get("is_org_admin"))}
+    if log_detail_extra:
+        detail.update(log_detail_extra)
+    _log_org_audit_event(svc, organization_id, "roster.remove", target_id=profile_id, target_email=target_row.get("email"), detail=detail)
+
+    promoted = 0
+    if promote_waitlist and target_row.get("seat_type"):
+        promoted = promote_waitlisted_if_room(organization_id, target_row["seat_type"])
+
+    email_sent = False
+    if target_row.get("email"):
+        # ?promo=winback -- read by pro_app.html's checkPromoParam() and
+        # threaded through to /pro/billing/checkout, pre-applying the
+        # selah_winback_30off_3mo Stripe coupon (30% off, 3 months). Added
+        # 2026-07-13 as an independent win-back offer for anyone who's just
+        # lost a church-provided seat and landed back on the free individual
+        # trial -- see pro_email.py's send_roster_removal_email() docstring.
+        upgrade_link = url_for("pro_chat.pro_app", promo="winback", _external=True)
+        email_sent = send_roster_removal_email(target_row["email"], _get_org_name(svc, organization_id), upgrade_link)
+
+    return True, None, {"email_sent": email_sent, "promoted": promoted, "seat_type": target_row.get("seat_type")}
+
+
 @pro_org_bp.route("/roster/remove", methods=["POST"])
 @login_required
 def remove_from_roster():
@@ -212,11 +285,10 @@ def remove_from_roster():
         an org silently ending up with zero admins would be a real support
         fire with no easy self-serve recovery.
 
-    Email notification of this transfer (Rick's decision: they should be
-    told, with an offer already implicit in the fact that they're landing
-    on a normal trial) is NOT sent here -- the transactional email system
-    is explicitly deferred to a later session. The technical transfer
-    happens regardless; only the notification is missing for now."""
+    Both guards, plus the transfer/audit/email mechanics, now live in
+    _execute_roster_removal() above (extracted 2026-07-15) -- this route is
+    a thin wrapper over it with promote_waitlist=True, its original
+    behavior, unchanged."""
     organization_id, err = _get_admin_org_id()
     if err:
         return err
@@ -226,65 +298,17 @@ def remove_from_roster():
     if not profile_id:
         return jsonify({"error": "profile_id required"}), 400
 
-    if profile_id == session.get("sb_user_id"):
-        return jsonify({"error": "Can't remove yourself from the roster through this route."}), 400
-
     svc = get_service_client()
-
-    target = (
-        svc.table("profiles")
-        .select("id, email, is_org_admin, seat_type")
-        .eq("id", profile_id)
-        .eq("organization_id", organization_id)
-        .limit(1)
-        .execute()
-    )
-    if not target.data:
-        return jsonify({"error": "That person isn't on your roster."}), 404
-    target_row = target.data[0]
-
-    if target_row.get("is_org_admin"):
-        admin_count = (
-            svc.table("profiles")
-            .select("id")
-            .eq("organization_id", organization_id)
-            .eq("is_org_admin", True)
-            .execute()
-        )
-        if len(admin_count.data or []) <= 1:
-            return jsonify({"error": "Can't remove the last remaining admin -- promote someone else first."}), 400
-
-    transfer_profile_to_individual_trial(svc, profile_id, target_row.get("email"))
-
-    _log_org_audit_event(
-        svc, organization_id, "roster.remove",
-        target_id=profile_id, target_email=target_row.get("email"),
-        detail={"seat_type": target_row.get("seat_type"), "was_admin": bool(target_row.get("is_org_admin"))},
-    )
-
-    # This just freed a seat -- if anyone's waitlisted for this same
-    # seat_type at this org, promote the longest-waiting one automatically
-    # rather than leaving them stuck until an admin happens to notice.
-    promoted = 0
-    if target_row.get("seat_type"):
-        promoted = promote_waitlisted_if_room(organization_id, target_row["seat_type"])
-
-    email_sent = False
-    if target_row.get("email"):
-        # ?promo=winback -- read by pro_app.html's checkPromoParam() and
-        # threaded through to /pro/billing/checkout, pre-applying the
-        # selah_winback_30off_3mo Stripe coupon (30% off, 3 months). Added
-        # 2026-07-13 as an independent win-back offer for anyone who's just
-        # lost a church-provided seat and landed back on the free individual
-        # trial -- see pro_email.py's send_roster_removal_email() docstring.
-        upgrade_link = url_for("pro_chat.pro_app", promo="winback", _external=True)
-        email_sent = send_roster_removal_email(target_row["email"], _get_org_name(svc, organization_id), upgrade_link)
+    ok, error, result = _execute_roster_removal(svc, organization_id, profile_id, session.get("sb_user_id"), promote_waitlist=True)
+    if not ok:
+        status = 404 if error == "That person isn't on your roster." else 400
+        return jsonify({"error": error}), status
 
     return jsonify({
         "ok": True,
         "note": "Removed from roster. Their account now has its own individual trial (14 days / 25 exchanges)."
-                + (" They've been emailed." if email_sent else " Email notice could not be sent -- check Render logs."),
-        "waitlisted_promoted": promoted,
+                + (" They've been emailed." if result["email_sent"] else " Email notice could not be sent -- check Render logs."),
+        "waitlisted_promoted": result["promoted"],
     })
 
 
