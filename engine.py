@@ -638,7 +638,11 @@ NASB -- and nothing else:
 NIV: [the verse text in the NIV]
 ESV: [the verse text in the ESV]
 KJV: [the verse text in the KJV]
-NASB: [the verse text in the NASB]
+NASB: [the verse text in the NASB 1995 edition specifically] (NASB 1995)
+
+The "(NASB 1995)" citation at the end of the NASB line is a real attribution \
+requirement from the publisher (The Lockman Foundation) -- always include it \
+exactly as shown, not as optional styling.
 
 NOTE: [2-4 sentences identifying whether the translations genuinely diverge \
 in a way that matters theologically -- a different verb tense, a rendered-vs-\

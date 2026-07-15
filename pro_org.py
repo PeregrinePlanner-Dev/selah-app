@@ -76,6 +76,41 @@ def _get_admin_org_id():
     return row["organization_id"], None
 
 
+def _log_org_audit_event(
+    svc, organization_id: str, action: str,
+    target_id: str | None = None, target_email: str | None = None,
+    detail: dict | None = None,
+) -> None:
+    """Writes one row to org_audit_log -- the audit's own minimal design
+    (actor, action, target, timestamp), see the migration's table comment
+    for the full rationale. Called AFTER the real mutation succeeds in each
+    of the five roster/admin routes below, never before -- a failed action
+    shouldn't leave a log entry claiming it happened.
+
+    actor_id/actor_email come from the caller's own session (this file's
+    admin gate already confirmed they're a real org admin before any of
+    these routes get this far) -- not passed as a parameter, so every call
+    site logs the actual person who clicked the button, not whoever the
+    target of the action happens to be.
+
+    Deliberately swallows its own errors rather than failing the underlying
+    action -- a missed audit-log write is a real gap worth noticing later,
+    but it should never be the reason a legitimate suspend/remove/promote
+    fails for the person using the feature."""
+    try:
+        svc.table("org_audit_log").insert({
+            "organization_id": organization_id,
+            "actor_id": session.get("sb_user_id"),
+            "actor_email": session.get("sb_email"),
+            "action": action,
+            "target_id": target_id,
+            "target_email": target_email,
+            "detail": detail,
+        }).execute()
+    except Exception:
+        pass
+
+
 def _get_org_name(svc, organization_id: str) -> str:
     """Shared lookup for the notice-email call sites below -- avoids
     repeating the same organizations query in suspend/reactivate/promote/
@@ -220,6 +255,12 @@ def remove_from_roster():
             return jsonify({"error": "Can't remove the last remaining admin -- promote someone else first."}), 400
 
     transfer_profile_to_individual_trial(svc, profile_id, target_row.get("email"))
+
+    _log_org_audit_event(
+        svc, organization_id, "roster.remove",
+        target_id=profile_id, target_email=target_row.get("email"),
+        detail={"seat_type": target_row.get("seat_type"), "was_admin": bool(target_row.get("is_org_admin"))},
+    )
 
     # This just freed a seat -- if anyone's waitlisted for this same
     # seat_type at this org, promote the longest-waiting one automatically
@@ -407,6 +448,8 @@ def suspend_member():
         "suspended_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", profile_id).execute()
 
+    _log_org_audit_event(svc, organization_id, "roster.suspend", target_id=profile_id, target_email=target.data[0].get("email"))
+
     if target.data[0].get("email"):
         send_suspended_email(target.data[0]["email"], _get_org_name(svc, organization_id))
 
@@ -441,6 +484,8 @@ def reactivate_member():
         return jsonify({"error": "That person isn't on your roster."}), 404
 
     svc.table("profiles").update({"suspended_at": None}).eq("id", profile_id).execute()
+
+    _log_org_audit_event(svc, organization_id, "roster.reactivate", target_id=profile_id, target_email=target.data[0].get("email"))
 
     if target.data[0].get("email"):
         send_reactivated_email(target.data[0]["email"], _get_org_name(svc, organization_id))
@@ -491,6 +536,8 @@ def promote_admin():
 
     svc.table("profiles").update({"is_org_admin": True}).eq("id", profile_id).execute()
 
+    _log_org_audit_event(svc, organization_id, "admin.promote", target_id=profile_id, target_email=target.data[0].get("email"))
+
     if target.data[0].get("email"):
         send_promoted_admin_email(target.data[0]["email"], _get_org_name(svc, organization_id))
 
@@ -538,6 +585,8 @@ def demote_admin():
         return jsonify({"error": "Can't remove the last remaining admin -- promote someone else first."}), 400
 
     svc.table("profiles").update({"is_org_admin": False}).eq("id", profile_id).execute()
+
+    _log_org_audit_event(svc, organization_id, "admin.demote", target_id=profile_id, target_email=target.data[0].get("email"))
 
     if target.data[0].get("email"):
         send_demoted_admin_email(target.data[0]["email"], _get_org_name(svc, organization_id))
@@ -617,6 +666,33 @@ def org_status():
         result["member_exchanges_cap"] = (usage_by_type.get("member") or {}).get("conversations_cap")
 
     return jsonify(result)
+
+
+@pro_org_bp.route("/audit-log", methods=["GET"])
+@login_required
+def org_audit_log():
+    """Recent roster/admin actions for the caller's own org -- resolves the
+    "who removed/suspended/promoted whom" disputes the audit flagged as
+    having no record beyond the transactional email sent to the affected
+    person (Section 2.6). Admin-only, same gate as every other route here.
+
+    Most-recent-200, no pagination in this first pass -- deliberately
+    minimal per the audit's own scoping; a real church's roster-action
+    volume is nowhere near what would make that a practical limitation."""
+    organization_id, err = _get_admin_org_id()
+    if err:
+        return err
+
+    svc = get_service_client()
+    log = (
+        svc.table("org_audit_log")
+        .select("action, actor_email, target_email, detail, created_at")
+        .eq("organization_id", organization_id)
+        .order("created_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+    return jsonify({"entries": log.data})
 
 
 @pro_org_bp.route("/topics", methods=["GET"])

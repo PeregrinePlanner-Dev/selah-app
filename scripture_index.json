@@ -330,8 +330,30 @@
  },
  "John": {
   "chapters": 21,
-  "verse_counts": null,
-  "source": "reference"
+  "verse_counts": [
+   51,
+   25,
+   36,
+   54,
+   47,
+   71,
+   53,
+   59,
+   41,
+   42,
+   57,
+   50,
+   38,
+   31,
+   27,
+   33,
+   26,
+   40,
+   42,
+   31,
+   25
+  ],
+  "source": "fetched"
  },
  "Acts": {
   "chapters": 28,
@@ -340,8 +362,25 @@
  },
  "Romans": {
   "chapters": 16,
-  "verse_counts": null,
-  "source": "reference"
+  "verse_counts": [
+   32,
+   29,
+   31,
+   25,
+   21,
+   23,
+   25,
+   39,
+   33,
+   21,
+   36,
+   21,
+   14,
+   23,
+   33,
+   27
+  ],
+  "source": "fetched"
  },
  "1 Corinthians": {
   "chapters": 16,

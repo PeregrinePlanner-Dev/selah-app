@@ -280,6 +280,12 @@
       <div id="topics-content"><span class="loading">Loading…</span></div>
     </div>
 
+    <div class="card">
+      <h2>Recent Admin Activity</h2>
+      <div class="sub">Who removed, suspended, reactivated, promoted, or demoted whom on this roster -- the record for resolving "who did this" between admins.</div>
+      <div id="audit-log-content"><span class="loading">Loading…</span></div>
+    </div>
+
   </div>
 
 </div>
@@ -414,6 +420,7 @@ async function loadStatus() {
     loadRoster();
     loadInvites();
     loadTopics();
+    loadAuditLog();
   } catch (e) {
     document.getElementById("loading-view").style.display = "none";
     showBanner("Could not reach the server -- try reloading.", "error");
@@ -859,6 +866,45 @@ async function loadTopics() {
     box.innerHTML = caveat + rows;
   } catch (e) {
     card.style.display = "none";
+  }
+}
+
+// ── Recent Admin Activity (2026-07-15, audit Section 2.6) -- read-only, no
+// gating beyond the page's own admin check. Most-recent-200, no pagination
+// in this first pass, matching the API's own scoping. ─────────────────────
+const AUDIT_ACTION_LABEL = {
+  "roster.remove": "removed from roster",
+  "roster.suspend": "suspended",
+  "roster.reactivate": "reactivated",
+  "admin.promote": "promoted to admin",
+  "admin.demote": "removed as admin",
+};
+
+async function loadAuditLog() {
+  const box = document.getElementById("audit-log-content");
+  try {
+    const res = await fetch("/pro/org/audit-log");
+    const data = await res.json();
+    if (data.error) { box.innerHTML = '<span class="placeholder">Could not load activity.</span>'; return; }
+
+    const entries = data.entries || [];
+    if (!entries.length) {
+      box.innerHTML = '<span class="placeholder">No admin actions recorded yet.</span>';
+      return;
+    }
+
+    box.innerHTML = entries.map(e => {
+      const label = AUDIT_ACTION_LABEL[e.action] || e.action;
+      const actor = e.actor_email || "(unknown)";
+      const target = e.target_email ? ` ${escapeHtml(e.target_email)}` : "";
+      const when = e.created_at ? new Date(e.created_at).toLocaleString() : "—";
+      return `<div class="topic-row">
+        <div class="topic-name">${escapeHtml(actor)} ${label}${target}</div>
+        <div class="topic-count">${escapeHtml(when)}</div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<span class="placeholder">Could not load activity.</span>';
   }
 }
 
