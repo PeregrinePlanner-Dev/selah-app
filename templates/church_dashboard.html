@@ -91,6 +91,22 @@
   .badge-pending   { background: #fef3c7; color: #92400e; }
   .badge-paid      { background: #dcfce7; color: #166534; }
   .badge-comped    { background: #e0f2fe; color: #075985; }
+  .badge-trend-up   { background: #dcfce7; color: #166534; }
+  .badge-trend-down { background: #fef3c7; color: #92400e; }
+  .badge-trend-flat { background: #f3f4f6; color: #4b5563; }
+  .badge-trend-new  { background: #ede9fe; color: #6d28d9; }
+
+  .topic-caveat {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 7px;
+    padding: 8px 12px; font-size: 0.78rem; color: #6b7280; margin-bottom: 12px;
+  }
+  .topic-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85rem; gap: 10px;
+  }
+  .topic-row:last-child { border-bottom: none; }
+  .topic-name { font-weight: 600; color: #1f2937; }
+  .topic-count { color: #6b7280; font-size: 0.78rem; }
 
   .invite-row {
     display: flex; justify-content: space-between; align-items: center;
@@ -258,6 +274,12 @@
       <div id="invites-list"><span class="placeholder">Loading invitations…</span></div>
     </div>
 
+    <div class="card" id="topics-card" style="display:none;">
+      <h2>Congregation Topics</h2>
+      <div class="sub">What your Membership congregation has been exploring in Selah over the last 90 days -- aggregated and anonymized, never tied to a name.</div>
+      <div id="topics-content"><span class="loading">Loading…</span></div>
+    </div>
+
   </div>
 
 </div>
@@ -391,6 +413,7 @@ async function loadStatus() {
     renderSeats(data);
     loadRoster();
     loadInvites();
+    loadTopics();
   } catch (e) {
     document.getElementById("loading-view").style.display = "none";
     showBanner("Could not reach the server -- try reloading.", "error");
@@ -789,6 +812,53 @@ async function revokeInvite(tokenId) {
     loadInvites();
   } catch (e) {
     alert("Something went wrong -- try again.");
+  }
+}
+
+// ── Congregation Topics (2026-07-15) -- Membership-only, aggregated and
+// anonymized. The card itself stays hidden until we know it's a church org
+// with topics data worth showing; loadStatus() only calls this from the
+// admin-view branch, so a non-church org never even requests it. ──────────
+const TREND_LABEL = { up: "▲ Rising", down: "▼ Fewer", flat: "— Steady", new: "★ New" };
+
+async function loadTopics() {
+  const card = document.getElementById("topics-card");
+  const box = document.getElementById("topics-content");
+  try {
+    const res = await fetch("/pro/org/topics");
+    const data = await res.json();
+    if (data.error) { card.style.display = "none"; return; }
+
+    if (!data.active) {
+      if (data.reason === "not_a_church_org") { card.style.display = "none"; return; }
+      card.style.display = "block";
+      box.innerHTML = data.reason === "org_too_new"
+        ? `<span class="placeholder">This unlocks once your church has 30 days of history -- ${data.days_until_active} more day${data.days_until_active === 1 ? "" : "s"} to go.</span>`
+        : `<span class="placeholder">Not available yet.</span>`;
+      return;
+    }
+
+    card.style.display = "block";
+    const topics = data.topics || [];
+    if (!topics.length) {
+      box.innerHTML = `<span class="placeholder">Not enough activity yet -- a topic needs at least ${data.min_cohort_size} different members before it shows up here.</span>`;
+      return;
+    }
+
+    const caveat = `<div class="topic-caveat">Counts are distinct members per topic over the last ${data.window_days} days, never names or individual conversations. A topic with a small member count is still a real signal -- just a small sample.</div>`;
+    const rows = topics.map(t => {
+      const trendBadge = `<span class="badge badge-trend-${t.trend}">${TREND_LABEL[t.trend] || t.trend}</span>`;
+      return `<div class="topic-row">
+        <div>
+          <div class="topic-name">${escapeHtml(t.display_name)}</div>
+          <div class="topic-count">${t.distinct_members} member${t.distinct_members === 1 ? "" : "s"}</div>
+        </div>
+        ${trendBadge}
+      </div>`;
+    }).join("");
+    box.innerHTML = caveat + rows;
+  } catch (e) {
+    card.style.display = "none";
   }
 }
 

@@ -16,10 +16,12 @@ something an ordinary seat-holder can trigger themselves.
 """
 
 import secrets
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, render_template, url_for
 
+from engine import NODE_DISPLAY_NAMES
 from pro_auth import login_required, get_user_supabase, get_service_client
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
 from pro_email import (
@@ -29,6 +31,16 @@ from pro_email import (
     send_promoted_admin_email,
     send_demoted_admin_email,
 )
+
+# Congregation topic-aggregation dashboard (2026-07-15, Rick-approved scoping):
+# minimum cohort of 5 distinct members before a topic renders at all ("5 to
+# start is fine with the caveat that it's a small sample size, real (just
+# small)"); org needs 30 days of history before the dashboard activates
+# ("minimum 30"); rolling 90-day display window, compared against the prior
+# 90-day window for trend ("rolling 90").
+TOPIC_PULSE_MIN_COHORT = 5
+TOPIC_PULSE_MIN_ORG_AGE_DAYS = 30
+TOPIC_PULSE_WINDOW_DAYS = 90
 
 pro_org_bp = Blueprint("pro_org", __name__, url_prefix="/pro/org")
 
@@ -605,6 +617,116 @@ def org_status():
         result["member_exchanges_cap"] = (usage_by_type.get("member") or {}).get("conversations_cap")
 
     return jsonify(result)
+
+
+@pro_org_bp.route("/topics", methods=["GET"])
+@login_required
+def org_topics():
+    """Congregation topic-aggregation dashboard -- what nodes/topics the
+    Membership seat-holders have actually been engaging with, aggregated and
+    anonymized. Admin-only, same _get_admin_org_id() gate as every other
+    route in this file.
+
+    Reads ONLY congregation_topic_pulse, never planning_sessions -- see that
+    table's own migration comment for why (a member later hard-deleting
+    their conversation must not erase this signal).
+
+    Three gating rules, all Rick-approved 2026-07-15:
+      - Membership seats only. congregation_topic_pulse is only ever written
+        for seat_type == 'member' turns (pro_chat.py's _record_topic_pulse
+        call site), so this route doesn't need its own filter for that --
+        it's structural, not a query-time decision.
+      - Dashboard doesn't activate at all until the org is
+        TOPIC_PULSE_MIN_ORG_AGE_DAYS old, regardless of how much data
+        exists -- a brand-new org's first week of activity isn't yet a
+        meaningful pastoral signal.
+      - A node only appears once at least TOPIC_PULSE_MIN_COHORT distinct
+        members have touched it in the current window -- never returns a
+        count of 1-4, which would functionally de-anonymize a small church's
+        early adopters.
+
+    user_id itself is never returned -- only used server-side to build the
+    per-node distinct-member sets below."""
+    organization_id, err = _get_admin_org_id()
+    if err:
+        return err
+
+    svc = get_service_client()
+
+    org_resp = svc.table("organizations").select("org_type, created_at").eq("id", organization_id).limit(1).execute()
+    if not org_resp.data:
+        return jsonify({"error": "organization not found"}), 404
+    org_row = org_resp.data[0]
+
+    if org_row.get("org_type") != "church":
+        return jsonify({"active": False, "reason": "not_a_church_org", "topics": []})
+
+    created_at = datetime.fromisoformat(org_row["created_at"].replace("Z", "+00:00"))
+    org_age_days = (datetime.now(timezone.utc) - created_at).days
+    if org_age_days < TOPIC_PULSE_MIN_ORG_AGE_DAYS:
+        return jsonify({
+            "active": False,
+            "reason": "org_too_new",
+            "days_until_active": TOPIC_PULSE_MIN_ORG_AGE_DAYS - org_age_days,
+            "topics": [],
+        })
+
+    today = date.today()
+    current_cutoff = today - timedelta(days=TOPIC_PULSE_WINDOW_DAYS)
+    prior_cutoff = today - timedelta(days=TOPIC_PULSE_WINDOW_DAYS * 2)
+
+    # Pulled as raw rows and bucketed here in Python rather than via a
+    # GROUP BY -- volume per org is naturally small (bounded by roster size x
+    # node count x ~26 weeks), and doing it here keeps both the current and
+    # prior windows' distinct-member sets available for the trend comparison
+    # below without a second round trip.
+    rows_resp = (
+        svc.table("congregation_topic_pulse")
+        .select("node, week_start, user_id")
+        .eq("organization_id", organization_id)
+        .gte("week_start", prior_cutoff.isoformat())
+        .execute()
+    )
+
+    current_members_by_node = defaultdict(set)
+    prior_members_by_node = defaultdict(set)
+    for r in (rows_resp.data or []):
+        week_start = date.fromisoformat(r["week_start"])
+        if week_start >= current_cutoff:
+            current_members_by_node[r["node"]].add(r["user_id"])
+        else:
+            prior_members_by_node[r["node"]].add(r["user_id"])
+
+    topics = []
+    for node, members in current_members_by_node.items():
+        distinct_members = len(members)
+        if distinct_members < TOPIC_PULSE_MIN_COHORT:
+            continue
+        prior_distinct_members = len(prior_members_by_node.get(node, ()))
+        if prior_distinct_members == 0:
+            trend = "new"
+        elif distinct_members > prior_distinct_members:
+            trend = "up"
+        elif distinct_members < prior_distinct_members:
+            trend = "down"
+        else:
+            trend = "flat"
+        topics.append({
+            "node": node,
+            "display_name": NODE_DISPLAY_NAMES.get(node, node),
+            "distinct_members": distinct_members,
+            "prior_distinct_members": prior_distinct_members,
+            "trend": trend,
+        })
+
+    topics.sort(key=lambda t: t["distinct_members"], reverse=True)
+
+    return jsonify({
+        "active": True,
+        "window_days": TOPIC_PULSE_WINDOW_DAYS,
+        "min_cohort_size": TOPIC_PULSE_MIN_COHORT,
+        "topics": topics,
+    })
 
 
 @pro_org_bp.route("/dashboard", methods=["GET"])

@@ -265,6 +265,49 @@ def _billing_month_today() -> str:
     return today.replace(day=1).isoformat()
 
 
+def _week_start_today() -> str:
+    """Monday of the current ISO week, as an ISO date string -- the bucket
+    key congregation_topic_pulse groups on. Computed here in application
+    code rather than as a DB default so the bucketing logic lives in one
+    place; see the migration's own comment for why."""
+    today = date.today()
+    return (today - timedelta(days=today.weekday())).isoformat()
+
+
+def _record_topic_pulse(organization_id: str, node: str, user_id: str) -> None:
+    """Congregation topic-aggregation dashboard (2026-07-15, Rick-approved
+    design -- see congregation_topic_pulse's own table comment for the full
+    rationale). Fire-and-forget: called AFTER the cap-check has already
+    reserved this turn, for Membership-seat turns only (Leadership is a
+    different signal, not what this dashboard is for). Uses the
+    service-role client, same as _check_and_reserve_usage -- this table has
+    no INSERT policy for any client role.
+
+    A repeat turn on the same node, same week, same member is a silent
+    no-op (ON CONFLICT DO NOTHING) rather than an error -- the table is a
+    presence counter (did this member touch this topic this week), not a
+    frequency counter, so duplicates are expected and intentionally
+    collapsed rather than reported as failures.
+
+    Deliberately swallows its own errors rather than failing the chat
+    turn -- this is pastoral-intelligence telemetry, not something a member
+    should ever see block or degrade their own conversation."""
+    try:
+        svc = get_service_client()
+        svc.table("congregation_topic_pulse").upsert(
+            {
+                "organization_id": organization_id,
+                "node": node,
+                "week_start": _week_start_today(),
+                "user_id": user_id,
+            },
+            on_conflict="organization_id,node,week_start,user_id",
+            ignore_duplicates=True,
+        ).execute()
+    except Exception:
+        pass
+
+
 def _check_and_reserve_usage(
     organization_id: str, tier_slug: str, module_slug: str | None = None, cap: int | None = None,
     seat_type: str | None = None,
@@ -556,6 +599,14 @@ def pro_chat():
         convo["node"] = route_to_node(message)
 
     active_node = convo["node"]
+
+    # Congregation topic-aggregation dashboard instrumentation -- Membership
+    # seats only (Rick, 2026-07-15), fired here (after the cap-check above
+    # has already gated/reserved this turn) so a turn that got capped never
+    # gets counted. See _record_topic_pulse's own docstring for the full
+    # design rationale.
+    if profile_seat_type == "member":
+        _record_topic_pulse(organization_id, active_node, session.get("sb_user_id"))
 
     convo["messages"].append({"role": "user", "content": message})
 
