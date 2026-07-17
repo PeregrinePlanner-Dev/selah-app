@@ -276,6 +276,11 @@
          in place, not deleted, in case a real use for it turns up later.
     <span class="node-badge" id="node-badge">No topic yet</span>
     -->
+    {% if user_email %}
+    <span style="font-size:0.68rem;opacity:0.75;">{{ user_email }} ·
+      <a href="#" onclick="fetch('/access/logout',{method:'POST'}).then(()=>window.location.href='/access');return false;" style="color:white;">Sign out</a>
+    </span>
+    {% endif %}
   </div>
 </header>
 

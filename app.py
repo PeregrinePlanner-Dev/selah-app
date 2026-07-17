@@ -2,14 +2,15 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 
 from pro_auth import pro_bp
-from pro_chat import pro_chat_bp
+from pro_chat import pro_chat_bp, _check_and_reserve_usage
 from pro_billing import pro_billing_bp
 from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
+from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
@@ -30,6 +31,22 @@ app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
 app.register_blueprint(pro_org_bp)
 app.register_blueprint(pro_scheduler_bp)
+
+# Free-tier mandatory sign-in gate -- additive, added 2026-07-17. See
+# free_gate.py's module docstring and 05- Future/Selah_Decisions_2026-07-17.md
+# for the full reasoning (invite-only, 30 exchanges/account/month, $50/month
+# budget ceiling). _check_and_reserve_usage is reused directly from
+# pro_chat.py rather than duplicated -- it already works generically off
+# (organization_id, tier_slug), and tier_slug='free' already existed in both
+# the subscriptions table's CHECK constraint and TIER_CONVERSATION_CAPS
+# before this change, suggesting the schema was designed anticipating this.
+app.register_blueprint(free_gate_bp)
+
+FREE_TIER_CAP_HIT_MESSAGE = (
+    "You've reached this month's message limit for the free tier. It resets "
+    "at the start of next month -- thanks for your patience, and for being "
+    "part of this."
+)
 
 # Node content, routing, system-prompt assembly (build_system_blocks), and
 # response parsing (parse_response) all live in engine.py now (extracted
@@ -125,7 +142,15 @@ def index():
     # live, preview at /ministry on the existing domain.
     if request.host.startswith("ministry."):
         return render_template("ministry.html")
-    return render_template("index.html", nodes=NODE_NAMES, node_display_names=NODE_DISPLAY_NAMES)
+    # Free-tier gate, added 2026-07-17 -- the ministry landing page, /church,
+    # and the /invite explainer page (below) deliberately stay open; only
+    # the actual chat tool requires sign-in now.
+    if not is_free_gate_authenticated():
+        return redirect(url_for("free_gate.access_home"))
+    return render_template(
+        "index.html", nodes=NODE_NAMES, node_display_names=NODE_DISPLAY_NAMES,
+        user_email=session.get("fg_email", ""),
+    )
 
 @app.route("/ministry")
 def ministry():
@@ -153,10 +178,22 @@ def legal():
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    # Free-tier gate, added 2026-07-17. Checked before the rate limiter --
+    # no point counting an unauthenticated request against the IP limiter at
+    # all if it's about to be rejected anyway.
+    if not is_free_gate_authenticated():
+        return jsonify({"error": "sign_in_required", "redirect": "/access"}), 401
+
     data       = request.json
     message    = data.get("message", "").strip()
-    session_id = data.get("session_id")
     force_node = data.get("node")
+
+    # Session key is the signed-in account's own id, NOT whatever session_id
+    # the client sends -- this is what actually makes the gate meaningful
+    # (a stable identity to check the cap against) rather than cosmetic.
+    # Client-supplied session_id is accepted in the request body for
+    # backward JS compatibility but no longer used for dict keying.
+    session_id = session["fg_user_id"]
 
     if not message:
         return jsonify({"error": "empty message"}), 400
@@ -166,6 +203,23 @@ def chat():
         msg = RATE_LIMIT_MESSAGE_BURST if limit_hit == "burst" else RATE_LIMIT_MESSAGE_DAILY
         return jsonify({
             "reply":    msg,
+            "question": "",
+            "sources":  [],
+            "node":     "",
+            "anchor":   "",
+            "chips":    [],
+            "turn":     0,
+        })
+
+    # Per-account monthly cap, added 2026-07-17 -- reuses pro_chat.py's
+    # TIER_CONVERSATION_CAPS['free'] (already env-overridable via
+    # FREE_TIER_MONTHLY_CAP, decided at 30/month) via the exact same
+    # (organization_id, tier_slug) pattern Individual Pro already uses.
+    # Checked after the IP rate limiter (a cheap in-memory check) but before
+    # touching the DB or calling Anthropic.
+    if not _check_and_reserve_usage(current_free_org_id(), "free"):
+        return jsonify({
+            "reply":    FREE_TIER_CAP_HIT_MESSAGE,
             "question": "",
             "sources":  [],
             "node":     "",
@@ -282,7 +336,9 @@ def chat():
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    sid = request.json.get("session_id")
+    if not is_free_gate_authenticated():
+        return jsonify({"error": "sign_in_required", "redirect": "/access"}), 401
+    sid = session["fg_user_id"]
     if sid in conversations:
         del conversations[sid]
     return jsonify({"ok": True})
@@ -290,8 +346,10 @@ def reset():
 @app.route("/export", methods=["POST"])
 def export():
     """Return a plain-text session transcript for saving."""
+    if not is_free_gate_authenticated():
+        return jsonify({"error": "sign_in_required", "redirect": "/access"}), 401
     data    = request.json
-    sid     = data.get("session_id")
+    sid     = session["fg_user_id"]
     sources = data.get("sources", [])
     convo   = conversations.get(sid, {})
     msgs    = convo.get("messages", [])
@@ -318,8 +376,11 @@ def export():
 @app.route("/upload_session", methods=["POST"])
 def upload_session():
     """Seed a new session from a previously downloaded recap file."""
+    if not is_free_gate_authenticated():
+        return jsonify({"error": "sign_in_required", "redirect": "/access"}), 401
+
     data       = request.json
-    session_id = data.get("session_id")
+    session_id = session["fg_user_id"]
     content    = data.get("content", "")
 
     limit_hit = check_rate_limit(get_client_ip())
@@ -327,6 +388,16 @@ def upload_session():
         msg = RATE_LIMIT_MESSAGE_BURST if limit_hit == "burst" else RATE_LIMIT_MESSAGE_DAILY
         return jsonify({
             "greeting": msg,
+            "node":     "",
+            "anchor":   "",
+        })
+
+    # Same per-account cap as /chat -- this route makes two real Anthropic
+    # calls (context brief + greeting), so it counts against the same
+    # monthly allowance rather than being a free way around the cap.
+    if not _check_and_reserve_usage(current_free_org_id(), "free"):
+        return jsonify({
+            "greeting": FREE_TIER_CAP_HIT_MESSAGE,
             "node":     "",
             "anchor":   "",
         })
@@ -427,4 +498,9 @@ def upload_session():
 if __name__ == "__main__":
     print(f"Selah running --> http://localhost:5000")
     print(f"Nodes loaded: {len(NODES)}")
-    app.run(debug=True, port=5000)
+    # Gated on an env var, not hardcoded -- flagged in the 2026-07-14 audit
+    # (Section 3.4a) as a latent footgun (Flask debug mode exposes a remote
+    # code-execution console on unhandled errors). Not an active risk today
+    # since gunicorn/the Procfile never executes this line, but cheap to fix
+    # while this file's already open. Set FLASK_DEBUG=1 locally to opt in.
+    app.run(debug=os.environ.get("FLASK_DEBUG", "") == "1", port=5000)

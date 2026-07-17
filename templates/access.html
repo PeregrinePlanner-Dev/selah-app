@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah — Sign In</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 420px; padding: 24px; }
+  .brand {
+    text-align: center; margin-bottom: 20px;
+  }
+  .brand-title { font-size: 1.3rem; font-weight: 700; color: #2f6b66; letter-spacing: 0.02em; }
+  .brand-sub { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
+  .card {
+    background: white; border-radius: 10px; border: 1px solid #e2e4e9;
+    padding: 24px 22px;
+  }
+  .card p.lead {
+    font-size: 0.85rem; color: #374151; line-height: 1.5; margin-bottom: 18px;
+  }
+  label {
+    display: block; font-size: 0.72rem; font-weight: 600; color: #374151;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+  }
+  input {
+    width: 100%; padding: 10px 12px; margin-bottom: 14px;
+    border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;
+    font-family: inherit;
+  }
+  input:focus { outline: none; border-color: #2f6b66; }
+  .hint { font-size: 0.72rem; color: #9ca3af; margin: -8px 0 14px; }
+  button {
+    width: 100%; padding: 11px; border: none; border-radius: 6px;
+    background: #2f6b66; color: white; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #275b57; }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  .msg {
+    font-size: 0.8rem; padding: 10px 12px; border-radius: 6px; margin-bottom: 14px;
+    display: none;
+  }
+  .msg.error   { background: #fef2f2; color: #991b1b; display: block; }
+  .msg.success { background: #f0fdf4; color: #065f46; display: block; }
+  .step { display: none; }
+  .step.active { display: block; }
+  .footnote {
+    text-align: center; font-size: 0.72rem; color: #9ca3af; margin-top: 16px; line-height: 1.5;
+  }
+  .footnote a { color: #2f6b66; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-title">Selah</div>
+    <div class="brand-sub">Exploring Theology</div>
+  </div>
+
+  <div class="card">
+    {% if already_signed_in %}
+      <p class="lead">You're already signed in.</p>
+      <button onclick="window.location.href='/'">Continue to Selah</button>
+    {% else %}
+      <div id="msg" class="msg"></div>
+
+      <div id="step-email" class="step active">
+        <p class="lead">Selah's free tool is invite-only right now. If someone shared an invite code with you, enter it below — you'll only need it the first time. Already have an account? Just enter your email.</p>
+        <label for="first_name">First name</label>
+        <input type="text" id="first_name" autocomplete="given-name">
+        <label for="last_name">Last name</label>
+        <input type="text" id="last_name" autocomplete="family-name">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required>
+        <label for="invite_code">Invite code</label>
+        <input type="text" id="invite_code" placeholder="SELAH-XXXXXX" autocapitalize="characters">
+        <div class="hint">First time only — leave blank if you've signed in before.</div>
+        <button id="btn-request" onclick="requestCode()">Send me a code</button>
+      </div>
+
+      <div id="step-code" class="step">
+        <p class="lead">Check <strong id="code-email"></strong> for a 6-digit code — enter it below.</p>
+        <label for="code">Code</label>
+        <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code">
+        <button id="btn-verify" onclick="verifyCode()">Sign in</button>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="footnote">
+    No password, nothing stored beyond what keeps this free for everyone. <a href="/legal">Privacy</a>
+  </div>
+</div>
+
+<script>
+let pendingEmail = "";
+
+function showMsg(text, kind) {
+  const el = document.getElementById("msg");
+  el.textContent = text;
+  el.className = "msg " + kind;
+}
+
+async function requestCode() {
+  const email = document.getElementById("email").value.trim();
+  const invite_code = document.getElementById("invite_code").value.trim();
+  const first_name = document.getElementById("first_name").value.trim();
+  const last_name = document.getElementById("last_name").value.trim();
+  if (!email) { showMsg("Enter your email.", "error"); return; }
+
+  const btn = document.getElementById("btn-request");
+  btn.disabled = true; btn.textContent = "Sending...";
+
+  try {
+    const res = await fetch("/access/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, invite_code, first_name, last_name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.error || "Something went wrong.", "error");
+      btn.disabled = false; btn.textContent = "Send me a code";
+      return;
+    }
+    pendingEmail = email;
+    document.getElementById("code-email").textContent = email;
+    document.getElementById("step-email").classList.remove("active");
+    document.getElementById("step-code").classList.add("active");
+    showMsg("Code sent — check your email.", "success");
+  } catch (e) {
+    showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
+    btn.disabled = false; btn.textContent = "Send me a code";
+  }
+}
+
+async function verifyCode() {
+  const code = document.getElementById("code").value.trim();
+  if (!code) { showMsg("Enter the code from your email.", "error"); return; }
+
+  const btn = document.getElementById("btn-verify");
+  btn.disabled = true; btn.textContent = "Signing in...";
+
+  try {
+    const res = await fetch("/access/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: pendingEmail, code }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.error || "That code didn't work.", "error");
+      btn.disabled = false; btn.textContent = "Sign in";
+      return;
+    }
+    window.location.href = "/";
+  } catch (e) {
+    showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
+    btn.disabled = false; btn.textContent = "Sign in";
+  }
+}
+</script>
+</body>
+</html>
