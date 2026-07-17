@@ -69,10 +69,14 @@
       <p class="lead">You're already signed in.</p>
       <button onclick="window.location.href='/'">Continue to Selah</button>
     {% else %}
-      <div id="msg" class="msg"></div>
+      <div id="msg" class="msg{% if link_error %} error{% endif %}">{{ link_error or "" }}</div>
+
+      <div id="step-checking" class="step">
+        <p class="lead">Signing you in…</p>
+      </div>
 
       <div id="step-email" class="step active">
-        <p class="lead">Selah's free tool is invite-only right now. If someone shared an invite code with you, enter it below — you'll only need it the first time. Already have an account? Just enter your email.</p>
+        <p class="lead">Selah's free tool is invite-only right now. If someone shared an invite code with you, enter it below — you'll only need it the first time. Already have an account? Just enter your email. If you clicked a link from your email instead of typing a code, that works too — this page will pick it up automatically.</p>
         <label for="first_name">First name</label>
         <input type="text" id="first_name" autocomplete="given-name">
         <label for="last_name">Last name</label>
@@ -107,6 +111,54 @@ function showMsg(text, kind) {
   el.textContent = text;
   el.className = "msg " + kind;
 }
+
+function showStep(id) {
+  document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// Fragment-based link completion (VERIFY-BY-LINK, path 2 in free_gate.py).
+// Supabase's older implicit-grant email links redirect back here with the
+// session tokens after a '#' (e.g. #access_token=...&refresh_token=...) --
+// that fragment is never sent to the server, only visible to JS running on
+// this page, so this has to happen client-side. The server-side link path
+// (token_hash in the query string) is tried first, before this page even
+// loads, by /access/callback itself -- this only runs for the older
+// fragment style, or if someone lands here directly with a stale fragment.
+(function checkForLinkTokens() {
+  if (!window.location.hash || window.location.hash.indexOf("access_token") === -1) return;
+
+  const params = new URLSearchParams(window.location.hash.substring(1));
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+  if (!access_token || !refresh_token) return;
+
+  // Clear the fragment from the URL right away -- these are live session
+  // tokens, no reason to leave them sitting in browser history/address bar
+  // any longer than necessary.
+  history.replaceState(null, "", window.location.pathname);
+
+  showStep("step-checking");
+
+  fetch("/access/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access_token, refresh_token }),
+  })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok) {
+        window.location.href = "/";
+      } else {
+        showMsg(data.error || "That link didn't work. Try requesting a new one below.", "error");
+        showStep("step-email");
+      }
+    })
+    .catch(() => {
+      showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
+      showStep("step-email");
+    });
+})();
 
 async function requestCode() {
   const email = document.getElementById("email").value.trim();
