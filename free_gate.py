@@ -125,13 +125,29 @@ def _complete_signin(user_id: str, email: str, access_token: str,
 
 @free_gate_bp.route("/")
 def access_home():
-    """Sign-in screen: email + (first-time-only) invite code, then a second
-    step to enter the emailed code -- shown either because the user typed an
-    email and is waiting on the code, or as a fallback if the link click
-    (handled client-side, see access.html) didn't complete automatically."""
+    """Sign-in screen: email + (first-time-only) invite code, then a
+    waiting screen while the emailed link is clicked -- shown either
+    because the user just submitted their email, or as a fallback if the
+    link click (handled client-side, see access.html) didn't complete
+    automatically."""
     if is_free_gate_authenticated():
         return render_template("access.html", already_signed_in=True)
     return render_template("access.html", already_signed_in=False)
+
+
+@free_gate_bp.route("/status")
+def access_status():
+    """Polled by access.html while someone's waiting on the emailed link.
+    Real-world flow, found from Rick's own test: Supabase's email shows a
+    link, not a visible code, and clicking it opens a NEW tab (standard
+    email-client/browser behavior) -- so the tab where the email was
+    requested has no idea the other tab just finished signing in. Session
+    cookies are shared across tabs of the same browser, though, so once the
+    new tab completes sign-in, this endpoint (hit from the ORIGINAL tab)
+    picks that up on the very next poll and lets that tab redirect itself
+    too, instead of leaving the person looking at a stale 'waiting' screen
+    next to an already-signed-in tab with no explanation."""
+    return jsonify({"authenticated": is_free_gate_authenticated()})
 
 
 @free_gate_bp.route("/callback")
