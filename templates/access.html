@@ -107,6 +107,18 @@
 <script>
 let pendingEmail = "";
 
+// Prefill from a personal invite link (?email=...&code=...), added
+// 2026-07-17 alongside the admin invite-issuing page in free_gate.py --
+// the emailed link carries both so the invitee doesn't have to copy
+// anything by hand, just click Continue.
+(function prefillFromInviteLink() {
+  const params = new URLSearchParams(window.location.search);
+  const email = params.get("email");
+  const code = params.get("code");
+  if (email) document.getElementById("email").value = email;
+  if (code) document.getElementById("invite_code").value = code;
+})();
+
 function showMsg(text, kind) {
   const el = document.getElementById("msg");
   el.textContent = text;

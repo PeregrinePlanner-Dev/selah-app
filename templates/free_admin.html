@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah — Free Tier Invites</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 0;
+  }
+  .wrap { width: 100%; max-width: 460px; padding: 24px; }
+  .brand { text-align: center; margin-bottom: 20px; }
+  .brand-title { font-size: 1.3rem; font-weight: 700; color: #2f6b66; letter-spacing: 0.02em; }
+  .brand-sub { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
+  .card {
+    background: white; border-radius: 10px; border: 1px solid #e2e4e9;
+    padding: 24px 22px;
+  }
+  .card p.lead { font-size: 0.85rem; color: #374151; line-height: 1.5; margin-bottom: 18px; }
+  label {
+    display: block; font-size: 0.72rem; font-weight: 600; color: #374151;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+  }
+  input {
+    width: 100%; padding: 10px 12px; margin-bottom: 14px;
+    border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;
+    font-family: inherit;
+  }
+  input:focus { outline: none; border-color: #2f6b66; }
+  button {
+    width: 100%; padding: 11px; border: none; border-radius: 6px;
+    background: #2f6b66; color: white; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #275b57; }
+  button.secondary { background: transparent; color: #6b7280; font-weight: 500; margin-top: 8px; }
+  button.secondary:hover { background: #f3f4f6; }
+  .msg {
+    font-size: 0.8rem; padding: 10px 12px; border-radius: 6px; margin-bottom: 14px;
+  }
+  .msg.error { background: #fef2f2; color: #991b1b; }
+  .msg.success { background: #f0fdf4; color: #065f46; }
+  .result {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 12px 14px; font-size: 0.82rem; color: #374151; margin-bottom: 18px;
+    word-break: break-all; line-height: 1.6;
+  }
+  .result strong { color: #111827; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-title">Selah</div>
+    <div class="brand-sub">Free-tier invites</div>
+  </div>
+
+  <div class="card">
+    {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
+
+    {% if not logged_in %}
+      <p class="lead">Enter the admin key to issue invites.</p>
+      <form method="POST" action="{{ url_for('free_gate.admin_login') }}">
+        <label for="key">Admin key</label>
+        <input type="password" id="key" name="key" required autofocus>
+        <button type="submit">Unlock</button>
+      </form>
+    {% else %}
+      {% if result %}
+        <div class="msg {{ 'success' if result.sent else 'error' }}">
+          {% if result.sent %}Invite emailed to {{ result.email }}.{% else %}Couldn't send the email -- share this manually.{% endif %}
+        </div>
+        <div class="result">
+          <strong>Email:</strong> {{ result.email }}<br>
+          <strong>Code:</strong> {{ result.token }}<br>
+          <strong>Link:</strong> <a href="{{ result.link }}">{{ result.link }}</a>
+        </div>
+      {% endif %}
+
+      <p class="lead">Issue a new invite. It's tied to this exact email — it won't work for anyone else.</p>
+      <form method="POST" action="{{ url_for('free_gate.admin_invite') }}">
+        <label for="name">Name (optional)</label>
+        <input type="text" id="name" name="name">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+        <button type="submit">Create &amp; send invite</button>
+      </form>
+      <form method="POST" action="{{ url_for('free_gate.admin_logout') }}">
+        <button type="submit" class="secondary">Log out</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

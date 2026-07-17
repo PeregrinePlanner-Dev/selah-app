@@ -51,10 +51,14 @@ problem, which needs its own dedicated pass.
 """
 
 import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 
 from pro_auth import get_supabase, get_service_client
+from pro_email import send_email
 
 free_gate_bp = Blueprint("free_gate", __name__, url_prefix="/access")
 
@@ -68,6 +72,20 @@ GENERIC_CODE_ERROR = (
     "That code didn't work -- it may be wrong or expired. Try again or "
     "request a new one."
 )
+WRONG_EMAIL_ERROR = (
+    "That invite code was sent to a different email address. Enter the "
+    "email it was originally sent to, or ask whoever invited you for a "
+    "fresh code."
+)
+
+# Gate for the invite-issuing admin page below -- set FREE_TIER_ADMIN_KEY in
+# the environment (Render dashboard). No admin-role system exists for free-
+# tier accounts (unlike Church/Org's is_org_admin, which is scoped to a
+# specific organization) -- this is just Rick/Clark personally issuing
+# invites, so a single shared secret is the right amount of gate for now,
+# not a new permissions model.
+FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "")
+DEFAULT_INVITE_EXPIRY_DAYS = 30
 
 
 def _clear_free_session() -> None:
@@ -256,6 +274,8 @@ def access_request():
         })
     except Exception as e:
         msg = str(e)
+        if "free_tier_invite_wrong_email" in msg:
+            return jsonify({"error": WRONG_EMAIL_ERROR}), 400
         if "invalid_or_used_free_tier_invite_code" in msg:
             return jsonify({
                 "error": "That invite code isn't valid, has already been used, "
@@ -301,3 +321,89 @@ def access_verify():
 def access_logout():
     _clear_free_session()
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Invite-issuing admin page, added 2026-07-17 (later same day as the gate
+# itself), prompted directly by Rick catching a real gap: the original 25
+# seeded codes (see Selah_Free_Tier_Invite_Codes_2026-07-17.md) prove
+# possession of a code, not that the person using it is who it was meant
+# for -- invited_email existed as a column on free_tier_invites but was
+# never set or checked. The migration applied alongside this (see
+# free_tier_invite_email_match) makes the DB trigger enforce that match
+# when invited_email IS set; codes issued from here always set it. The
+# original 25 stay as open/general codes (invited_email null), unaffected.
+# ---------------------------------------------------------------------------
+
+def _is_admin() -> bool:
+    return bool(session.get("fg_is_admin"))
+
+
+@free_gate_bp.route("/admin", methods=["GET"])
+def admin_home():
+    """Single page, two states: a one-time shared-secret login (no per-
+    person admin accounts exist for the free tier -- this is just Rick/
+    Clark personally issuing invites, a shared key is the right amount of
+    gate for that), then the actual invite form once unlocked."""
+    return render_template("free_admin.html", logged_in=_is_admin())
+
+
+@free_gate_bp.route("/admin/login", methods=["POST"])
+def admin_login():
+    key = (request.form.get("key") or "").strip()
+    if not FREE_TIER_ADMIN_KEY:
+        return render_template("free_admin.html", logged_in=False,
+                                error="FREE_TIER_ADMIN_KEY isn't set on the server -- nothing to check against.")
+    if not key or key != FREE_TIER_ADMIN_KEY:
+        return render_template("free_admin.html", logged_in=False, error="Wrong key.")
+    session["fg_is_admin"] = True
+    return redirect(url_for("free_gate.admin_home"))
+
+
+@free_gate_bp.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    session.pop("fg_is_admin", None)
+    return redirect(url_for("free_gate.admin_home"))
+
+
+@free_gate_bp.route("/admin/invite", methods=["POST"])
+def admin_invite():
+    """Creates one email-scoped invite and emails it directly -- Rick's own
+    part is just a name and an email, nothing to relay by hand. Falls back
+    to showing the code/link on-screen if the email send fails (Resend
+    down, bad address typo, etc.) so the invite isn't silently lost."""
+    if not _is_admin():
+        return redirect(url_for("free_gate.admin_home"))
+
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+
+    if not email or "@" not in email:
+        return render_template("free_admin.html", logged_in=True, error="Enter a valid email address.")
+
+    token = "SELAH-" + secrets.token_hex(3).upper()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=DEFAULT_INVITE_EXPIRY_DAYS)).isoformat()
+
+    svc = get_service_client()
+    svc.table("free_tier_invites").insert({
+        "token": token,
+        "invited_email": email,
+        "expires_at": expires_at,
+    }).execute()
+
+    invite_link = (request.host_url.rstrip("/") + url_for("free_gate.access_home")
+                   + "?" + urlencode({"email": email, "code": token}))
+    greeting = f"Hi {name}," if name else "Hi,"
+    html = f"""
+      <p>{greeting}</p>
+      <p>You've been invited to try Selah's free exploration tool.</p>
+      <p><a href="{invite_link}">Click here to get started</a> -- it'll have your email and invite code
+      ({token}) already filled in. First time only; after that you'll just sign in with your email.</p>
+      <p style="color:#6b7280; font-size:0.85rem;">This invite expires in {DEFAULT_INVITE_EXPIRY_DAYS} days.</p>
+    """
+    sent = send_email(email, "You're invited to Selah", html)
+
+    return render_template(
+        "free_admin.html", logged_in=True,
+        result={"email": email, "token": token, "link": invite_link, "sent": sent},
+    )
