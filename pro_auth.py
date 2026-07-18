@@ -16,6 +16,7 @@ Pro ever handles more sensitive data than it does today.
 
 import os
 import time
+from collections import defaultdict
 from functools import wraps
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
@@ -28,6 +29,54 @@ pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+# ── Login/signup abuse guard ────────────────────────────────────────────────
+# Added 2026-07-18 -- this file had zero throttling on /login or /signup,
+# flagged in Selah_Full_Stack_Audit_2026-07-14.md Section 3.4a and confirmed
+# still open by reading this file directly (unlike the signup-*copy* item in
+# the same audit list, which turned out to already be fixed by the 2026-07-17
+# sign-in work -- checked before assuming either way). In-memory, per-process,
+# same tradeoff as app.py's anonymous rate limiter (won't survive a redeploy
+# or share state across instances if this ever scales past one) -- matches
+# the existing pattern in this codebase rather than adding a new dependency
+# for a single-instance deployment. Two separate checks on login, not one:
+# per-IP AND per-email, since a distributed attacker rotating IPs could
+# otherwise still hammer one target account. Signup only needs per-IP -- no
+# target account to protect, the concern there is mass fake-account/
+# confirmation-email spam, not credential stuffing.
+LOGIN_ATTEMPT_LIMIT = int(os.environ.get("LOGIN_ATTEMPT_LIMIT", "8"))
+LOGIN_WINDOW_SECONDS = int(os.environ.get("LOGIN_WINDOW_SECONDS", "300"))     # 5 min
+SIGNUP_ATTEMPT_LIMIT = int(os.environ.get("SIGNUP_ATTEMPT_LIMIT", "5"))
+SIGNUP_WINDOW_SECONDS = int(os.environ.get("SIGNUP_WINDOW_SECONDS", "600"))   # 10 min
+
+_login_attempts: dict = defaultdict(list)   # {"ip:1.2.3.4" | "email:x@y.com": [timestamps]}
+_signup_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+
+RATE_LIMIT_LOGIN_MESSAGE = "Too many login attempts from this connection -- please wait a few minutes and try again."
+RATE_LIMIT_SIGNUP_MESSAGE = "Too many signup attempts from this connection -- please wait a few minutes and try again."
+
+def _get_client_ip() -> str:
+    """Real client IP behind Render's proxy, falling back to remote_addr --
+    same logic as app.py's get_client_ip(), duplicated rather than imported
+    to keep this file's existing additive-only, no-cross-imports-from-app.py
+    pattern intact."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+def _check_and_record(bucket: dict, key: str, limit: int, window_seconds: int) -> bool:
+    """Returns True if this attempt is allowed (and records it as a side
+    effect), False if `key` has already hit `limit` within the trailing
+    `window_seconds`. Self-cleaning -- prunes timestamps older than the
+    window on every call, so the bucket never grows unbounded."""
+    now = time.time()
+    attempts = bucket[key]
+    attempts[:] = [t for t in attempts if now - t < window_seconds]
+    if len(attempts) >= limit:
+        return False
+    attempts.append(now)
+    return True
 
 _supabase_client: Client | None = None
 _service_client: Client | None = None
@@ -129,6 +178,10 @@ _INVITE_RESOLUTION_MESSAGES = {
 
 @pro_bp.route("/signup", methods=["POST"])
 def signup():
+    if not _check_and_record(_signup_attempts, f"ip:{_get_client_ip()}",
+                              SIGNUP_ATTEMPT_LIMIT, SIGNUP_WINDOW_SECONDS):
+        return redirect(url_for("pro.pro_home", error=RATE_LIMIT_SIGNUP_MESSAGE))
+
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
     # Rick's call, 2026-07-12: a church admin managing a roster doesn't
@@ -257,6 +310,17 @@ def login():
     # login_required()'s docstring for why this exists. Blank/absent for an
     # ordinary login, same as today.
     promo = request.form.get("promo", "").strip()
+
+    # Checked before the Supabase call, not after -- no point spending an
+    # auth API call on a request that's about to be throttled anyway. Both
+    # the IP and (if present) the email ceiling must pass -- see this file's
+    # top-of-file note on why both checks exist, not just one.
+    ip_ok = _check_and_record(_login_attempts, f"ip:{_get_client_ip()}",
+                               LOGIN_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS)
+    email_ok = (not email) or _check_and_record(
+        _login_attempts, f"email:{email.lower()}", LOGIN_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS)
+    if not ip_ok or not email_ok:
+        return redirect(url_for("pro.pro_home", error=RATE_LIMIT_LOGIN_MESSAGE, promo=promo or None))
 
     if not email or not password:
         return redirect(url_for("pro.pro_home", error="Email and password are required.", promo=promo or None))
