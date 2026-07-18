@@ -164,6 +164,14 @@ def church():
     # pulled from pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13.
     return render_template("church.html")
 
+@app.route("/support")
+def support():
+    # Dedicated giving page -- geared toward individual donors (both giving
+    # options link out to Ko-fi; churches/orgs are pointed to /church instead).
+    # Added 2026-07-18 at Rick's request, replacing the plan to rely solely
+    # on Ko-fi's own hosted page.
+    return render_template("support.html")
+
 @app.route("/invite")
 def invite():
     # Shareable invitation page for the free tool -- built 2026-07-08 at Rick's
