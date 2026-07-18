@@ -75,6 +75,21 @@
   .see-more-link a { font-weight: 700; text-decoration: none; }
   .see-more-link a:hover { text-decoration: underline; }
 
+  /* ── Role cards (deliberately distinct from the feature tiles above: 3-col, serif, different card color) ── */
+  .role-divider { border: none; border-top: 1px solid #d7dae0; margin: 34px 0 6px; }
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .role-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .role-grid { grid-template-columns: 1fr; } }
+  .role-card {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; text-align: left; width: 100%;
+    font-family: Georgia, 'Times New Roman', serif;
+    transition: border-color .15s, transform .1s;
+  }
+  .role-card:hover { border-color: #8ab4f0; transform: translateY(-1px); }
+  .role-card .role-card-title { font-weight: 700; font-size: 0.9rem; color: #1e3a5f; }
+  .role-card .role-card-title::after { content: " →"; color: #2f6b66; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
   /* ── Coming soon (deliberately NOT tiles — visually distinct from what's real today) ── */
   .soon-list { background: #fffaf0; border: 1px solid #fde3ad; border-radius: 10px; padding: 18px 20px; }
   .soon-list li { margin-bottom: 12px; color: #374151; list-style: none; padding-left: 24px; position: relative; }
@@ -226,10 +241,12 @@
     <div class="see-more-link"><a href="#everything-included">…and so much more →</a></div>
   </section>
 
+  <hr class="role-divider">
+
   <section class="tight">
     <h2>Who benefits from Selah for Ministry?</h2>
     <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Not just the pastor. Click a title to see how others are using Selah.</p>
-    <div class="chip-row" id="role-chips"></div>
+    <div class="role-grid" id="role-chips"></div>
   </section>
 
   <section class="tight">
@@ -279,8 +296,7 @@
   </section>
 
   <section class="tight" id="everything-included">
-    <h2>Everything included</h2>
-    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Every tier above includes all of this — the plans differ only in how many exchanges you get each month.</p>
+    <h2>How Selah Works</h2>
     <div class="spec-table" id="spec-table"></div>
   </section>
 
@@ -456,9 +472,11 @@ function renderTiles() {
     `<li><div class="soon-title">${s.title}</div><div class="soon-detail">${s.detail}</div></li>`
   ).join("");
 
-  const chips = document.getElementById("role-chips");
-  chips.innerHTML = ROLES.map((r, i) =>
-    `<button class="chip" onclick="openDetail('role', ${i})">${r.title}</button>`
+  const roleGrid = document.getElementById("role-chips");
+  roleGrid.innerHTML = ROLES.map((r, i) =>
+    `<button class="role-card" onclick="openDetail('role', ${i})">
+       <div class="role-card-title">${r.title}</div>
+     </button>`
   ).join("");
 }
 renderTiles();
