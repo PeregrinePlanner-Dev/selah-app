@@ -15,6 +15,7 @@ changes real access, generating an invite can add a real paid seat), never
 something an ordinary seat-holder can trigger themselves.
 """
 
+import os
 import secrets
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -22,7 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, session, render_template, url_for
 
 from engine import NODE_DISPLAY_NAMES
-from pro_auth import login_required, get_user_supabase, get_service_client
+from pro_auth import login_required, get_user_supabase, get_service_client, _check_and_record
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
 from pro_email import (
     send_roster_removal_email,
@@ -57,10 +58,34 @@ DEFAULT_MEMBER_INVITE_EXPIRY_DAYS = 90
 DEFAULT_LEADER_INVITE_EXPIRY_DAYS = 14
 
 
+# ── Admin-action abuse guard ────────────────────────────────────────────────
+# Added 2026-07-18, same pass as pro_auth.py's login/signup limiter (Selah
+# Full-Stack Audit Section 3.4a named both files). Lives here rather than in
+# each route because every route in this file funnels through
+# _get_admin_org_id() below -- one choke point covers all eleven call sites,
+# reads and writes alike, for free. Keyed by admin user id, not IP -- these
+# routes are already behind login_required, so the real risk is a
+# compromised or scripted session hammering roster/invite actions, not an
+# anonymous attacker. Threshold is generous on purpose: a real admin loading
+# the dashboard can trigger several of these in one page view (status,
+# roster, invites, audit-log, topics), and this shouldn't get in the way of
+# a legitimate admin working through a long roster.
+ORG_ACTION_LIMIT = int(os.environ.get("ORG_ACTION_LIMIT", "60"))
+ORG_ACTION_WINDOW_SECONDS = int(os.environ.get("ORG_ACTION_WINDOW_SECONDS", "300"))  # 5 min
+_org_action_attempts: dict = defaultdict(list)
+
+
 def _get_admin_org_id():
     """Returns (organization_id, None) if the caller is an org admin,
     (None, error_response) otherwise -- every route below starts with this
-    same check, so it's centralized rather than copy-pasted five times."""
+    same check, so it's centralized rather than copy-pasted five times.
+    Also the single choke point for this file's admin-action rate limit
+    (see the block above) -- covering it here means every route gets it
+    for free, including any written after this fix landed."""
+    admin_key = f"user:{session.get('sb_user_id', 'unknown')}"
+    if not _check_and_record(_org_action_attempts, admin_key, ORG_ACTION_LIMIT, ORG_ACTION_WINDOW_SECONDS):
+        return None, (jsonify({"error": "Too many actions in a short time -- please wait a few minutes and try again."}), 429)
+
     sb = get_user_supabase()
     profile_resp = (
         sb.table("profiles")
