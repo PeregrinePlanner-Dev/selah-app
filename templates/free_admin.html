@@ -79,6 +79,26 @@
   .capacity-stat { font-size: 0.8rem; color: #4b5563; }
   .capacity-stat strong { color: #111827; display: block; font-size: 0.95rem; }
   .capacity-note { font-size: 0.72rem; color: #9ca3af; margin-top: 12px; line-height: 1.5; }
+
+  .org-card { margin-bottom: 18px; }
+  .org-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .org-table th {
+    text-align: left; font-size: 0.68rem; font-weight: 600; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 8px 0; border-bottom: 1px solid #e5e7eb;
+  }
+  .org-table td { padding: 9px 8px 9px 0; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  .org-table tr:last-child td { border-bottom: none; }
+  .org-table .org-name { font-weight: 600; color: #111827; }
+  .org-table .org-pool { color: #6b7280; font-size: 0.72rem; text-transform: capitalize; }
+  .status-pill {
+    display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px;
+  }
+  .status-pill.active { background: #f0fdf4; color: #065f46; }
+  .status-pill.trialing { background: #eff6ff; color: #1e3a5f; }
+  .status-pill.past_due { background: #fef3e2; color: #92400e; }
+  .status-pill.canceled { background: #fef2f2; color: #991b1b; }
+  .cancel-flag { color: #b45309; font-size: 0.68rem; display: block; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -101,6 +121,42 @@
       <div class="capacity-stat"><strong>${{ "%.2f"|format(capacity.avg_cost_per_active_account) }}</strong>avg. real cost / active account</div>
     </div>
     <p class="capacity-note">Calendar-month-to-date, not a rolling 30 days. Holds back 25% margin on top of the raw math. Starting-point numbers with no real usage history behind them yet — expect this to be rough for a while.</p>
+  </div>
+  {% endif %}
+
+  {% if logged_in and is_founder %}
+  <div class="card org-card">
+    <p class="lead" style="margin-bottom:12px;">Church &amp; Org activity{% if church_orgs %} ({{ church_orgs|length }}){% endif %}</p>
+    {% if church_orgs %}
+    <table class="org-table">
+      <thead>
+        <tr>
+          <th>Organization</th>
+          <th>Seats</th>
+          <th>Status</th>
+          <th>Since</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for org in church_orgs %}
+        <tr>
+          <td>
+            <div class="org-name">{{ org.org_name }}</div>
+            <div class="org-pool">{{ org.org_type }}{% if org.seat_type %} · {{ org.seat_type }}{% endif %}</div>
+          </td>
+          <td>{{ org.seats_occupied }} / {{ org.seats_purchased if org.seats_purchased is not none else "—" }}</td>
+          <td>
+            <span class="status-pill {{ org.status }}">{{ org.status }}</span>
+            {% if org.cancel_at_period_end %}<span class="cancel-flag">cancels at period end</span>{% endif %}
+          </td>
+          <td>{{ org.created_at[:10] if org.created_at else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="empty">No Church/Org accounts yet.</p>
+    {% endif %}
   </div>
   {% endif %}
 

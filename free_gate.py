@@ -637,6 +637,76 @@ def _free_tier_capacity_snapshot() -> dict:
         return None
 
 
+def _church_org_activity_snapshot() -> list:
+    """Founder-only, read-only, added 2026-07-19. One row per subscription
+    record rather than one per org -- a Church/Org can carry two pools
+    (Leadership and Membership, Section 17), each with its own seat count
+    and status, so a church may legitimately appear twice here rather than
+    being force-merged into a single row that would hide which pool is
+    actually full or lapsing. org_type != 'individual' excludes free-tier
+    and solo Individual Pro accounts -- this view is specifically the
+    multi-seat Church/Seminary/Berea side, not every organizations row.
+
+    "Occupied" is profiles.seat_status IN ('paid','comped') -- a real,
+    filled seat -- not seat_quantity itself, which is purchased capacity
+    and can run ahead of who's actually on the roster. Same definition
+    pro_billing.py already uses elsewhere for this exact distinction."""
+    try:
+        svc = get_service_client()
+        orgs = (
+            svc.table("organizations")
+            .select("id, name, org_type, created_at")
+            .neq("org_type", "individual")
+            .execute()
+        )
+        org_rows = orgs.data or []
+        if not org_rows:
+            return []
+        org_ids = [o["id"] for o in org_rows]
+        orgs_by_id = {o["id"]: o for o in org_rows}
+
+        subs = (
+            svc.table("subscriptions")
+            .select("organization_id, tier_slug, status, seat_quantity, seat_type, cancel_at_period_end")
+            .in_("organization_id", org_ids)
+            .execute()
+        )
+
+        profiles = (
+            svc.table("profiles")
+            .select("organization_id, seat_type")
+            .in_("organization_id", org_ids)
+            .in_("seat_status", ["paid", "comped"])
+            .execute()
+        )
+        occupied_counts: dict = {}
+        for p in (profiles.data or []):
+            key = (p["organization_id"], p.get("seat_type"))
+            occupied_counts[key] = occupied_counts.get(key, 0) + 1
+
+        rows = []
+        for s in (subs.data or []):
+            org = orgs_by_id.get(s["organization_id"])
+            if not org:
+                continue
+            rows.append({
+                "org_name": org.get("name") or "(unnamed)",
+                "org_type": org["org_type"],
+                "created_at": org["created_at"],
+                "tier_slug": s["tier_slug"],
+                "seat_type": s.get("seat_type"),
+                "seats_purchased": s.get("seat_quantity"),
+                "seats_occupied": occupied_counts.get((s["organization_id"], s.get("seat_type")), 0),
+                "status": s["status"],
+                "cancel_at_period_end": s.get("cancel_at_period_end"),
+            })
+        rows.sort(key=lambda r: (r["org_name"], r["seat_type"] or ""))
+        return rows
+    except Exception as e:
+        print(f"[FREE_GATE] church/org activity snapshot failed: {e}")
+        return []
+
+
 def _pending_waitlist() -> list:
     """Oldest-first, founder-only. Called from admin_home() and from the
     invite/decline actions below (so the list re-renders current after
@@ -670,6 +740,7 @@ def _founder_admin_context() -> dict:
         "is_founder": is_founder,
         "waitlist": _pending_waitlist() if is_founder else [],
         "capacity": _free_tier_capacity_snapshot() if is_founder else None,
+        "church_orgs": _church_org_activity_snapshot() if is_founder else [],
     }
 
 
