@@ -100,7 +100,7 @@ FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "").strip()
 # the login system. Confirmed with Rick: Clark's screen should stay
 # invite-only, not grow the waitlist queue into his view too.
 INVITER_ADMIN_KEY = os.environ.get("INVITER_ADMIN_KEY", "").strip()
-DEFAULT_INVITE_EXPIRY_DAYS = 30
+DEFAULT_INVITE_EXPIRY_DAYS = 14
 
 # Waitlist, added 2026-07-19 -- where a notification goes when someone with
 # no code (or who can't give but wants in) submits the waitlist form below.
@@ -823,12 +823,11 @@ def _create_and_send_invite(name: str, email: str) -> dict:
     greeting = f"Hi {name}," if name else "Hi,"
     html = f"""
       <p>{greeting}</p>
-      <p>You've been invited to try Selah's free exploration tool.</p>
-      <p><a href="{invite_link}">Click here to get started</a> -- it'll have your email and invite code
+      <p>You've been invited to try Selah's free exploration tool. <strong style="color:#b45309;">This invite expires in {DEFAULT_INVITE_EXPIRY_DAYS} days</strong> -- don't wait too long to claim it.</p>
+      <p><a href="{invite_link}" style="font-weight:600;">Click here to get started</a> -- it'll have your email and invite code
       ({token}) already filled in. First time only; after that you'll just sign in with your email.</p>
-      <p style="color:#6b7280; font-size:0.85rem;">This invite expires in {DEFAULT_INVITE_EXPIRY_DAYS} days.</p>
     """
-    sent = send_email(email, "You're invited to Selah", html)
+    sent = send_email(email, f"You're invited to Selah -- expires in {DEFAULT_INVITE_EXPIRY_DAYS} days", html)
     return {"email": email, "token": token, "link": invite_link, "sent": sent}
 
 
