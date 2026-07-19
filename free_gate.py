@@ -101,6 +101,15 @@ FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "")
 INVITER_ADMIN_KEY = os.environ.get("INVITER_ADMIN_KEY", "")
 DEFAULT_INVITE_EXPIRY_DAYS = 30
 
+# Waitlist, added 2026-07-19 -- where a notification goes when someone with
+# no code (or who can't give but wants in) submits the waitlist form below.
+# Rick only, per his own call: no need to also loop in Clark here, distinct
+# from the invite-issuing key split above which both of them use. Defaults
+# to the address already established elsewhere in the codebase as the
+# admin contact (pro_email.py); overridable if Rick wants this routed
+# somewhere else without a code change.
+FOUNDER_NOTIFICATION_EMAIL = os.environ.get("FOUNDER_NOTIFICATION_EMAIL", "admin@selahexploringtheology.com")
+
 
 def _clear_free_session() -> None:
     for k in ("fg_access_token", "fg_refresh_token", "fg_expires_at",
@@ -338,6 +347,71 @@ def access_logout():
 
 
 # ---------------------------------------------------------------------------
+# Waitlist, added 2026-07-19 -- the actual gap this whole day's work traced
+# back to: someone with no invite code (access.html) or who wants in but
+# can't give (support.html's "Sponsor someone else" card) had no way to
+# register that interest at all before this. Public route, no auth --
+# whoever's asking may not have an account yet. Writes only via the
+# service-role client (see the waitlist_requests migration comment) --
+# deliberately no anon INSERT policy, same pattern as org_audit_log and
+# congregation_topic_pulse. No "why are you here" field -- Rick, 2026-07-19:
+# showing interest is the whole signal, nothing gained by making someone
+# categorize it upfront. `source` is captured automatically from which page
+# linked here, never asked.
+# ---------------------------------------------------------------------------
+
+def _notify_founder_of_waitlist_request(name: str, email: str, note: str, source: str) -> None:
+    """Best-effort -- a failed notification email should never fail the
+    person's actual submission. Goes to FOUNDER_NOTIFICATION_EMAIL only
+    (Rick's call, same session): the waitlist admin view is founder-only
+    too, so this matches who can act on it."""
+    admin_link = request.host_url.rstrip("/") + url_for("free_gate.admin_home")
+    who = f"{name} ({email})" if name else email
+    note_html = f"<p><strong>Note:</strong> {note}</p>" if note else ""
+    html = f"""
+      <p>{who} joined the Selah waitlist, from {source}.</p>
+      {note_html}
+      <p><a href="{admin_link}">Review the waitlist</a></p>
+    """
+    send_email(FOUNDER_NOTIFICATION_EMAIL, "New Selah waitlist request", html)
+
+
+@free_gate_bp.route("/waitlist", methods=["POST"])
+def access_waitlist_submit():
+    """Public submit -- called from both access.html (no invite code) and
+    support.html (wants access, not giving). body: {name, email, note,
+    source}, JSON. source is set by the calling page's JS, not user input."""
+    data = request.json or {}
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    note = (data.get("note") or "").strip()
+    source = data.get("source") or "access"
+    if source not in ("access", "support"):
+        source = "access"
+
+    if not email or "@" not in email:
+        return jsonify({"error": "Enter a valid email address."}), 400
+
+    try:
+        get_service_client().table("waitlist_requests").insert({
+            "name": name or None,
+            "email": email,
+            "note": note or None,
+            "source": source,
+        }).execute()
+    except Exception as e:
+        print(f"[FREE_GATE] waitlist insert failed for {email!r}: {e}")
+        return jsonify({"error": "Something went wrong. Please try again."}), 500
+
+    try:
+        _notify_founder_of_waitlist_request(name, email, note, source)
+    except Exception as e:
+        print(f"[FREE_GATE] waitlist notification failed for {email!r}: {e}")
+
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # Self-release + inactivity nudge, added 2026-07-19. The free tier's
 # invite-only gate exists because of a real $50/month budget ceiling (see
 # module docstring) -- an invited account that's gone quiet still counts
@@ -474,11 +548,31 @@ def _is_admin() -> bool:
 
 
 def _is_founder() -> bool:
-    """True only for Rick's key. Nothing on this page checks this yet --
-    it's here for the founder-only sections (waitlist, church activity,
-    money health) scoped separately, so they can gate on this from day one
-    instead of needing a follow-up change to the login system later."""
+    """True only for Rick's key. Gates the waitlist section below -- the
+    first thing actually built behind this check, per the plan noted when
+    _is_founder() was added: additions to this page stay founder-only from
+    day one rather than needing a follow-up change to the login system."""
     return _admin_role() == "founder"
+
+
+def _pending_waitlist() -> list:
+    """Oldest-first, founder-only. Called from admin_home() and from the
+    invite/decline actions below (so the list re-renders current after
+    either action) -- kept as its own function rather than inlined so both
+    call sites can't drift out of sync on ordering/filtering."""
+    try:
+        resp = (
+            get_service_client()
+            .table("waitlist_requests")
+            .select("id, created_at, name, email, source, note")
+            .eq("status", "pending")
+            .order("created_at")
+            .execute()
+        )
+        return resp.data or []
+    except Exception as e:
+        print(f"[FREE_GATE] failed to load waitlist: {e}")
+        return []
 
 
 @free_gate_bp.route("/admin", methods=["GET"])
@@ -487,9 +581,14 @@ def admin_home():
     person admin accounts exist for the free tier -- this is just Rick/
     Clark personally issuing invites, a shared key is the right amount of
     gate for that), then the actual invite form once unlocked. Two keys
-    map to two roles (see INVITER_ADMIN_KEY above); both see the same page
-    today since nothing founder-only has been added to it yet."""
-    return render_template("free_admin.html", logged_in=_is_admin())
+    map to two roles (see INVITER_ADMIN_KEY above) -- the waitlist section
+    is the first thing that actually differs between them: founder-only,
+    Clark's screen stays the invite form alone."""
+    is_founder = _is_founder()
+    return render_template(
+        "free_admin.html", logged_in=_is_admin(), is_founder=is_founder,
+        waitlist=_pending_waitlist() if is_founder else [],
+    )
 
 
 @free_gate_bp.route("/admin/login", methods=["POST"])
@@ -513,21 +612,12 @@ def admin_logout():
     return redirect(url_for("free_gate.admin_home"))
 
 
-@free_gate_bp.route("/admin/invite", methods=["POST"])
-def admin_invite():
-    """Creates one email-scoped invite and emails it directly -- Rick's own
-    part is just a name and an email, nothing to relay by hand. Falls back
-    to showing the code/link on-screen if the email send fails (Resend
-    down, bad address typo, etc.) so the invite isn't silently lost."""
-    if not _is_admin():
-        return redirect(url_for("free_gate.admin_home"))
-
-    name = (request.form.get("name") or "").strip()
-    email = (request.form.get("email") or "").strip().lower()
-
-    if not email or "@" not in email:
-        return render_template("free_admin.html", logged_in=True, error="Enter a valid email address.")
-
+def _create_and_send_invite(name: str, email: str) -> dict:
+    """The actual invite-creation logic, factored out 2026-07-19 so the
+    waitlist's "Send invite" action (below) can reuse it exactly rather
+    than duplicating it -- one place that creates a free_tier_invites row
+    and emails it, whether triggered from the manual form or from a
+    waitlist row."""
     token = "SELAH-" + secrets.token_hex(3).upper()
     expires_at = (datetime.now(timezone.utc) + timedelta(days=DEFAULT_INVITE_EXPIRY_DAYS)).isoformat()
 
@@ -549,8 +639,83 @@ def admin_invite():
       <p style="color:#6b7280; font-size:0.85rem;">This invite expires in {DEFAULT_INVITE_EXPIRY_DAYS} days.</p>
     """
     sent = send_email(email, "You're invited to Selah", html)
+    return {"email": email, "token": token, "link": invite_link, "sent": sent}
+
+
+@free_gate_bp.route("/admin/invite", methods=["POST"])
+def admin_invite():
+    """Creates one email-scoped invite and emails it directly -- Rick's own
+    part is just a name and an email, nothing to relay by hand. Falls back
+    to showing the code/link on-screen if the email send fails (Resend
+    down, bad address typo, etc.) so the invite isn't silently lost."""
+    if not _is_admin():
+        return redirect(url_for("free_gate.admin_home"))
+
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+
+    if not email or "@" not in email:
+        return render_template("free_admin.html", logged_in=True, is_founder=_is_founder(),
+                                waitlist=_pending_waitlist() if _is_founder() else [],
+                                error="Enter a valid email address.")
+
+    result = _create_and_send_invite(name, email)
 
     return render_template(
-        "free_admin.html", logged_in=True,
-        result={"email": email, "token": token, "link": invite_link, "sent": sent},
+        "free_admin.html", logged_in=True, is_founder=_is_founder(),
+        waitlist=_pending_waitlist() if _is_founder() else [],
+        result=result,
+    )
+
+
+@free_gate_bp.route("/admin/waitlist/invite", methods=["POST"])
+def admin_waitlist_invite():
+    """Founder-only -- sends a real invite to a waitlisted person (reuses
+    _create_and_send_invite(), the exact same path as the manual form
+    above) and marks their row resolved. Clark can't reach this even with
+    a valid session cookie -- checked server-side, not just hidden in the
+    template, since a POST endpoint is reachable directly regardless of
+    what the UI shows."""
+    if not _is_founder():
+        return redirect(url_for("free_gate.admin_home"))
+
+    row_id = (request.form.get("id") or "").strip()
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    if not row_id or not email:
+        return redirect(url_for("free_gate.admin_home"))
+
+    result = _create_and_send_invite(name, email)
+
+    svc = get_service_client()
+    svc.table("waitlist_requests").update({
+        "status": "invited",
+        "resolved_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", row_id).execute()
+
+    return render_template(
+        "free_admin.html", logged_in=True, is_founder=True,
+        waitlist=_pending_waitlist(), result=result,
+    )
+
+
+@free_gate_bp.route("/admin/waitlist/decline", methods=["POST"])
+def admin_waitlist_decline():
+    """Founder-only -- clears a row (spam, duplicate, changed their mind)
+    without sending an invite. No email sent either direction; someone who
+    submitted a name/email to a waitlist form isn't owed a rejection notice
+    the same way a real applicant would be."""
+    if not _is_founder():
+        return redirect(url_for("free_gate.admin_home"))
+
+    row_id = (request.form.get("id") or "").strip()
+    if row_id:
+        get_service_client().table("waitlist_requests").update({
+            "status": "declined",
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", row_id).execute()
+
+    return render_template(
+        "free_admin.html", logged_in=True, is_founder=True,
+        waitlist=_pending_waitlist(),
     )

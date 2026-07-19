@@ -96,6 +96,24 @@
         <input type="text" id="invite_code" placeholder="SELAH-XXXXXX" autocapitalize="characters">
         <div class="hint">First time only — leave blank if you've signed in before.</div>
         <button id="btn-request" onclick="requestCode()">Continue</button>
+        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have a code? Join the waitlist</a></div>
+      </div>
+
+      <div id="step-waitlist" class="step">
+        <p class="lead">Selah's free tool is invite-only for now while it stays within budget. Leave your name and email and we'll reach out when a spot opens — no promises on timing, but it's a real list someone checks.</p>
+        <label for="wl_name">Name</label>
+        <input type="text" id="wl_name" autocomplete="name">
+        <label for="wl_email">Email</label>
+        <input type="email" id="wl_email" autocomplete="email" required>
+        <label for="wl_note">Anything you want us to know (optional)</label>
+        <input type="text" id="wl_note">
+        <button id="btn-waitlist" onclick="submitWaitlist()">Join the waitlist</button>
+        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-email'); return false;">Have a code after all? Back to sign in</a></div>
+      </div>
+
+      <div id="step-waitlist-done" class="step">
+        <p class="lead">You're on the list — thank you. We'll email you at the address you gave if a spot opens up.</p>
+        <button onclick="window.location.href='/access'">Done</button>
       </div>
 
       <div id="step-code" class="step">
@@ -126,6 +144,22 @@ let pendingEmail = "";
   const code = params.get("code");
   if (email) document.getElementById("email").value = email;
   if (code) document.getElementById("invite_code").value = code;
+})();
+
+// Jump straight to the waitlist step when linked from support.html's
+// "looking for access instead of giving" line (?join=waitlist&from=support),
+// added 2026-07-19 -- no reason to make someone who already said what they
+// want click through the sign-in step first. waitlistSource captures which
+// page actually sent them here (defaults to "access" -- this page's own
+// name -- when there's no ?from, i.e. someone landed on step-waitlist via
+// the in-page link instead).
+let waitlistSource = "access";
+(function jumpToWaitlistIfLinked() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("from") === "support") waitlistSource = "support";
+  if (params.get("join") === "waitlist" && document.getElementById("step-waitlist")) {
+    showStep("step-waitlist");
+  }
 })();
 
 function showMsg(text, kind) {
@@ -249,6 +283,34 @@ async function requestCode() {
   } catch (e) {
     showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
     btn.disabled = false; btn.textContent = "Continue";
+  }
+}
+
+async function submitWaitlist() {
+  const name = document.getElementById("wl_name").value.trim();
+  const email = document.getElementById("wl_email").value.trim();
+  const note = document.getElementById("wl_note").value.trim();
+  if (!email) { showMsg("Enter your email.", "error"); return; }
+
+  const btn = document.getElementById("btn-waitlist");
+  btn.disabled = true; btn.textContent = "Joining...";
+
+  try {
+    const res = await fetch("/access/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, note, source: waitlistSource }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.error || "Something went wrong.", "error");
+      btn.disabled = false; btn.textContent = "Join the waitlist";
+      return;
+    }
+    showStep("step-waitlist-done");
+  } catch (e) {
+    showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
+    btn.disabled = false; btn.textContent = "Join the waitlist";
   }
 }
 
