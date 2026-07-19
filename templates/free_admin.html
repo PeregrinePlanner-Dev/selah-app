@@ -99,6 +99,19 @@
   .status-pill.past_due { background: #fef3e2; color: #92400e; }
   .status-pill.canceled { background: #fef2f2; color: #991b1b; }
   .cancel-flag { color: #b45309; font-size: 0.68rem; display: block; margin-top: 2px; }
+  .details-toggle {
+    width: auto; padding: 5px 10px; font-size: 0.72rem; font-weight: 500;
+    background: transparent; color: #2f6b66; border: 1px solid #d1d5db;
+  }
+  .details-toggle:hover { background: #f3f4f6; }
+  .org-details-row td { padding: 0 8px 12px 0; border-bottom: 1px solid #f3f4f6; }
+  .org-details {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 10px 12px; font-size: 0.78rem; color: #4b5563;
+  }
+  .org-detail-line { padding: 3px 0; text-transform: capitalize; }
+  .org-detail-line strong { text-transform: capitalize; }
+  .org-detail-note { margin-top: 6px; color: #9ca3af; font-size: 0.72rem; text-transform: none; }
 </style>
 </head>
 <body>
@@ -135,6 +148,7 @@
           <th>Seats</th>
           <th>Status</th>
           <th>Since</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -142,14 +156,36 @@
         <tr>
           <td>
             <div class="org-name">{{ org.org_name }}</div>
-            <div class="org-pool">{{ org.org_type }}{% if org.seat_type %} · {{ org.seat_type }}{% endif %}</div>
+            <div class="org-pool">{{ org.org_type }}</div>
           </td>
-          <td>{{ org.seats_occupied }} / {{ org.seats_purchased if org.seats_purchased is not none else "—" }}</td>
           <td>
-            <span class="status-pill {{ org.status }}">{{ org.status }}</span>
+            {% if org.seat_pools %}
+              {% for pool in org.seat_pools %}{{ pool.seat_type|capitalize }} {{ pool.seats_occupied }}/{{ pool.seats_purchased if pool.seats_purchased is not none else "—" }}{% if not loop.last %} · {% endif %}{% endfor %}
+            {% else %}
+              <span class="empty">no seat pools</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-pill {{ org.overall_status }}">{{ org.overall_status }}</span>
             {% if org.cancel_at_period_end %}<span class="cancel-flag">cancels at period end</span>{% endif %}
           </td>
           <td>{{ org.created_at[:10] if org.created_at else "—" }}</td>
+          <td><button type="button" class="details-toggle" onclick="toggleOrgDetails(this)">Details</button></td>
+        </tr>
+        <tr class="org-details-row" style="display:none;">
+          <td colspan="5">
+            <div class="org-details">
+              {% for pool in org.pools %}
+              <div class="org-detail-line">
+                <strong>{{ pool.tier_slug }}</strong>{% if pool.seat_type %} · {{ pool.seat_type }}{% endif %}
+                — {{ pool.seats_occupied }}/{{ pool.seats_purchased if pool.seats_purchased is not none else "—" }} seats,
+                <span class="status-pill {{ pool.status }}">{{ pool.status }}</span>
+                {% if pool.cancel_at_period_end %}<span class="cancel-flag">cancels at period end</span>{% endif %}
+              </div>
+              {% endfor %}
+              <div class="org-detail-note">Other actions (roster, billing) — TBD, not built yet.</div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -226,5 +262,13 @@
     {% endif %}
   </div>
 </div>
+<script>
+function toggleOrgDetails(btn) {
+  const detailsRow = btn.closest("tr").nextElementSibling;
+  const showing = detailsRow.style.display !== "none";
+  detailsRow.style.display = showing ? "none" : "table-row";
+  btn.textContent = showing ? "Details" : "Hide";
+}
+</script>
 </body>
 </html>

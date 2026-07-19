@@ -637,20 +637,31 @@ def _free_tier_capacity_snapshot() -> dict:
         return None
 
 
-def _church_org_activity_snapshot() -> list:
-    """Founder-only, read-only, added 2026-07-19. One row per subscription
-    record rather than one per org -- a Church/Org can carry two pools
-    (Leadership and Membership, Section 17), each with its own seat count
-    and status, so a church may legitimately appear twice here rather than
-    being force-merged into a single row that would hide which pool is
-    actually full or lapsing. org_type != 'individual' excludes free-tier
-    and solo Individual Pro accounts -- this view is specifically the
-    multi-seat Church/Seminary/Berea side, not every organizations row.
+_STATUS_SEVERITY = {"canceled": 3, "past_due": 2, "trialing": 1, "active": 0}
 
-    "Occupied" is profiles.seat_status IN ('paid','comped') -- a real,
-    filled seat -- not seat_quantity itself, which is purchased capacity
-    and can run ahead of who's actually on the roster. Same definition
-    pro_billing.py already uses elsewhere for this exact distinction."""
+
+def _church_org_activity_snapshot() -> list:
+    """Founder-only, read-only, added 2026-07-19, collapsed to one row per
+    org the same day after Rick's own live look at it -- the first version
+    listed one row per subscription record, which meant three rows for a
+    single church in practice: the two real seat pools (Leadership,
+    Membership -- Section 17) PLUS a leftover base 'church'-tier_slug
+    subscription row with no seat_type and no seat_quantity, a pre-seat-
+    split legacy record that's still sitting in the table. Three-lines-per-
+    church doesn't scale once there are many churches, per Rick, so this
+    now returns one dict per organization with every subscription row
+    nested under `pools` (still there, nothing lost) and an `overall_status`
+    computed from the worst status across them -- canceled beats past_due
+    beats trialing beats active -- so a single glance shows whether
+    anything about this org needs attention, with the per-pool breakdown
+    available on demand rather than forced onto the page at all times.
+
+    org_type != 'individual' excludes free-tier and solo Individual Pro
+    accounts -- this view is specifically the multi-seat Church/Seminary/
+    Berea side, not every organizations row. "Occupied" is
+    profiles.seat_status IN ('paid','comped') -- a real, filled seat, not
+    seat_quantity itself (purchased capacity, can run ahead of the roster)
+    -- same definition pro_billing.py already uses elsewhere."""
     try:
         svc = get_service_client()
         orgs = (
@@ -663,7 +674,6 @@ def _church_org_activity_snapshot() -> list:
         if not org_rows:
             return []
         org_ids = [o["id"] for o in org_rows]
-        orgs_by_id = {o["id"]: o for o in org_rows}
 
         subs = (
             svc.table("subscriptions")
@@ -684,15 +694,9 @@ def _church_org_activity_snapshot() -> list:
             key = (p["organization_id"], p.get("seat_type"))
             occupied_counts[key] = occupied_counts.get(key, 0) + 1
 
-        rows = []
+        pools_by_org: dict = {}
         for s in (subs.data or []):
-            org = orgs_by_id.get(s["organization_id"])
-            if not org:
-                continue
-            rows.append({
-                "org_name": org.get("name") or "(unnamed)",
-                "org_type": org["org_type"],
-                "created_at": org["created_at"],
+            pools_by_org.setdefault(s["organization_id"], []).append({
                 "tier_slug": s["tier_slug"],
                 "seat_type": s.get("seat_type"),
                 "seats_purchased": s.get("seat_quantity"),
@@ -700,8 +704,29 @@ def _church_org_activity_snapshot() -> list:
                 "status": s["status"],
                 "cancel_at_period_end": s.get("cancel_at_period_end"),
             })
-        rows.sort(key=lambda r: (r["org_name"], r["seat_type"] or ""))
-        return rows
+
+        result = []
+        for org in org_rows:
+            pools = pools_by_org.get(org["id"], [])
+            seat_pools = [p for p in pools if p["seat_type"]]  # excludes the bare legacy row
+            overall_status = "active"
+            any_cancel_flag = False
+            for p in pools:
+                if _STATUS_SEVERITY.get(p["status"], 0) > _STATUS_SEVERITY.get(overall_status, 0):
+                    overall_status = p["status"]
+                if p.get("cancel_at_period_end"):
+                    any_cancel_flag = True
+            result.append({
+                "org_name": org.get("name") or "(unnamed)",
+                "org_type": org["org_type"],
+                "created_at": org["created_at"],
+                "seat_pools": seat_pools,
+                "pools": pools,
+                "overall_status": overall_status,
+                "cancel_at_period_end": any_cancel_flag,
+            })
+        result.sort(key=lambda r: r["org_name"])
+        return result
     except Exception as e:
         print(f"[FREE_GATE] church/org activity snapshot failed: {e}")
         return []
