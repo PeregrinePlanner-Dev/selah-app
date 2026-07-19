@@ -85,7 +85,7 @@ WRONG_EMAIL_ERROR = (
 # specific organization) -- this is just Rick/Clark personally issuing
 # invites, so a single shared secret is the right amount of gate for now,
 # not a new permissions model.
-FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "")
+FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "").strip()
 
 # Second, narrower key, added 2026-07-19 -- Rick is letting Clark issue
 # invites during beta but the two shouldn't share a credential (so it can
@@ -99,7 +99,7 @@ FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "")
 # gate themselves to founder-only via _is_founder() without a rebuild of
 # the login system. Confirmed with Rick: Clark's screen should stay
 # invite-only, not grow the waitlist queue into his view too.
-INVITER_ADMIN_KEY = os.environ.get("INVITER_ADMIN_KEY", "")
+INVITER_ADMIN_KEY = os.environ.get("INVITER_ADMIN_KEY", "").strip()
 DEFAULT_INVITE_EXPIRY_DAYS = 30
 
 # Waitlist, added 2026-07-19 -- where a notification goes when someone with
