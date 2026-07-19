@@ -66,6 +66,19 @@
   .waitlist-row .row-actions button.decline { background: transparent; color: #991b1b; border: 1px solid #fca5a5; font-weight: 500; }
   .waitlist-row .row-actions button.decline:hover { background: #fef2f2; }
   .empty { color: #9ca3af; font-size: 0.85rem; }
+
+  .capacity-card { margin-bottom: 18px; }
+  .capacity-headline {
+    font-size: 1.6rem; font-weight: 700; color: #2f6b66; margin-bottom: 2px;
+  }
+  .capacity-headline .label { display: block; font-size: 0.72rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .capacity-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid #e5e7eb;
+  }
+  .capacity-stat { font-size: 0.8rem; color: #4b5563; }
+  .capacity-stat strong { color: #111827; display: block; font-size: 0.95rem; }
+  .capacity-note { font-size: 0.72rem; color: #9ca3af; margin-top: 12px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -74,6 +87,22 @@
     <div class="brand-title">Selah</div>
     <div class="brand-sub">Free-tier invites</div>
   </div>
+
+  {% if logged_in and is_founder and capacity %}
+  <div class="card capacity-card">
+    <div class="capacity-headline">
+      <span class="label">You can invite right now</span>
+      {{ capacity.implied_capacity }} more {{ "person" if capacity.implied_capacity == 1 else "people" }}
+    </div>
+    <div class="capacity-grid">
+      <div class="capacity-stat"><strong>${{ "%.2f"|format(capacity.spend_this_month) }} / ${{ "%.0f"|format(capacity.budget) }}</strong>spent this month</div>
+      <div class="capacity-stat"><strong>${{ "%.2f"|format(capacity.remaining_budget) }}</strong>left in the budget</div>
+      <div class="capacity-stat"><strong>{{ capacity.active_accounts }} / {{ capacity.total_accounts }}</strong>accounts active this month</div>
+      <div class="capacity-stat"><strong>${{ "%.2f"|format(capacity.avg_cost_per_active_account) }}</strong>avg. real cost / active account</div>
+    </div>
+    <p class="capacity-note">Calendar-month-to-date, not a rolling 30 days. Holds back 25% margin on top of the raw math. Starting-point numbers with no real usage history behind them yet — expect this to be rough for a while.</p>
+  </div>
+  {% endif %}
 
   {% if logged_in and is_founder %}
   <div class="card waitlist-card">

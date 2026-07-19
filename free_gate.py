@@ -59,6 +59,7 @@ from flask import Blueprint, render_template, request, jsonify, session, redirec
 
 from pro_auth import get_supabase, get_service_client
 from pro_email import send_email
+from pro_chat import _billing_month_today
 
 free_gate_bp = Blueprint("free_gate", __name__, url_prefix="/access")
 
@@ -109,6 +110,16 @@ DEFAULT_INVITE_EXPIRY_DAYS = 30
 # admin contact (pro_email.py); overridable if Rick wants this routed
 # somewhere else without a code change.
 FOUNDER_NOTIFICATION_EMAIL = os.environ.get("FOUNDER_NOTIFICATION_EMAIL", "admin@selahexploringtheology.com")
+
+# Free-tier capacity panel, added 2026-07-19 -- the numbers settled in
+# 05- Future/Selah_Founder_Dashboard_and_Waitlist_Scope_2026-07-19.md, all
+# still starting points with no real usage data behind them yet. Real cost
+# basis (exchanges x blended rate), not any Stripe retail price -- see that
+# doc's correction. All three env-overridable without a code change once
+# real numbers exist to replace the guesses.
+FREE_TIER_COST_PER_EXCHANGE = float(os.environ.get("FREE_TIER_COST_PER_EXCHANGE", "0.45"))
+FREE_TIER_MONTHLY_BUDGET = float(os.environ.get("FREE_TIER_MONTHLY_BUDGET", "50"))
+FREE_TIER_CAPACITY_MARGIN = float(os.environ.get("FREE_TIER_CAPACITY_MARGIN", "0.25"))
 
 
 def _clear_free_session() -> None:
@@ -555,6 +566,77 @@ def _is_founder() -> bool:
     return _admin_role() == "founder"
 
 
+def _free_tier_capacity_snapshot() -> dict:
+    """Founder-only panel, added 2026-07-19 -- the number the scoping doc
+    calls "the dashboard's most useful piece." Computed fresh on every
+    /access/admin load rather than cached/scheduled -- the query is cheap
+    at today's account volume, and "recalculated weekly" from the doc is
+    satisfied trivially by always being current, no separate job needed
+    unless this ever gets expensive enough to matter.
+
+    "Active account" = a free-tier org with at least one exchange recorded
+    THIS billing month (conversations_used > 0) -- there's no daily-grain
+    activity data to do a true trailing-30-day window against (usage_records
+    is billing_month, i.e. calendar-month, granularity), so this is
+    calendar-month-to-date, not a rolling 30 days. Close enough to the
+    doc's intent without inventing data that doesn't exist; noted here so
+    the approximation is a documented choice, not a silent one.
+
+    avg_cost_per_active_account falls back to the worst-case per-account
+    figure (30 exchanges x blended rate) when there's no active-account
+    data yet to average -- otherwise a brand-new month with zero usage so
+    far would divide by zero and imply infinite headroom, which is wrong
+    in the opposite direction from the worst-case-only math this whole
+    mechanism replaced."""
+    try:
+        svc = get_service_client()
+        billing_month = _billing_month_today()
+
+        free_orgs = svc.table("subscriptions").select("organization_id").eq("tier_slug", "free").execute()
+        org_ids = [r["organization_id"] for r in (free_orgs.data or [])]
+        total_accounts = len(org_ids)
+
+        if not org_ids:
+            return {
+                "total_accounts": 0, "active_accounts": 0, "spend_this_month": 0.0,
+                "budget": FREE_TIER_MONTHLY_BUDGET, "remaining_budget": FREE_TIER_MONTHLY_BUDGET,
+                "avg_cost_per_active_account": 0.0, "implied_capacity": 0,
+            }
+
+        usage = (
+            svc.table("usage_records")
+            .select("organization_id, conversations_used")
+            .in_("organization_id", org_ids)
+            .eq("billing_month", billing_month)
+            .is_("module_slug", "null")
+            .execute()
+        )
+        rows = usage.data or []
+        active_rows = [r for r in rows if (r.get("conversations_used") or 0) > 0]
+        total_exchanges = sum((r.get("conversations_used") or 0) for r in rows)
+        spend_this_month = round(total_exchanges * FREE_TIER_COST_PER_EXCHANGE, 2)
+        active_accounts = len(active_rows)
+
+        worst_case_fallback = FREE_TIER_COST_PER_EXCHANGE * 30
+        avg_cost = (spend_this_month / active_accounts) if active_accounts else worst_case_fallback
+        remaining_budget = max(0.0, FREE_TIER_MONTHLY_BUDGET - spend_this_month)
+        implied_capacity_raw = (remaining_budget / avg_cost) if avg_cost > 0 else 0
+        implied_capacity = max(0, int(implied_capacity_raw * (1 - FREE_TIER_CAPACITY_MARGIN)))
+
+        return {
+            "total_accounts": total_accounts,
+            "active_accounts": active_accounts,
+            "spend_this_month": spend_this_month,
+            "budget": FREE_TIER_MONTHLY_BUDGET,
+            "remaining_budget": round(remaining_budget, 2),
+            "avg_cost_per_active_account": round(avg_cost, 2),
+            "implied_capacity": implied_capacity,
+        }
+    except Exception as e:
+        print(f"[FREE_GATE] capacity snapshot failed: {e}")
+        return None
+
+
 def _pending_waitlist() -> list:
     """Oldest-first, founder-only. Called from admin_home() and from the
     invite/decline actions below (so the list re-renders current after
@@ -575,6 +657,22 @@ def _pending_waitlist() -> list:
         return []
 
 
+def _founder_admin_context() -> dict:
+    """Bundles everything founder-only on /access/admin (waitlist queue,
+    capacity snapshot) into one dict every render_template call on this
+    page spreads in with **_founder_admin_context() -- added so the four
+    call sites (admin_home, admin_invite, admin_waitlist_invite,
+    admin_waitlist_decline) can't drift out of sync on what a founder
+    reload actually shows. Returns Clark-safe empty values when not a
+    founder, so callers never need their own is_founder branch."""
+    is_founder = _is_founder()
+    return {
+        "is_founder": is_founder,
+        "waitlist": _pending_waitlist() if is_founder else [],
+        "capacity": _free_tier_capacity_snapshot() if is_founder else None,
+    }
+
+
 @free_gate_bp.route("/admin", methods=["GET"])
 def admin_home():
     """Single page, two states: a one-time shared-secret login (no per-
@@ -582,13 +680,9 @@ def admin_home():
     Clark personally issuing invites, a shared key is the right amount of
     gate for that), then the actual invite form once unlocked. Two keys
     map to two roles (see INVITER_ADMIN_KEY above) -- the waitlist section
-    is the first thing that actually differs between them: founder-only,
-    Clark's screen stays the invite form alone."""
-    is_founder = _is_founder()
-    return render_template(
-        "free_admin.html", logged_in=_is_admin(), is_founder=is_founder,
-        waitlist=_pending_waitlist() if is_founder else [],
-    )
+    and capacity panel are the things that actually differ between them:
+    founder-only, Clark's screen stays the invite form alone."""
+    return render_template("free_admin.html", logged_in=_is_admin(), **_founder_admin_context())
 
 
 @free_gate_bp.route("/admin/login", methods=["POST"])
@@ -655,17 +749,12 @@ def admin_invite():
     email = (request.form.get("email") or "").strip().lower()
 
     if not email or "@" not in email:
-        return render_template("free_admin.html", logged_in=True, is_founder=_is_founder(),
-                                waitlist=_pending_waitlist() if _is_founder() else [],
-                                error="Enter a valid email address.")
+        return render_template("free_admin.html", logged_in=True,
+                                error="Enter a valid email address.", **_founder_admin_context())
 
     result = _create_and_send_invite(name, email)
 
-    return render_template(
-        "free_admin.html", logged_in=True, is_founder=_is_founder(),
-        waitlist=_pending_waitlist() if _is_founder() else [],
-        result=result,
-    )
+    return render_template("free_admin.html", logged_in=True, result=result, **_founder_admin_context())
 
 
 @free_gate_bp.route("/admin/waitlist/invite", methods=["POST"])
@@ -693,10 +782,7 @@ def admin_waitlist_invite():
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", row_id).execute()
 
-    return render_template(
-        "free_admin.html", logged_in=True, is_founder=True,
-        waitlist=_pending_waitlist(), result=result,
-    )
+    return render_template("free_admin.html", logged_in=True, result=result, **_founder_admin_context())
 
 
 @free_gate_bp.route("/admin/waitlist/decline", methods=["POST"])
@@ -715,7 +801,4 @@ def admin_waitlist_decline():
             "resolved_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", row_id).execute()
 
-    return render_template(
-        "free_admin.html", logged_in=True, is_founder=True,
-        waitlist=_pending_waitlist(),
-    )
+    return render_template("free_admin.html", logged_in=True, **_founder_admin_context())
