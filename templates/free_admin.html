@@ -55,14 +55,16 @@
   .waitlist-card { margin-bottom: 18px; }
   .waitlist-row {
     border-bottom: 1px solid #e5e7eb; padding: 12px 0; font-size: 0.85rem;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
   }
   .waitlist-row:last-child { border-bottom: none; }
+  .waitlist-row .row-main { flex: 1; min-width: 0; }
   .waitlist-row .who { font-weight: 600; color: #111827; }
   .waitlist-row .meta { color: #9ca3af; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px; }
   .waitlist-row .note { color: #4b5563; margin-top: 4px; }
-  .waitlist-row .row-actions { display: flex; gap: 8px; margin-top: 8px; }
-  .waitlist-row .row-actions form { flex: 1; margin: 0; }
-  .waitlist-row .row-actions button { padding: 7px; font-size: 0.8rem; }
+  .waitlist-row .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .waitlist-row .row-actions form { margin: 0; width: auto; }
+  .waitlist-row .row-actions button { width: auto; padding: 5px 10px; font-size: 0.72rem; font-weight: 500; }
   .waitlist-row .row-actions button.decline { background: transparent; color: #991b1b; border: 1px solid #fca5a5; font-weight: 500; }
   .waitlist-row .row-actions button.decline:hover { background: #fef2f2; }
   .empty { color: #9ca3af; font-size: 0.85rem; }
@@ -202,10 +204,12 @@
     {% if waitlist %}
       {% for row in waitlist %}
       <div class="waitlist-row">
-        <span class="who">{{ row.name or row.email }}</span>
-        {% if row.name %}<span style="color:#6b7280;">{{ row.email }}</span>{% endif %}
-        <span class="meta">{{ row.source }}</span>
-        {% if row.note %}<div class="note">{{ row.note }}</div>{% endif %}
+        <div class="row-main">
+          <span class="who">{{ row.name or row.email }}</span>
+          {% if row.name %}<span style="color:#6b7280;">{{ row.email }}</span>{% endif %}
+          <span class="meta">{{ row.source }}</span>
+          {% if row.note %}<div class="note">{{ row.note }}</div>{% endif %}
+        </div>
         <div class="row-actions">
           <form method="POST" action="{{ url_for('free_gate.admin_waitlist_invite') }}">
             <input type="hidden" name="id" value="{{ row.id }}">
