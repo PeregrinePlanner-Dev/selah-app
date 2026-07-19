@@ -43,6 +43,11 @@
   }
   button:hover { background: #275b57; }
   button:disabled { background: #9ca3af; cursor: not-allowed; }
+  button.secondary {
+    background: transparent; color: #6b7280; font-weight: 500;
+    border: 1px solid #d1d5db; margin-top: 10px;
+  }
+  button.secondary:hover { background: #f3f4f6; }
   .msg {
     font-size: 0.8rem; padding: 10px 12px; border-radius: 6px; margin-bottom: 14px;
     display: none;
@@ -65,9 +70,13 @@
   </div>
 
   <div class="card">
-    {% if already_signed_in %}
+    {% if released %}
+      <p class="lead">Your seat's been released — thank you for giving it back rather than letting it sit idle. Want back in later? Just ask for a fresh invite any time.</p>
+      <button onclick="window.location.href='/access'">Done</button>
+    {% elif already_signed_in %}
       <p class="lead">You're already signed in.</p>
       <button onclick="window.location.href='/'">Continue to Selah</button>
+      <button class="secondary" onclick="releaseSeat()">Not using it anymore? Release your seat</button>
     {% else %}
       <div id="msg" class="msg{% if link_error %} error{% endif %}">{{ link_error or "" }}</div>
 
@@ -241,6 +250,14 @@ async function requestCode() {
     showMsg("Couldn't reach Selah right now. Try again in a moment.", "error");
     btn.disabled = false; btn.textContent = "Continue";
   }
+}
+
+function releaseSeat() {
+  if (!confirm("Release your Selah seat? This deletes your account and everything in it, and opens the spot up for someone else. You can always ask for a fresh invite later.")) return;
+  fetch("/access/release", { method: "POST" })
+    .then(res => res.text())
+    .then(html => { document.open(); document.write(html); document.close(); })
+    .catch(() => showMsg("Couldn't reach Selah right now. Try again in a moment.", "error"));
 }
 
 async function verifyCode() {

@@ -10,7 +10,7 @@ from pro_chat import pro_chat_bp, _check_and_reserve_usage
 from pro_billing import pro_billing_bp
 from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
-from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id
+from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id, clear_inactivity_flag
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
@@ -236,6 +236,11 @@ def chat():
             "turn":     0,
         })
 
+    # Proof of life for the inactivity-nudge scheduler (pro_scheduler.py) --
+    # a real exchange clears any previously-set nudge flag so a future quiet
+    # stretch triggers a fresh nudge instead of staying silenced forever.
+    clear_inactivity_flag(session_id)
+
     if session_id not in conversations:
         conversations[session_id] = {
             "messages": [], "node": None, "anchor": "", "turn": 0
@@ -409,6 +414,8 @@ def upload_session():
             "node":     "",
             "anchor":   "",
         })
+
+    clear_inactivity_flag(session_id)
 
     node = "Grace"
     node_match = re.search(r"Node:\s*(.+)", content)

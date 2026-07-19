@@ -85,6 +85,20 @@ WRONG_EMAIL_ERROR = (
 # invites, so a single shared secret is the right amount of gate for now,
 # not a new permissions model.
 FREE_TIER_ADMIN_KEY = os.environ.get("FREE_TIER_ADMIN_KEY", "")
+
+# Second, narrower key, added 2026-07-19 -- Rick is letting Clark issue
+# invites during beta but the two shouldn't share a credential (so it can
+# be revoked/rotated for one person without touching the other, and so
+# Clark's key can be scoped to less than everything Rick can see). Right
+# now both roles land on the exact same invite-only page -- there's
+# nothing founder-only built yet -- but the role is already tracked
+# (fg_admin_role, "founder" vs "inviter") so future additions to this page
+# (the waitlist/dashboard work scoped in
+# 05- Future/Selah_Founder_Dashboard_and_Waitlist_Scope_2026-07-19.md) can
+# gate themselves to founder-only via _is_founder() without a rebuild of
+# the login system. Confirmed with Rick: Clark's screen should stay
+# invite-only, not grow the waitlist queue into his view too.
+INVITER_ADMIN_KEY = os.environ.get("INVITER_ADMIN_KEY", "")
 DEFAULT_INVITE_EXPIRY_DAYS = 30
 
 
@@ -324,6 +338,120 @@ def access_logout():
 
 
 # ---------------------------------------------------------------------------
+# Self-release + inactivity nudge, added 2026-07-19. The free tier's
+# invite-only gate exists because of a real $50/month budget ceiling (see
+# module docstring) -- an invited account that's gone quiet still counts
+# against that ceiling indefinitely, with no way today for anyone (the
+# account holder or Rick) to give that room back to the next person on the
+# waitlist. Two halves: this route (anyone can release their own seat any
+# time, no reason needed) and _send_free_tier_inactivity_nudges() in
+# pro_scheduler.py (proactively asks someone who's gone quiet whether they
+# still want it). Both end the same way -- _release_free_seat() below,
+# reusing pro_auth.py's exact delete_account() mechanism (admin
+# delete_user(), cascades to profiles/planning_sessions) rather than
+# inventing a softer "deactivated" state. Matches Rick's existing call on
+# Individual Pro self-delete (2026-07-12): voluntary release is immediate,
+# no grace period -- the grace-period cases are the involuntary ones
+# (a church's access lapsing), not this.
+# ---------------------------------------------------------------------------
+
+def clear_inactivity_flag(user_id: str) -> None:
+    """Called from app.py right after a real chat exchange succeeds --
+    proof of life. Clears any previously-set nudge flag so a future quiet
+    stretch triggers a fresh nudge instead of being permanently silenced by
+    one old send. Best-effort: a failure here should never block the chat
+    response that triggered it."""
+    try:
+        get_service_client().table("profiles").update({
+            "inactivity_nudge_sent_at": None
+        }).eq("id", user_id).execute()
+    except Exception as e:
+        print(f"[FREE_GATE] failed to clear inactivity flag for {user_id}: {e}")
+
+
+def _release_free_seat(user_id: str, email: str | None, first_name: str | None = None,
+                        auto: bool = False) -> bool:
+    """Shared by the self-serve route below and the scheduler's auto-release
+    job. Deletes the auth.users row via the admin API -- cascades to
+    profiles and planning_sessions the same way pro_auth.py's
+    delete_account() does for Individual Pro. Returns True on success;
+    caller decides what to tell the user.
+
+    auto=True is the scheduler's involuntary release (60 days inactive, no
+    response to the 30-day nudge) -- gets its own email copy, since "thank
+    you for giving it back" is wrong when nobody chose anything. Both
+    versions end the same way (a fresh invite gets them back in), so
+    neither is framed as a door closing."""
+    try:
+        get_service_client().auth.admin.delete_user(user_id)
+    except Exception as e:
+        print(f"[FREE_GATE] release failed for {user_id}: {e}")
+        return False
+    if email:
+        greeting = f"Hi {first_name}," if first_name else "Hi,"
+        if auto:
+            subject = "Your Selah seat was released after 60 days of inactivity"
+            body = f"""
+              <p>{greeting}</p>
+              <p>Your Selah account hadn't been used in 60 days, including the two weeks since we checked in to ask -- so it's been released to free up the spot for someone on the waitlist.</p>
+              <p>Want back in? Just ask for a fresh invite any time.</p>
+            """
+        else:
+            subject = "Your Selah seat has been released"
+            body = f"""
+              <p>{greeting}</p>
+              <p>Your Selah account has been released, and the spot's been freed up for the next person waiting for an invite. Thank you for giving it back rather than letting it sit idle.</p>
+              <p>Want back in later? Just ask for a fresh invite any time.</p>
+            """
+        send_email(email, subject, body)
+    return True
+
+
+def send_free_tier_inactivity_nudge_email(email: str, sign_in_link: str, first_name: str | None = None) -> bool:
+    """Called from pro_scheduler.py's daily job, not from a live request --
+    kept here rather than pro_email.py since every other free-tier email
+    already lives in this file (the invite email above), not in that
+    module's Ministry-branded helpers. Deliberately does not delete or
+    release anything itself -- just asks, and links to sign-in rather than
+    straight to /access/release, so nothing destructive ever happens from
+    an email click alone (a scanning/prefetching email client hitting a
+    live one-click delete link is a real, known failure mode -- this makes
+    that impossible by construction). States the 60-day auto-release
+    plainly rather than leaving it a silent surprise -- consistent with the
+    project's own honest-communication standard elsewhere (no fine-print
+    surprises)."""
+    greeting = f"Hi {first_name}," if first_name else "Hi,"
+    subject = "Still using Selah?"
+    html = f"""
+      <p>{greeting}</p>
+      <p>It's been 30 days since you've used Selah's free tool. No pressure -- but if you're not using it right now, releasing your spot opens it up for someone waiting for an invite. If we don't hear anything, an inactive seat is released automatically after 60 days total, so this doesn't just sit as a silent deadline.</p>
+      <p><a href="{sign_in_link}">Sign in</a> to keep going, or release your seat from there if you're done with it. Signing in and using Selah at all resets this.</p>
+    """
+    return send_email(email, subject, html)
+
+
+@free_gate_bp.route("/release", methods=["POST"])
+def access_release():
+    """Self-serve, immediate, no reason required -- signed-in free-tier
+    users only (checks the fg_* session, same gate as the chat routes in
+    app.py). No confirmation step server-side; access.html's own JS asks
+    via a plain confirm() dialog before this ever gets hit, same lightweight
+    pattern as everything else on that page."""
+    if not is_free_gate_authenticated():
+        return redirect(url_for("free_gate.access_home"))
+
+    user_id = session.get("fg_user_id")
+    email = session.get("fg_email")
+    ok = _release_free_seat(user_id, email)
+    _clear_free_session()
+    if not ok:
+        return render_template("access.html", already_signed_in=False,
+                                link_error="Something went wrong releasing your seat. Please try again.")
+    return render_template("access.html", already_signed_in=False,
+                            link_error=None, released=True)
+
+
+# ---------------------------------------------------------------------------
 # Invite-issuing admin page, added 2026-07-17 (later same day as the gate
 # itself), prompted directly by Rick catching a real gap: the original 25
 # seeded codes (see Selah_Free_Tier_Invite_Codes_2026-07-17.md) prove
@@ -335,8 +463,22 @@ def access_logout():
 # original 25 stay as open/general codes (invited_email null), unaffected.
 # ---------------------------------------------------------------------------
 
+def _admin_role() -> str | None:
+    role = session.get("fg_admin_role")
+    return role if role in ("founder", "inviter") else None
+
+
 def _is_admin() -> bool:
-    return bool(session.get("fg_is_admin"))
+    """True for either role -- both can reach this page and issue invites."""
+    return bool(_admin_role())
+
+
+def _is_founder() -> bool:
+    """True only for Rick's key. Nothing on this page checks this yet --
+    it's here for the founder-only sections (waitlist, church activity,
+    money health) scoped separately, so they can gate on this from day one
+    instead of needing a follow-up change to the login system later."""
+    return _admin_role() == "founder"
 
 
 @free_gate_bp.route("/admin", methods=["GET"])
@@ -344,7 +486,9 @@ def admin_home():
     """Single page, two states: a one-time shared-secret login (no per-
     person admin accounts exist for the free tier -- this is just Rick/
     Clark personally issuing invites, a shared key is the right amount of
-    gate for that), then the actual invite form once unlocked."""
+    gate for that), then the actual invite form once unlocked. Two keys
+    map to two roles (see INVITER_ADMIN_KEY above); both see the same page
+    today since nothing founder-only has been added to it yet."""
     return render_template("free_admin.html", logged_in=_is_admin())
 
 
@@ -354,15 +498,18 @@ def admin_login():
     if not FREE_TIER_ADMIN_KEY:
         return render_template("free_admin.html", logged_in=False,
                                 error="FREE_TIER_ADMIN_KEY isn't set on the server -- nothing to check against.")
-    if not key or key != FREE_TIER_ADMIN_KEY:
-        return render_template("free_admin.html", logged_in=False, error="Wrong key.")
-    session["fg_is_admin"] = True
-    return redirect(url_for("free_gate.admin_home"))
+    if key and key == FREE_TIER_ADMIN_KEY:
+        session["fg_admin_role"] = "founder"
+        return redirect(url_for("free_gate.admin_home"))
+    if key and INVITER_ADMIN_KEY and key == INVITER_ADMIN_KEY:
+        session["fg_admin_role"] = "inviter"
+        return redirect(url_for("free_gate.admin_home"))
+    return render_template("free_admin.html", logged_in=False, error="Wrong key.")
 
 
 @free_gate_bp.route("/admin/logout", methods=["POST"])
 def admin_logout():
-    session.pop("fg_is_admin", None)
+    session.pop("fg_admin_role", None)
     return redirect(url_for("free_gate.admin_home"))
 
 

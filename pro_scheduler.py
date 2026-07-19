@@ -31,6 +31,7 @@ from pro_email import (
     send_cancellation_reminder_email,
     send_cascade_admin_summary_email,
 )
+from free_gate import send_free_tier_inactivity_nudge_email, _release_free_seat
 
 pro_scheduler_bp = Blueprint("pro_scheduler", __name__, url_prefix="/pro/internal")
 
@@ -40,6 +41,15 @@ CRON_SECRET = os.environ.get("CRON_SECRET", "")
 # constant rather than buried in the query logic below, so it's easy to
 # find and change later without hunting through the function.
 REMINDER_LEAD_DAYS = 3
+
+# Free-tier inactivity, added 2026-07-19 -- Rick's call, no data yet to
+# size these from precisely. Both measured from the same signal
+# (auth.users.last_sign_in_at), not chained off each other: a nudge at 30
+# days, and if there's still been no sign-in by 60 days total (not 60 days
+# after the nudge), the seat is released automatically. Starting points,
+# easy to change here once there's real usage to look at.
+NUDGE_AFTER_DAYS = 30
+AUTO_RELEASE_AFTER_DAYS = 60
 
 
 def _parse_ts(value):
@@ -192,6 +202,81 @@ def _run_cancellation_cascade(svc) -> int:
     return orgs_processed
 
 
+def _send_free_tier_inactivity_nudges(svc) -> dict:
+    """Job 3 -- added 2026-07-19, part of the free-tier capacity work in
+    05- Future/Selah_Founder_Dashboard_and_Waitlist_Scope_2026-07-19.md.
+    The free tier's $50/month ceiling is shared across every invited
+    account regardless of whether they're still using it -- nothing before
+    this asked a quiet account to give its spot back. "Activity" here means
+    auth.users.last_sign_in_at (checked per-user via the admin API), not a
+    planning_sessions timestamp -- free-tier conversation state is still
+    in-memory only (see free_gate.py's module docstring), so there's no
+    Postgres-side per-turn activity record to query yet. last_sign_in_at is
+    an imperfect proxy (a browser tab left open past token expiry wouldn't
+    show as a new sign-in even if idle-active) but it's the real signal
+    that exists today without a larger build.
+
+    Two thresholds, both measured from last_sign_in_at directly (NOT
+    chained off each other -- AUTO_RELEASE_AFTER_DAYS is 60 days of total
+    inactivity, not 30 days after the nudge, so a nudge sent late for any
+    reason doesn't shorten anyone's real window):
+      - >= AUTO_RELEASE_AFTER_DAYS: released immediately, checked first --
+        someone this quiet is past the point a fresh nudge changes anything.
+      - >= NUDGE_AFTER_DAYS and not yet nudged: nudge email sent, guarded by
+        profiles.inactivity_nudge_sent_at so this doesn't re-email daily.
+        Cleared back to NULL by clear_inactivity_flag() (free_gate.py) on
+        the next real chat exchange, so a later quiet stretch gets its own
+        nudge cycle rather than staying permanently silenced."""
+    now = datetime.now(timezone.utc)
+    nudge_cutoff = now - timedelta(days=NUDGE_AFTER_DAYS)
+    release_cutoff = now - timedelta(days=AUTO_RELEASE_AFTER_DAYS)
+    sign_in_link = url_for("free_gate.access_home", _external=True)
+
+    free_orgs = (
+        svc.table("subscriptions")
+        .select("organization_id")
+        .eq("tier_slug", "free")
+        .execute()
+    )
+    org_ids = [r["organization_id"] for r in (free_orgs.data or [])]
+    if not org_ids:
+        return {"nudged": 0, "released": 0}
+
+    profiles = (
+        svc.table("profiles")
+        .select("id, email, first_name, inactivity_nudge_sent_at")
+        .in_("organization_id", org_ids)
+        .execute()
+    )
+
+    nudged = 0
+    released = 0
+    for p in profiles.data or []:
+        if not p.get("email"):
+            continue
+        try:
+            user_resp = svc.auth.admin.get_user_by_id(p["id"])
+            last_sign_in = getattr(user_resp.user, "last_sign_in_at", None) if user_resp and user_resp.user else None
+            if not last_sign_in:
+                continue  # never signed in at all yet -- not "gone quiet," just hasn't started
+            last_sign_in = _parse_ts(last_sign_in)
+
+            if last_sign_in <= release_cutoff:
+                if _release_free_seat(p["id"], p["email"], p.get("first_name"), auto=True):
+                    released += 1
+                continue
+
+            if last_sign_in <= nudge_cutoff and not p.get("inactivity_nudge_sent_at"):
+                send_free_tier_inactivity_nudge_email(p["email"], sign_in_link, p.get("first_name"))
+                svc.table("profiles").update({
+                    "inactivity_nudge_sent_at": now.isoformat()
+                }).eq("id", p["id"]).execute()
+                nudged += 1
+        except Exception as e:
+            print(f"[SCHEDULER] inactivity job failed for profile {p.get('id')}: {e}")
+    return {"nudged": nudged, "released": released}
+
+
 @pro_scheduler_bp.route("/run-scheduled-jobs", methods=["POST"])
 def run_scheduled_jobs():
     """Single entry point a Render Cron Job hits once a day:
@@ -217,8 +302,16 @@ def run_scheduled_jobs():
     except Exception as e:
         print(f"[SCHEDULER] cascade job crashed: {e}")
 
+    inactivity_result = {"nudged": 0, "released": 0}
+    try:
+        inactivity_result = _send_free_tier_inactivity_nudges(svc)
+    except Exception as e:
+        print(f"[SCHEDULER] inactivity job crashed: {e}")
+
     return jsonify({
         "ok": True,
         "reminders_sent": reminders_sent,
         "cascades_processed": orgs_cascaded,
+        "inactivity_nudges_sent": inactivity_result["nudged"],
+        "inactivity_auto_released": inactivity_result["released"],
     })
