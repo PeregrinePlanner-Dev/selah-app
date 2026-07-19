@@ -639,6 +639,117 @@ def _free_tier_capacity_snapshot() -> dict:
 
 _STATUS_SEVERITY = {"canceled": 3, "past_due": 2, "trialing": 1, "active": 0}
 
+# Small, known-disposable-email domains, seeded from what actually showed
+# up in a live Supabase auth-log check earlier this session (besttempmail,
+# justdefinition, inbox.eu) plus a few of the most common general ones.
+# Not exhaustive -- a determined signup can always find a domain not on
+# this list -- but a cheap, real signal with zero false-positive risk: a
+# domain either is one of these or it isn't.
+_DISPOSABLE_EMAIL_DOMAINS = {
+    "besttempmail.com", "justdefinition.com", "inbox.eu", "mailinator.com",
+    "guerrillamail.com", "10minutemail.com", "temp-mail.org", "throwawaymail.com",
+    "yopmail.com", "sharklasers.com", "trashmail.com", "getnada.com",
+    "dispostable.com", "fakeinbox.com", "tempmailo.com", "maildrop.cc",
+}
+
+
+def _parse_ts_local(value) -> datetime:
+    """Same tolerant ISO-8601 parse pro_scheduler.py's _parse_ts() uses --
+    duplicated here rather than imported since it's a two-line utility, not
+    worth a cross-module dependency for."""
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _free_tier_invite_queue_snapshot() -> dict:
+    """Founder-only, read-only, added 2026-07-19 -- the doc's "outstanding
+    vs. used" invite view. free_tier_invites rows never disappear once
+    created, so without this, a batch of invites seeded or sent months ago
+    and never redeemed is invisible -- nothing surfaces that they're just
+    sitting there. `stale` = outstanding (used_at IS NULL) AND past its own
+    expires_at -- these can never be redeemed anymore (the DB trigger
+    enforces that, see handle_new_user()), so they're pure noise, worth
+    knowing about but not actionable the way a still-valid outstanding
+    invite is."""
+    try:
+        resp = (
+            get_service_client()
+            .table("free_tier_invites")
+            .select("token, invited_email, used_at, created_at, expires_at")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = resp.data or []
+        now = datetime.now(timezone.utc)
+        outstanding = []
+        used_count = 0
+        for r in rows:
+            if r.get("used_at"):
+                used_count += 1
+                continue
+            expires_at = r.get("expires_at")
+            is_expired = False
+            if expires_at:
+                try:
+                    is_expired = _parse_ts_local(expires_at) < now
+                except Exception:
+                    is_expired = False
+            outstanding.append({
+                "token": r["token"],
+                "invited_email": r.get("invited_email"),
+                "created_at": r.get("created_at"),
+                "expires_at": expires_at,
+                "expired": is_expired,
+            })
+        return {
+            "outstanding": outstanding,
+            "outstanding_count": len(outstanding),
+            "stale_count": sum(1 for o in outstanding if o["expired"]),
+            "used_count": used_count,
+        }
+    except Exception as e:
+        print(f"[FREE_GATE] invite queue snapshot failed: {e}")
+        return None
+
+
+def _flagged_signups_snapshot(days: int = 14) -> list:
+    """Founder-only, read-only, added 2026-07-19 -- a real but partial
+    build of the scoping doc's "flagged signups" item. Only the disposable-
+    email-domain half is actually possible from here: the other half
+    (repeat failed logins, the pattern spotted in the auth-log check
+    earlier this session) lives only in Supabase's platform-level auth
+    logs, not in any table this app's own Postgres client can query --
+    checked directly: auth.audit_log_entries exists but has zero rows on
+    this project, so it isn't a usable source today. Doing the failed-
+    login half for real would mean either a Supabase Management API
+    integration (a separate credential, a real build) or this app logging
+    its own failed attempts going forward -- neither done here. This flags
+    signups from known disposable domains in the last `days` days; nothing
+    more. Labeled honestly in the UI rather than presented as the whole
+    "flagged signups" feature the doc described."""
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        resp = (
+            get_service_client()
+            .table("profiles")
+            .select("email, first_name, last_name, created_at")
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        flagged = []
+        for p in (resp.data or []):
+            email = (p.get("email") or "").lower()
+            domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+            if domain in _DISPOSABLE_EMAIL_DOMAINS:
+                name = " ".join(filter(None, [p.get("first_name"), p.get("last_name")])) or None
+                flagged.append({"email": p.get("email"), "name": name, "created_at": p.get("created_at"), "domain": domain})
+        return flagged
+    except Exception as e:
+        print(f"[FREE_GATE] flagged signups snapshot failed: {e}")
+        return []
+
 
 def _church_org_activity_snapshot() -> list:
     """Founder-only, read-only, added 2026-07-19, collapsed to one row per
@@ -766,6 +877,8 @@ def _founder_admin_context() -> dict:
         "waitlist": _pending_waitlist() if is_founder else [],
         "capacity": _free_tier_capacity_snapshot() if is_founder else None,
         "church_orgs": _church_org_activity_snapshot() if is_founder else [],
+        "invite_queue": _free_tier_invite_queue_snapshot() if is_founder else None,
+        "flagged_signups": _flagged_signups_snapshot() if is_founder else [],
     }
 
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Selah — Free Tier Invites</title>
+<title>Selah — {% if is_founder %}Admin{% else %}Free-tier invites{% endif %}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -114,13 +114,24 @@
   .org-detail-line { padding: 3px 0; text-transform: capitalize; }
   .org-detail-line strong { text-transform: capitalize; }
   .org-detail-note { margin-top: 6px; color: #9ca3af; font-size: 0.72rem; text-transform: none; }
+
+  .queue-card { margin-bottom: 18px; }
+  .queue-summary { font-size: 0.78rem; color: #6b7280; margin-bottom: 12px; line-height: 1.5; }
+  .queue-list { max-height: 260px; overflow-y: auto; }
+  .queue-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.82rem; color: #111827;
+  }
+  .queue-row:last-child { border-bottom: none; }
+  .queue-row.expired { color: #991b1b; }
+  .queue-meta { color: #9ca3af; font-size: 0.72rem; white-space: nowrap; flex-shrink: 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="brand">
     <div class="brand-title">Selah</div>
-    <div class="brand-sub">Free-tier invites</div>
+    <div class="brand-sub">{% if is_founder %}Admin{% else %}Free-tier invites{% endif %}</div>
   </div>
 
   {% if logged_in and is_founder and capacity %}
@@ -226,6 +237,44 @@
       {% endfor %}
     {% else %}
       <p class="empty">Nobody waiting right now.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if logged_in and is_founder and invite_queue %}
+  <div class="card queue-card">
+    <p class="lead" style="margin-bottom:4px;">Free-tier invite queue</p>
+    <p class="queue-summary">{{ invite_queue.outstanding_count }} outstanding{% if invite_queue.stale_count %} ({{ invite_queue.stale_count }} expired, unused){% endif %} &nbsp;·&nbsp; {{ invite_queue.used_count }} used</p>
+    {% if invite_queue.outstanding %}
+    <div class="queue-list">
+      {% for inv in invite_queue.outstanding %}
+      <div class="queue-row{% if inv.expired %} expired{% endif %}">
+        <span>{{ inv.invited_email or "(open code)" }}</span>
+        <span class="queue-meta">{{ inv.token }} · sent {{ inv.created_at[:10] if inv.created_at else "—" }}{% if inv.expired %} · expired{% elif inv.expires_at %} · expires {{ inv.expires_at[:10] }}{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="empty">Nothing outstanding — every issued invite has been used.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if logged_in and is_founder %}
+  <div class="card queue-card">
+    <p class="lead" style="margin-bottom:4px;">Flagged signups{% if flagged_signups %} ({{ flagged_signups|length }}){% endif %}</p>
+    <p class="queue-summary">Disposable-email domains only, last 14 days. Doesn't check repeat failed logins — that data isn't reachable from here today (Supabase's audit log table exists but is empty on this project; would need a separate integration to fix).</p>
+    {% if flagged_signups %}
+    <div class="queue-list">
+      {% for s in flagged_signups %}
+      <div class="queue-row expired">
+        <span>{{ s.name or s.email }}{% if s.name %} <span style="color:#6b7280; font-weight:400;">{{ s.email }}</span>{% endif %}</span>
+        <span class="queue-meta">{{ s.domain }} · {{ s.created_at[:10] if s.created_at else "—" }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="empty">Nothing flagged in the last 14 days.</p>
     {% endif %}
   </div>
   {% endif %}
