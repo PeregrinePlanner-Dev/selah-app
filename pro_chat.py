@@ -26,7 +26,7 @@ from engine import (
     generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
     attach_scripture_verification,
 )
-from pro_auth import login_required, get_user_supabase, get_service_client
+from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token
 
 pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 
@@ -1028,4 +1028,5 @@ def pro_app():
         nodes=NODE_NAMES,
         node_display_names=NODE_DISPLAY_NAMES,
         email=session.get("sb_email", ""),
+        csrf_token=csrf_token(),
     )

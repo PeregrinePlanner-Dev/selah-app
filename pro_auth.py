@@ -15,6 +15,7 @@ Pro ever handles more sensitive data than it does today.
 """
 
 import os
+import secrets
 import time
 from collections import defaultdict
 from functools import wraps
@@ -77,6 +78,48 @@ def _check_and_record(bucket: dict, key: str, limit: int, window_seconds: int) -
         return False
     attempts.append(now)
     return True
+
+# ── CSRF protection ──────────────────────────────────────────────────────
+# Added 2026-07-20, the other half of the "rate limiting + CSRF" gap flagged
+# in Selah_Full_Stack_Audit_2026-07-14.md Section 3.4a -- rate limiting
+# landed 2026-07-18 (above), this closes the CSRF piece. Scoped deliberately
+# narrow: this file's plain HTML <form> POSTs (signup, login, logout,
+# forgot-password, account/delete). pro_org.py's eleven admin routes and this
+# file's own two JSON-body routes (change_password, reset_password_submit)
+# are NOT touched here -- they already get incidental protection from the
+# browser's same-origin policy, since a cross-site page can't complete a
+# credentialed cross-origin fetch with Content-Type: application/json
+# without a CORS preflight this app doesn't grant (confirmed: no CORS
+# headers or flask-cors anywhere in this codebase). A plain HTML <form>
+# needs no preflight and no JS on the attacker's page at all -- that's the
+# real, concrete gap. /pro/account/delete is the sharpest case: a POST with
+# NO required body, authenticated only by the session cookie, wired to a
+# real, irreversible delete_user() call -- a hidden auto-submitting form on
+# any other page a logged-in user's browser visits could trigger it today
+# without this fix. No new dependency (no Flask-WTF) -- a single token
+# minted into the existing signed session cookie, same pattern every other
+# sb_* value in this file already uses.
+def csrf_token() -> str:
+    """Returns this session's CSRF token, minting one on first use. Read by
+    every template that renders one of the forms below (pro_login.html,
+    pro_app.html) and checked against the submitted hidden field by
+    csrf_valid() on each of those routes."""
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["csrf_token"] = token
+    return token
+
+
+def csrf_valid() -> bool:
+    """Constant-time compare of the submitted csrf_token form field against
+    this session's own token. Returns False (never raises) on any missing
+    piece -- a session with no token yet, or a submission with no field --
+    so every caller can treat it as a plain pass/fail check."""
+    session_token = session.get("csrf_token")
+    submitted = request.form.get("csrf_token", "")
+    return bool(session_token) and secrets.compare_digest(session_token, submitted)
+
 
 _supabase_client: Client | None = None
 _service_client: Client | None = None
@@ -160,6 +203,7 @@ def pro_home():
         error=request.args.get("error", ""),
         notice=request.args.get("notice", ""),
         promo=promo,
+        csrf_token=csrf_token(),
     )
 
 
@@ -178,6 +222,8 @@ _INVITE_RESOLUTION_MESSAGES = {
 
 @pro_bp.route("/signup", methods=["POST"])
 def signup():
+    if not csrf_valid():
+        return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
     if not _check_and_record(_signup_attempts, f"ip:{_get_client_ip()}",
                               SIGNUP_ATTEMPT_LIMIT, SIGNUP_WINDOW_SECONDS):
         return redirect(url_for("pro.pro_home", error=RATE_LIMIT_SIGNUP_MESSAGE))
@@ -303,6 +349,9 @@ def signup():
 
 @pro_bp.route("/login", methods=["POST"])
 def login():
+    if not csrf_valid():
+        return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
+
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
     # Carried via a hidden field on pro_login.html's login form (Jinja-
@@ -342,6 +391,8 @@ def login():
 
 @pro_bp.route("/logout", methods=["POST"])
 def logout():
+    if not csrf_valid():
+        return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
     session.pop("sb_access_token", None)
     session.pop("sb_refresh_token", None)
     session.pop("sb_expires_at", None)
@@ -378,6 +429,9 @@ def forgot_password_request():
     the email actually has an account -- standard anti-enumeration
     practice, so this endpoint can't be used to check who has a Selah
     account."""
+    if not csrf_valid():
+        return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
+
     email = request.form.get("email", "").strip()
     generic_notice = "If an account exists for that email, a password reset link is on its way."
     if not email:
@@ -475,7 +529,15 @@ def delete_account():
     affect a shared church org's data for everyone else still on it. An
     orphaned solo individual's own org row is left in place too (harmless,
     near-zero cost) rather than added complexity for a same-day build --
-    real cleanup of those can be a periodic job later, not blocking this."""
+    real cleanup of those can be a periodic job later, not blocking this.
+
+    CSRF-checked as of 2026-07-20 -- this was the single sharpest case for
+    the whole fix: a POST with no required body at all, wired to a real
+    irreversible delete, previously guarded only by the session cookie a
+    forged cross-site form submission would ride along automatically."""
+    if not csrf_valid():
+        return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
+
     user_id = session.get("sb_user_id")
     if not user_id:
         return redirect(url_for("pro.pro_home", error="Not logged in."))

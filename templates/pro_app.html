@@ -357,6 +357,7 @@
     <button class="billing-btn" id="billing-btn" onclick="handleBillingClick()" style="display:none;">Upgrade</button>
     <button class="help-btn" onclick="openHelp()">How to use</button>
     <form method="POST" action="/pro/logout" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="signout-btn">Sign Out</button>
     </form>
   </div>
@@ -1581,6 +1582,7 @@ checkPromoParam();
       <div class="recap-done-actions">
         <button class="recap-secondary-btn" onclick="closeDeleteAccountModal()">Cancel</button>
         <form method="POST" action="/pro/account/delete" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="session-delete-confirm-btn">Delete My Account</button>
         </form>
       </div>
