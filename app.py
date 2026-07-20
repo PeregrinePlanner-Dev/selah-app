@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
+from anthropic import Anthropic
 
 from pro_auth import pro_bp
 from pro_chat import pro_chat_bp, _check_and_reserve_usage
@@ -14,13 +15,30 @@ from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
-    format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags, client,
+    format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags,
     attach_scripture_verification,
 )
 
 load_dotenv()
 
 app = Flask(__name__)
+
+# ── Anthropic Workspace split, 2026-07-20 ───────────────────────────────────
+# The free tool now calls its own Anthropic Workspace/API key (a hard,
+# Anthropic-enforced spend cap independent of the app's own usage counters)
+# instead of sharing engine.py's client -- previously every tier ran through
+# one key, so the free-tier's $-budget ceiling was only ever a soft, app-side
+# count, never actually enforced by Anthropic itself. engine.py's own
+# `client` (imported by pro_chat.py) is now implicitly the Pro-tier client,
+# unchanged -- Pro needed no code changes since it already read the shared
+# key. ANTHROPIC_API_KEY_FREE is a key scoped to a separate Workspace with
+# its own spend limit set directly in the Anthropic Console (Settings ->
+# Manage -> Spend limits within that Workspace), currently $25/mo -- a
+# provisional number, expected to be revisited; keep free_gate.py's own
+# FREE_TIER_MONTHLY_BUDGET constant in sync with whatever that real Anthropic
+# limit actually is, since a mismatch means Anthropic could hard-block
+# requests before the app's own capacity panel thinks there's a problem.
+free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"))
 
 # Selah for Ministry (Pro) auth -- additive only, registered as a separate
 # blueprint under /pro/*. The free tool's existing routes below are
@@ -273,7 +291,7 @@ def chat():
         for m in convo["messages"][-MAX_HISTORY:]
     ]
 
-    response = client.messages.create(
+    response = free_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
         system=build_system_blocks(active_node),
@@ -293,7 +311,7 @@ def chat():
     sources = parsed["sources"]
     try:
         convo_text = format_convo_for_haiku(convo["messages"])
-        haiku_resp = client.messages.create(
+        haiku_resp = free_client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=700,
             messages=[{
@@ -462,7 +480,7 @@ def upload_session():
         f"CONVERSATION:\n{full_transcript[:6000]}"
     )
 
-    context_resp = client.messages.create(
+    context_resp = free_client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=400,
         messages=[{"role": "user", "content": context_prompt}],
@@ -486,7 +504,7 @@ def upload_session():
         "No headers. No bullet points. No numbered lists. Plain prose only."
     )
 
-    greeting_resp = client.messages.create(
+    greeting_resp = free_client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
         messages=[{"role": "user", "content": returning_prompt}],
