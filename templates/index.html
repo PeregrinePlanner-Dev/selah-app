@@ -278,7 +278,8 @@
     -->
     {% if user_email %}
     <span style="font-size:0.68rem;opacity:0.75;">{{ user_email }} ·
-      <a href="#" onclick="fetch('/access/logout',{method:'POST'}).then(()=>window.location.href='/access');return false;" style="color:white;">Sign out</a>
+      <a href="#" onclick="fetch('/access/logout',{method:'POST'}).then(()=>window.location.href='/access');return false;" style="color:white;">Sign out</a> ·
+      <a href="#" onclick="releaseFreeSeat();return false;" style="color:white;">Release seat</a>
     </span>
     {% endif %}
   </div>
@@ -691,6 +692,22 @@ async function newConversation() {
   // since there's no node key at all yet -- this is the pre-routing empty state)
   sessionStarted = false;
   sourceItems = [];
+}
+
+// ── Release seat (free-tier gate), added 2026-07-20 ────────────────────────
+// Same action/route access.html's own "already signed in" branch already
+// exposes, just previously unreachable from inside the app itself -- a
+// signed-in user actively using Selah had no path back to that page short
+// of manually navigating to /access again. Reuses the exact same
+// /access/release POST + full-document-replace pattern access.html's JS
+// already uses, since that route returns rendered HTML (the confirmation
+// page), not JSON.
+function releaseFreeSeat() {
+  if (!confirm("Release your Selah seat? This deletes your account and everything in it, and opens the spot up for someone else. You can always ask for a fresh invite later.")) return;
+  fetch("/access/release", { method: "POST" })
+    .then(res => res.text())
+    .then(html => { document.open(); document.write(html); document.close(); })
+    .catch(() => alert("Couldn't reach Selah right now. Try again in a moment."));
 }
 
 // ── Help modal ────────────────────────────────────────────────────────────

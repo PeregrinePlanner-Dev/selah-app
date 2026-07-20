@@ -10,6 +10,17 @@ Resend account -- Rick's call, 2026-07-13: free-tier accounts are capped at
 1 verified domain each, and keeping usage/billing isolated per project is
 good practice regardless of that cap).
 
+Corrected 2026-07-20: FROM_ADDRESS previously pointed at a "send." subdomain
+that was never actually verified in Resend, despite this file's original
+comment claiming Cloudflare auto-configured it. Discovered live while
+debugging a Supabase custom-SMTP failure that hit the exact same wrong
+subdomain and got a hard 550 rejection from Resend naming it directly --
+this file's sends were silently failing the same way the whole time, just
+never surfaced because send_email() below treats any failure as a clean,
+logged no-op rather than an error. Fixed to the actual verified root
+domain. Worth Rick confirming with anyone who should have received a
+welcome/seat-granted email since 2026-07-13 whether it ever arrived.
+
 Same "clean no-op, not a crash" pattern as pro_billing.py's Stripe wiring:
 if RESEND_API_KEY isn't set, send_email() logs and returns False instead of
 raising, so a missing/misconfigured key never breaks the real action (e.g.
@@ -25,9 +36,9 @@ import resend
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 resend.api_key = RESEND_API_KEY
 
-# "send" subdomain -- matches the MX/SPF/DKIM records Resend's Cloudflare
-# auto-configure added under selahexploringtheology.com (2026-07-13).
-FROM_ADDRESS = "Selah for Ministry <notifications@send.selahexploringtheology.com>"
+# Root domain -- the "send." subdomain previously used here was never
+# actually verified in Resend (see correction note above, 2026-07-20).
+FROM_ADDRESS = "Selah for Ministry <notifications@selahexploringtheology.com>"
 
 
 def send_email(to: str, subject: str, html: str) -> bool:
