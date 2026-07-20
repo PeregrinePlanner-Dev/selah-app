@@ -650,6 +650,12 @@ _DISPOSABLE_EMAIL_DOMAINS = {
     "guerrillamail.com", "10minutemail.com", "temp-mail.org", "throwawaymail.com",
     "yopmail.com", "sharklasers.com", "trashmail.com", "getnada.com",
     "dispostable.com", "fakeinbox.com", "tempmailo.com", "maildrop.cc",
+    # Added 2026-07-20 -- the fabricated one-off domains from that day's
+    # scripted signup wave (see SESSION_LOG.md). Not on any public
+    # disposable-domain list; these are exactly the kind of domain a bot
+    # rotates through that a static list will always lag behind -- see the
+    # audit doc's entropy-check recommendation for a more durable fix.
+    "immenseignite.info", "analismail.com", "mailtb.com",
 }
 
 
