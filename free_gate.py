@@ -834,6 +834,7 @@ def _church_org_activity_snapshot() -> list:
                 if p.get("cancel_at_period_end"):
                     any_cancel_flag = True
             result.append({
+                "org_id": org["id"],
                 "org_name": org.get("name") or "(unnamed)",
                 "org_type": org["org_type"],
                 "created_at": org["created_at"],
@@ -886,6 +887,124 @@ def _founder_admin_context() -> dict:
         "invite_queue": _free_tier_invite_queue_snapshot() if is_founder else None,
         "flagged_signups": _flagged_signups_snapshot() if is_founder else [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Move an existing account into a church org, added 2026-07-23. This is the
+# real fix out of Selah_Access_Architecture_Reanalysis_2026-07-23.md, not a
+# UI convenience: handle_new_user() (the Postgres trigger) is the ONLY
+# mechanism that ever assigns a tier/org, and it fires exactly once, on a
+# brand-new auth.users row. There is no second mechanism anywhere in this
+# codebase for moving an EXISTING account (free-tier or trial) into a
+# different org/tier -- confirmed by reading every tier-related route before
+# writing this. Clark's actual church org (Vallecito Baptist -- the only
+# multi-subscription-row org in the live data) exists only because Rick
+# hand-edited Supabase directly; there was no button anywhere that did this.
+# This route is that button -- founder-only (not exposed to the inviter role
+# -- this reassigns billing/seat state directly, more power than "Clark's
+# screen stays invite-only" should ever grant), reusing the exact same
+# FREE_TIER_ADMIN_KEY gate as everything else on this page.
+# ---------------------------------------------------------------------------
+
+def _move_account_to_org(email: str, organization_id: str, seat_type: str, seat_status: str) -> dict:
+    """Moves an EXISTING account (looked up by email -- the person must
+    already have signed up some way, free tier or otherwise) onto a
+    different organization as a given seat. Does NOT touch auth.users at
+    all -- same identity, same login credentials, just a different
+    profiles.organization_id/seat_type/seat_status. This is deliberately
+    the narrowest possible fix: it doesn't touch the login/session model
+    (Option A in the reanalysis doc), it just gives Rick (and future admins)
+    a supported, logged action instead of raw SQL for the one transition
+    the trigger can never handle itself.
+
+    Cleans up the OLD organization/subscriptions rows afterward ONLY if
+    they're now fully orphaned (no profiles left pointing at them) AND
+    carry zero real Stripe billing (checked via stripe_subscription_id IS
+    NULL on every one of that org's subscription rows) -- same safe-cleanup
+    bar already used for bot-account cleanup earlier this project. If the
+    old org still has real billing attached, this leaves it alone and says
+    so, rather than risk silently deleting something Stripe still thinks is
+    active."""
+    svc = get_service_client()
+
+    prof = (
+        svc.table("profiles")
+        .select("id, organization_id, first_name")
+        .ilike("email", email)
+        .limit(1)
+        .execute()
+    )
+    if not prof.data:
+        return {"ok": False, "error": f"No existing Selah account found for {email} -- they need to sign up (free tool or Selah for Ministry) first, then you can move them."}
+
+    profile_row = prof.data[0]
+    user_id = profile_row["id"]
+    old_org_id = profile_row.get("organization_id")
+
+    org_check = svc.table("organizations").select("id, name").eq("id", organization_id).limit(1).execute()
+    if not org_check.data:
+        return {"ok": False, "error": "Target organization not found."}
+    org_name = org_check.data[0].get("name") or "that organization"
+
+    svc.table("profiles").update({
+        "organization_id": organization_id,
+        "seat_type": seat_type,
+        "seat_status": seat_status,
+        "waitlisted_at": None,
+        "invite_resolution": None,
+    }).eq("id", user_id).execute()
+
+    cleanup_note = ""
+    if old_org_id and old_org_id != organization_id:
+        remaining = svc.table("profiles").select("id").eq("organization_id", old_org_id).execute()
+        if not remaining.data:
+            subs = svc.table("subscriptions").select("id, stripe_subscription_id").eq("organization_id", old_org_id).execute()
+            has_billing = any(s.get("stripe_subscription_id") for s in (subs.data or []))
+            if not has_billing:
+                svc.table("subscriptions").delete().eq("organization_id", old_org_id).execute()
+                svc.table("organizations").delete().eq("id", old_org_id).execute()
+                cleanup_note = " Their old (now-empty) account was cleaned up automatically -- no billing was attached to it."
+            else:
+                cleanup_note = " Heads up: their old org still shows a real Stripe subscription -- left in place; cancel that separately if it's no longer wanted."
+
+    return {
+        "ok": True,
+        "note": (
+            f"{email} moved into {org_name} as a {seat_type} seat ({seat_status})."
+            + cleanup_note
+            + " If this was a free-tier account, they'll need Selah for Ministry's \"Forgot password?\" to set a password before they can sign in there -- free-tier accounts never had one."
+        ),
+    }
+
+
+@free_gate_bp.route("/admin/move-account", methods=["POST"])
+def admin_move_account():
+    """Founder-only. See _move_account_to_org() above for the full
+    reasoning -- this route just validates the form and calls it."""
+    if not _is_founder():
+        return redirect(url_for("free_gate.admin_home"))
+
+    email = (request.form.get("email") or "").strip().lower()
+    organization_id = (request.form.get("organization_id") or "").strip()
+    seat_type = (request.form.get("seat_type") or "").strip()
+    seat_status = (request.form.get("seat_status") or "comped").strip()
+    if seat_status not in ("paid", "comped"):
+        seat_status = "comped"
+
+    if not email or "@" not in email:
+        return render_template("free_admin.html", logged_in=True,
+                                error="Enter a valid email address.", **_founder_admin_context())
+    if not organization_id:
+        return render_template("free_admin.html", logged_in=True,
+                                error="Pick a target organization.", **_founder_admin_context())
+    if seat_type not in ("leader", "member"):
+        return render_template("free_admin.html", logged_in=True,
+                                error="Pick a seat type.", **_founder_admin_context())
+
+    move_result = _move_account_to_org(email, organization_id, seat_type, seat_status)
+    if move_result["ok"]:
+        return render_template("free_admin.html", logged_in=True, move_result=move_result, **_founder_admin_context())
+    return render_template("free_admin.html", logged_in=True, error=move_result["error"], **_founder_admin_context())
 
 
 @free_gate_bp.route("/admin", methods=["GET"])

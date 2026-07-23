@@ -279,6 +279,38 @@
   </div>
   {% endif %}
 
+  {% if logged_in and is_founder %}
+  <div class="card">
+    <p class="lead" style="margin-bottom:4px;">Move an existing account into a church org</p>
+    <p class="queue-summary">For someone who already has a Selah account (free tier or trial) and needs to join an existing church as a Leadership or Membership seat -- the one transition nothing else in the app can do on its own. Doesn't touch their login/password at all, just which org and seat they're on.</p>
+    {% if move_result %}
+      <div class="msg success">{{ move_result.note }}</div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('free_gate.admin_move_account') }}">
+      <label for="move-email">Their email (must already have a Selah account)</label>
+      <input type="email" id="move-email" name="email" required>
+      <label for="move-org">Move into</label>
+      <select id="move-org" name="organization_id" required style="width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem; font-family:inherit;">
+        <option value="" disabled selected>Pick a church...</option>
+        {% for org in church_orgs %}
+        <option value="{{ org.org_id }}">{{ org.org_name }}</option>
+        {% endfor %}
+      </select>
+      <label for="move-seat-type">Seat type</label>
+      <select id="move-seat-type" name="seat_type" required style="width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem; font-family:inherit;">
+        <option value="leader">Leadership</option>
+        <option value="member">Membership</option>
+      </select>
+      <label for="move-seat-status">Seat status</label>
+      <select id="move-seat-status" name="seat_status" style="width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem; font-family:inherit;">
+        <option value="comped">Comped (no charge)</option>
+        <option value="paid">Paid</option>
+      </select>
+      <button type="submit">Move account</button>
+    </form>
+  </div>
+  {% endif %}
+
   <div class="card">
     {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
 
