@@ -258,6 +258,23 @@ def signup():
             signup_kwargs["options"] = {"data": {"invite_code": invite_code}}
         result = get_supabase().auth.sign_up(signup_kwargs)
     except Exception as e:
+        # Added 2026-07-23, after Clark's real-world "Database error saving
+        # new user" support case: Supabase's own error text for a duplicate
+        # email is vague/inconsistent (varies by version -- sometimes "User
+        # already registered", sometimes the more generic message Clark hit,
+        # which comes from the handle_new_user() trigger failing a unique
+        # constraint rather than Auth's own pre-check catching it first).
+        # Either way, an email collision is BY FAR the most common real
+        # cause of a signup error here (rate limiting/CSRF are handled
+        # separately above), so give that specific, actionable guidance
+        # instead of leaking the raw exception text, which means nothing to
+        # a non-technical user and sends them straight into a support loop.
+        msg = str(e).lower()
+        if "already registered" in msg or "already exists" in msg or "database error saving new user" in msg or "duplicate" in msg:
+            return redirect(url_for(
+                "pro.pro_home",
+                error="An account with this email already exists -- sign in instead, or use \"Forgot password?\" if you don't remember the password.",
+            ))
         return redirect(url_for("pro.pro_home", error=f"Signup failed: {e}"))
 
     # If email confirmation is required (Supabase default), there may be no
