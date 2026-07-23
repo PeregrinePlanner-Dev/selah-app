@@ -126,8 +126,8 @@
         anywhere in their email is worse than the two-tab problem this was
         supposed to fix. Reverted to link-primary (the only thing that
         actually works today) until/unless the Supabase email template
-        itself is edited to include {{ .Token }} -- see the access
-        architecture note in SESSION_LOG.md for the real fix path. -->
+        itself is edited to include the Token template variable -- see the
+        access architecture note in SESSION_LOG.md for the real fix path. -->
         <p class="lead">We emailed <strong id="code-email"></strong> a sign-in link. Click it — it'll open in a new tab and sign you in there. This tab will pick that up automatically, no need to come back and do anything here.</p>
         <p class="hint" style="margin:-4px 0 16px;">If your email shows a code instead of a link, you can enter it below.</p>
         <label for="code">Code (optional)</label>
