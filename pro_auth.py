@@ -14,9 +14,12 @@ Supabase's own policies already allow that user), but worth revisiting if
 Pro ever handles more sensitive data than it does today.
 """
 
+import json
 import os
 import secrets
 import time
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from functools import wraps
 
@@ -28,6 +31,60 @@ from pro_email import send_welcome_email, send_seat_granted_email, send_account_
 pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+
+# ── Cloudflare Turnstile (bot mitigation on signup) ─────────────────────────
+# Added 2026-07-23, the actual fix for the repeated bot-signup waves this
+# project has been cleaning up by hand (see SESSION_LOG.md and
+# Selah_Access_Architecture_Reanalysis_2026-07-23.md). Rate limiting
+# (2026-07-18) throttles a single IP but doesn't stop a distributed/rotating
+# script; every wave observed so far hit /pro/signup specifically, which
+# creates a real "trial" account for anyone regardless of whether an
+# invite_code resolves -- gating on invite-code presence would break the
+# legitimate no-invite self-serve trial funnel, so Turnstile (a real human/
+# bot check, not a business-logic gate) is the correct fix here, not a stricter
+# invite requirement.
+#
+# Sitekey is NOT a secret -- it's meant to be embedded directly in the page's
+# HTML (visible to anyone who views source), so it's safe to default inline
+# rather than require Rick to set it as an env var too. TURNSTILE_SECRET is
+# the real credential -- server-side only, set directly in Render, never
+# passed through this codebase's own chat/session history, same handling as
+# every other API secret this project uses (Stripe, Anthropic, Supabase).
+TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "0x4AAAAAAD8BnqYhgwab2qCo")
+TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "")
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+def verify_turnstile(token: str, remote_ip: str) -> bool:
+    """Calls Cloudflare's siteverify endpoint via stdlib urllib (no new
+    dependency -- this codebase has avoided adding `requests` for the same
+    reason it avoided Flask-WTF for CSRF: a single HTTP call doesn't justify
+    a new dependency). Returns True (allows the signup through) if
+    TURNSTILE_SECRET isn't set at all -- lets this deploy safely before the
+    env var exists, and lets local dev work without Cloudflare credentials --
+    but logs loudly so an accidentally-unset secret in production is
+    noticeable rather than a silent, permanent bypass. Any network/parsing
+    failure fails CLOSED (returns False) -- the opposite default from the
+    missing-secret case, since a real, configured check that can't be
+    reached should not quietly wave everyone through."""
+    if not TURNSTILE_SECRET:
+        print("[TURNSTILE] TURNSTILE_SECRET not set -- skipping verification, signup is NOT bot-protected right now.")
+        return True
+    if not token:
+        return False
+    try:
+        data = urllib.parse.urlencode({
+            "secret": TURNSTILE_SECRET,
+            "response": token,
+            "remoteip": remote_ip,
+        }).encode()
+        req = urllib.request.Request(TURNSTILE_VERIFY_URL, data=data, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode())
+        return bool(result.get("success"))
+    except Exception as e:
+        print(f"[TURNSTILE] siteverify call failed, failing closed: {e}")
+        return False
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
@@ -204,6 +261,7 @@ def pro_home():
         notice=request.args.get("notice", ""),
         promo=promo,
         csrf_token=csrf_token(),
+        turnstile_site_key=TURNSTILE_SITE_KEY,
     )
 
 
@@ -227,6 +285,14 @@ def signup():
     if not _check_and_record(_signup_attempts, f"ip:{_get_client_ip()}",
                               SIGNUP_ATTEMPT_LIMIT, SIGNUP_WINDOW_SECONDS):
         return redirect(url_for("pro.pro_home", error=RATE_LIMIT_SIGNUP_MESSAGE))
+
+    # Turnstile check, added 2026-07-23 -- the real fix for the repeated bot-
+    # signup waves (see the module-level comment above verify_turnstile()).
+    # Checked before the Supabase sign_up() call, same "don't spend an API
+    # call on a request about to be rejected anyway" principle the rate
+    # limiter above already follows.
+    if not verify_turnstile(request.form.get("cf-turnstile-response", ""), _get_client_ip()):
+        return redirect(url_for("pro.pro_home", error="Please complete the verification and try again."))
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")

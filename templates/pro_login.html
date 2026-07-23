@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Selah for Ministry — Sign In</title>
+{% if turnstile_site_key %}
+<!-- Cloudflare Turnstile, added 2026-07-23 -- bot check on signup only (the
+route every bot wave has actually hit). Must be fetched from this exact URL
+per Cloudflare's own docs -- proxying/caching it breaks future updates. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -105,6 +111,9 @@
         <label for="signup-password-confirm">Confirm Password</label>
         <input type="password" id="signup-password-confirm" required minlength="6">
         <div id="password-mismatch" class="error" style="display:none;">Passwords don't match — check both fields and try again.</div>
+        {% if turnstile_site_key %}
+        <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin-bottom:14px;"></div>
+        {% endif %}
         <button type="submit">Create Account</button>
       </form>
       <div class="toggle">Already have an account? <a onclick="toggle()">Sign in</a></div>
