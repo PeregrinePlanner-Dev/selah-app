@@ -52,6 +52,8 @@ problem, which needs its own dedicated pass.
 
 import os
 import secrets
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -64,6 +66,66 @@ from pro_chat import _billing_month_today
 free_gate_bp = Blueprint("free_gate", __name__, url_prefix="/access")
 
 SIGNUP_SOURCE = "free_gate"
+
+# ── Rate limiting, added 2026-07-23 ─────────────────────────────────────────
+# This blueprint had zero throttling on any route -- confirmed by reading the
+# file directly, same way the /pro/signup gap was confirmed before fixing it.
+# Not the same category of risk as that one (every free-tier signup already
+# requires a real, single-use, DB-backed invite code -- handle_new_user()
+# rejects anything else outright, there's no open door here the way Pro's
+# blank-invite trial fallback was), but two real, narrower things are worth
+# throttling on their own merits:
+#   - /access/request: spam/abuse resistance on the email-send endpoint
+#     itself, same rationale as pro_auth.py's SIGNUP_ATTEMPT_LIMIT -- no
+#     target account to protect, just don't let a script hammer Resend/
+#     Supabase sends for free.
+#   - /access/verify: THIS one has a real, distinct reason to exist even
+#     though the invite-code gate is solid -- a 6-digit OTP is only
+#     1,000,000 possibilities, and without a limit here, unlimited guesses
+#     against one still-valid code within its window is a real (if narrow)
+#     brute-force surface. Checked both per-IP and per-email, same
+#     dual-check logic as pro_auth.py's login() limiter and for the same
+#     reason -- a distributed attacker rotating IPs shouldn't get
+#     unlimited guesses at one person's code just because no single IP
+#     crossed the per-IP threshold.
+# In-memory, per-process -- same tradeoff as every other limiter in this
+# codebase (won't survive a redeploy or share state across instances past a
+# single Render dyno), matching the existing pattern rather than adding a
+# new dependency for a single-instance deployment.
+ACCESS_REQUEST_LIMIT = int(os.environ.get("ACCESS_REQUEST_LIMIT", "5"))
+ACCESS_REQUEST_WINDOW_SECONDS = int(os.environ.get("ACCESS_REQUEST_WINDOW_SECONDS", "600"))   # 10 min
+ACCESS_VERIFY_LIMIT = int(os.environ.get("ACCESS_VERIFY_LIMIT", "8"))
+ACCESS_VERIFY_WINDOW_SECONDS = int(os.environ.get("ACCESS_VERIFY_WINDOW_SECONDS", "300"))      # 5 min
+
+_access_request_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+_access_verify_attempts: dict = defaultdict(list)   # {"ip:1.2.3.4" | "email:x@y.com": [timestamps]}
+
+RATE_LIMIT_REQUEST_MESSAGE = "Too many attempts from this connection -- please wait a few minutes and try again."
+RATE_LIMIT_VERIFY_MESSAGE = "Too many attempts -- please wait a few minutes and try again, or request a fresh code."
+
+
+def _get_client_ip() -> str:
+    """Real client IP behind Render's proxy -- same logic as app.py's/
+    pro_auth.py's own get_client_ip(), duplicated rather than imported to
+    keep this file's existing additive-only, no-cross-imports pattern
+    intact (same rationale pro_auth.py's own copy already documents)."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _check_and_record(bucket: dict, key: str, limit: int, window_seconds: int) -> bool:
+    """Same self-cleaning trailing-window limiter as pro_auth.py's own --
+    returns True (and records the attempt) if under the limit, False if
+    `key` has already hit `limit` within the trailing `window_seconds`."""
+    now = time.time()
+    attempts = bucket[key]
+    attempts[:] = [t for t in attempts if now - t < window_seconds]
+    if len(attempts) >= limit:
+        return False
+    attempts.append(now)
+    return True
 
 GENERIC_LINK_ERROR = (
     "That link didn't work -- it may be expired or already used. Request a "
@@ -283,6 +345,10 @@ def access_request():
     is sent -- the trigger raises inside the same transaction Supabase uses
     to create the auth.users row, which surfaces as an exception from
     sign_in_with_otp() itself."""
+    if not _check_and_record(_access_request_attempts, f"ip:{_get_client_ip()}",
+                              ACCESS_REQUEST_LIMIT, ACCESS_REQUEST_WINDOW_SECONDS):
+        return jsonify({"error": RATE_LIMIT_REQUEST_MESSAGE}), 429
+
     data = request.json or {}
     email = data.get("email", "").strip().lower()
     invite_code = data.get("invite_code", "").strip()
@@ -323,10 +389,25 @@ def access_request():
 
 @free_gate_bp.route("/verify", methods=["POST"])
 def access_verify():
-    """VERIFY-BY-CODE fallback: email + the 6-digit code from the email."""
+    """VERIFY-BY-CODE, now this project's primary path (see access.html,
+    2026-07-23): email + the 6-digit code from the email.
+
+    Rate-limited both per-IP and per-email, added the same day this became
+    the lead path rather than a rarely-used fallback -- a 6-digit OTP is
+    only 1,000,000 possibilities, and unlimited guesses against one valid
+    code within its window is a real brute-force surface regardless of how
+    solid the invite-code gate is upstream. Checked before the Supabase
+    call, same "don't spend an API call on a request about to be throttled
+    anyway" principle used everywhere else in this codebase."""
+    ip_ok = _check_and_record(_access_verify_attempts, f"ip:{_get_client_ip()}",
+                               ACCESS_VERIFY_LIMIT, ACCESS_VERIFY_WINDOW_SECONDS)
     data = request.json or {}
     email = data.get("email", "").strip().lower()
     code = data.get("code", "").strip()
+    email_ok = (not email) or _check_and_record(
+        _access_verify_attempts, f"email:{email}", ACCESS_VERIFY_LIMIT, ACCESS_VERIFY_WINDOW_SECONDS)
+    if not ip_ok or not email_ok:
+        return jsonify({"error": RATE_LIMIT_VERIFY_MESSAGE}), 429
 
     if not email or not code:
         return jsonify({"error": "Enter the code from your email."}), 400

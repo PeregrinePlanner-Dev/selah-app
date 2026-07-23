@@ -222,7 +222,7 @@
           {% if row.note %}<div class="note">{{ row.note }}</div>{% endif %}
         </div>
         <div class="row-actions">
-          <form method="POST" action="{{ url_for('free_gate.admin_waitlist_invite') }}">
+          <form method="POST" action="{{ url_for('free_gate.admin_waitlist_invite') }}" onsubmit="return preventDoubleSubmit(this);">
             <input type="hidden" name="id" value="{{ row.id }}">
             <input type="hidden" name="name" value="{{ row.name or '' }}">
             <input type="hidden" name="email" value="{{ row.email }}">
@@ -334,7 +334,7 @@
       {% endif %}
 
       <p class="lead">Issue a new invite. It's tied to this exact email — it won't work for anyone else.</p>
-      <form method="POST" action="{{ url_for('free_gate.admin_invite') }}">
+      <form method="POST" action="{{ url_for('free_gate.admin_invite') }}" onsubmit="return preventDoubleSubmit(this);">
         <label for="name">Name (optional)</label>
         <input type="text" id="name" name="name">
         <label for="email">Email</label>
@@ -348,6 +348,23 @@
   </div>
 </div>
 <script>
+// Added 2026-07-23, real bug found live: rockymttiler@aol.com ended up with
+// two duplicate, unused invite codes created 9 seconds apart -- these are
+// plain HTML form POSTs with no client-side guard at all, so a double-click
+// (or an impatient second click while the first request is still in
+// flight) fires the whole create-and-send-email flow twice. Disabling the
+// button the instant the form submits closes that -- the page reloads/
+// redirects right after anyway, so there's no need to re-enable it.
+function preventDoubleSubmit(form) {
+  const btn = form.querySelector("button[type=submit]");
+  if (btn) {
+    if (btn.dataset.submitted) return false;
+    btn.dataset.submitted = "1";
+    btn.disabled = true;
+  }
+  return true;
+}
+
 function toggleOrgDetails(btn) {
   const detailsRow = btn.closest("tr").nextElementSibling;
   const showing = detailsRow.style.display !== "none";

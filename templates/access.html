@@ -133,11 +133,11 @@
         guess, then link-first once the guess was proven wrong) are both
         superseded -- this is the state that's actually been proven to work,
         not assumed. -->
-        <p class="lead">We emailed <strong id="code-email"></strong> a 6-digit code. Enter it below to sign in -- no new tab, nothing else to do.</p>
+        <p class="lead">We emailed <strong id="code-email"></strong> a code — enter it below to sign in.</p>
         <label for="code">Code</label>
         <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" autofocus>
         <button id="btn-verify" onclick="verifyCode()">Sign in with code</button>
-        <p class="hint" style="margin-top:14px; text-align:center;">Or click the link in that same email instead -- it opens in a new tab and signs you in there; this tab picks it up automatically.</p>
+        <p class="hint" style="margin-top:14px; text-align:center;">Or just click the link in that email instead.</p>
       </div>
     {% endif %}
   </div>
