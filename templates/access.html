@@ -85,18 +85,26 @@
       </div>
 
       <div id="step-email" class="step active">
-        <p class="lead">Selah's free tool is invite-only right now. If someone shared an invite code with you, enter it below — you'll only need it the first time. Already have an account? Just enter your email.</p>
+        <p class="lead">Selah's free tool is invite-only right now. Got a personal invite link? Just click it and you're in. Already have an account? Enter your email below to sign in.</p>
         <label for="first_name">First name</label>
         <input type="text" id="first_name" autocomplete="given-name">
         <label for="last_name">Last name</label>
         <input type="text" id="last_name" autocomplete="family-name">
         <label for="email">Email</label>
         <input type="email" id="email" autocomplete="email" required>
-        <label for="invite_code">Invite code</label>
-        <input type="text" id="invite_code" placeholder="SELAH-XXXXXX" autocapitalize="characters">
-        <div class="hint">First time only — leave blank if you've signed in before.</div>
+        <!-- invite_code kept as a hidden field, not a visible input, as of
+        2026-07-23 -- Rick's call: every real invite now goes out as a
+        personalized link (email + code baked into the URL by
+        _create_and_send_invite() in free_gate.py), auto-filled by
+        prefillFromInviteLink() below with no typing required. Handing
+        someone a bare code to type in by hand is no longer how invites are
+        issued, so the visible box was pure friction on the main screen for
+        every real user today. Still a real input, not deleted -- works
+        exactly as before for anyone arriving via a pre-filled link; there's
+        just nothing left for a person to see or type by hand. -->
+        <input type="hidden" id="invite_code">
         <button id="btn-request" onclick="requestCode()">Continue</button>
-        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have a code? Join the waitlist</a></div>
+        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have an invite? Join the waitlist</a></div>
       </div>
 
       <div id="step-waitlist" class="step">
