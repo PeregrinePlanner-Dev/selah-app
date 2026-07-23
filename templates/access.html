@@ -125,22 +125,19 @@
       </div>
 
       <div id="step-code" class="step">
-        <!-- REVERTED 2026-07-23, same day: the code-first version above was
-        shipped on an unverified assumption that this project's Supabase
-        email template shows a numeric code alongside the link. Rick's
-        actual inbox screenshot proved it doesn't -- the live template is
-        Supabase's default "Magic Link" text, link only, no token anywhere.
-        Telling every user "enter the code below" when no code exists
-        anywhere in their email is worse than the two-tab problem this was
-        supposed to fix. Reverted to link-primary (the only thing that
-        actually works today) until/unless the Supabase email template
-        itself is edited to include the Token template variable -- see the
-        access architecture note in SESSION_LOG.md for the real fix path. -->
-        <p class="lead">We emailed <strong id="code-email"></strong> a sign-in link. Click it — it'll open in a new tab and sign you in there. This tab will pick that up automatically, no need to come back and do anything here.</p>
-        <p class="hint" style="margin:-4px 0 16px;">If your email shows a code instead of a link, you can enter it below.</p>
-        <label for="code">Code (optional)</label>
-        <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code">
+        <!-- Re-flipped to code-first 2026-07-23, same day, third pass --
+        this time on CONFIRMED evidence, not assumption. Rick added the
+        Token variable to Supabase's Magic Link template himself and tested
+        it live: a real code arrived, entering it signed him in correctly.
+        The two prior versions of this block (code-first on an unverified
+        guess, then link-first once the guess was proven wrong) are both
+        superseded -- this is the state that's actually been proven to work,
+        not assumed. -->
+        <p class="lead">We emailed <strong id="code-email"></strong> a 6-digit code. Enter it below to sign in -- no new tab, nothing else to do.</p>
+        <label for="code">Code</label>
+        <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" autofocus>
         <button id="btn-verify" onclick="verifyCode()">Sign in with code</button>
+        <p class="hint" style="margin-top:14px; text-align:center;">Or click the link in that same email instead -- it opens in a new tab and signs you in there; this tab picks it up automatically.</p>
       </div>
     {% endif %}
   </div>
