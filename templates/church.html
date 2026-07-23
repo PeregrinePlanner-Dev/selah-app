@@ -51,15 +51,52 @@
   }
   .cta-btn-primary:hover { background: #234f4b; }
 
-  /* ── How it works / feature list ── */
+  /* ── Testimonial ── */
+  .testimonial-box {
+    background: white; border-left: 4px solid #2f6b66; border-radius: 6px;
+    padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .testimonial-quote { font-style: italic; color: #1f2937; font-size: 1rem; line-height: 1.65; margin-bottom: 12px; }
+  .testimonial-cite { font-style: normal; font-weight: 700; color: #2f6b66; font-size: 0.88rem; }
+
+  /* ── Feature grid (clickable tiles) ── */
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
   .tile {
     background: white; border: 1px solid #e2e4e9; border-radius: 10px;
-    padding: 14px 16px; text-align: left;
+    padding: 14px 16px; cursor: pointer; text-align: left; width: 100%;
+    transition: border-color .15s, transform .1s;
   }
+  .tile:hover { border-color: #a7d4cf; transform: translateY(-1px); }
   .tile .tile-title { font-weight: 700; font-size: 0.92rem; color: #1f2937; margin-bottom: 4px; }
   .tile .tile-teaser { font-size: 0.82rem; color: #6b7280; }
+  .tile .tile-title::after { content: " →"; color: #2f6b66; font-weight: 400; }
+  .see-more-link { font-size: 0.85rem; margin-top: 14px; }
+  .see-more-link a { font-weight: 700; text-decoration: none; }
+  .see-more-link a:hover { text-decoration: underline; }
+
+  /* ── Role cards ── */
+  .role-divider { border: none; border-top: 1px solid #d7dae0; margin: 34px 0 6px; }
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .role-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .role-grid { grid-template-columns: 1fr; } }
+  .role-card {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; text-align: left; width: 100%;
+    font-family: Georgia, 'Times New Roman', serif;
+    transition: border-color .15s, transform .1s;
+  }
+  .role-card:hover { border-color: #8ab4f0; transform: translateY(-1px); }
+  .role-card .role-card-title { font-weight: 700; font-size: 0.9rem; color: #1e3a5f; }
+  .role-card .role-card-title::after { content: " →"; color: #2f6b66; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+  /* ── Coming soon ── */
+  .soon-list { background: #fffaf0; border: 1px solid #fde3ad; border-radius: 10px; padding: 18px 20px; }
+  .soon-list li { margin-bottom: 12px; color: #374151; list-style: none; padding-left: 24px; position: relative; }
+  .soon-list li:last-child { margin-bottom: 0; }
+  .soon-list li::before { content: "◷"; color: #b45309; font-weight: 700; position: absolute; left: 0; }
+  .soon-list .soon-title { font-weight: 700; color: #1f2937; }
+  .soon-list .soon-detail { font-size: 0.88rem; color: #6b7280; }
 
   /* ── Pricing ── */
   .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
@@ -83,6 +120,21 @@
     padding: 14px 18px; font-size: 0.88rem; color: #1e3a5f; margin-top: 16px;
   }
 
+  /* ── Everything included (full feature table, static) ── */
+  .spec-table { border: 1px solid #e2e4e9; border-radius: 12px; overflow: hidden; background: white; }
+  .spec-row { display: grid; grid-template-columns: 220px 1fr; }
+  @media (max-width: 620px) { .spec-row { grid-template-columns: 1fr; } }
+  .spec-row + .spec-row { border-top: 1px solid #eef0f3; }
+  .spec-row.spec-header { background: #2f6b66; color: white; font-weight: 700; font-size: 0.85rem; }
+  .spec-row.spec-header .spec-feature, .spec-row.spec-header .spec-benefits { color: white; padding-top: 12px; padding-bottom: 12px; }
+  .spec-feature { padding: 16px 18px; font-weight: 700; color: #1f2937; font-size: 0.92rem; }
+  .spec-benefits { padding: 16px 18px; }
+  @media (max-width: 620px) { .spec-benefits { padding-top: 0; } }
+  .spec-benefits ul { padding-left: 0; margin: 0; }
+  .spec-benefits li { list-style: none; padding-left: 18px; position: relative; font-size: 0.88rem; color: #374151; margin-bottom: 6px; }
+  .spec-benefits li:last-child { margin-bottom: 0; }
+  .spec-benefits li::before { content: "•"; color: #2f6b66; font-weight: 700; position: absolute; left: 0; }
+
   /* ── CTA ── */
   .cta-box {
     background: #2f6b66; color: white; border-radius: 12px;
@@ -98,6 +150,27 @@
 
   footer { text-align: center; padding: 30px 0 40px; color: #9ca3af; font-size: 0.8rem; }
   footer a { color: #2f6b66; }
+
+  /* ── Shared detail popup ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 12px; max-width: 440px; width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+  .modal-header {
+    background: #2f6b66; color: white;
+    padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+    border-radius: 12px 12px 0 0;
+  }
+  .modal-header h3 { font-size: 1rem; font-weight: 700; }
+  .modal-close { background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer; opacity: 0.85; line-height: 1; }
+  .modal-close:hover { opacity: 1; }
+  .modal-body { padding: 18px 20px; font-size: 0.9rem; color: #374151; }
 </style>
 </head>
 <body>
@@ -105,7 +178,7 @@
 <header class="site-header">
   <div>
     <div class="brand">Selah for Churches</div>
-    <div class="brand-sub">A shared resource for Pastoral staff, teachers and administrators.</div>
+    <div class="brand-sub">A shared resource for pastoral staff, teachers and administrators.</div>
   </div>
   <a class="back-link" href="/ministry">← Selah for Ministry</a>
 </header>
@@ -114,31 +187,32 @@
 
   <section class="hero">
     <div class="eyebrow">Suitable for leaders and congregations alike</div>
-    <h1>Help your congregation Fall in love with the Word again</h1>
-    <p class="lede">Selah for Churches takes Theology and Bible Study to a new level. Pastors, board members, teachers, small-group leaders, staff, and church members can now take advantage of Selah's interactive scripture exploration method.</p>
+    <h1>Help your congregation fall in love with the Word again</h1>
+    <p class="lede">Selah for Churches takes Theology and Bible Study to a new level. Pastors, board members, teachers, small-group leaders, staff, and church members can now take advantage of Selah's interactive scripture exploration method — priced for a whole congregation, not just one person.</p>
     <a class="cta-btn-primary" href="/pro/?notice=Create%20your%20account%20below%20--%20once%20you%27re%20in%2C%20connect%20your%20church%20from%20the%20dashboard%20menu.">Get started →</a>
   </section>
 
   <section class="tight">
-    <h2>Selah for Churches in Action</h2>
-    <div class="grid">
-      <div class="tile">
-        <div class="tile-title">Leadership</div>
-        <div class="tile-teaser">Pastors, leaders, teachers and board members are perfect candidates for leadership seats. They will receive full access and will also have access to the session recap which can assist with a written session summary, the source material included, citations from this material and discussion questions, if desired. Different sessions can be recalled at any time for continuing study.</div>
-      </div>
-      <div class="tile">
-        <div class="tile-title">Membership</div>
-        <div class="tile-teaser">Members have access to the same underlying biblical material and resources, just without the session recall features. Their sessions also remain persistent for reentry.</div>
-      </div>
-      <div class="tile">
-        <div class="tile-title">Selah Dashboard</div>
-        <div class="tile-teaser">Billing details, adding members, reassigning roles, and roster adjustments are all consolidated in one place for administrative ease of use. Church planning tools can also be accessed here.</div>
-      </div>
-      <div class="tile">
-        <div class="tile-title">Privacy</div>
-        <div class="tile-teaser">Each leader or member can be assured no one else in the church has access to their private conversations. Non-personal, aggregated topic information may be collected for church planning purposes.</div>
-      </div>
+    <h2>Is Selah effective?</h2>
+    <div class="testimonial-box">
+      <p class="testimonial-quote">"Selah – Exploring Theology has completely changed how I approach personal Bible study, sermon preparation, small group teaching preparation, and other ministry-related issues. My questions are met with cogent responses including appropriate Scriptures and wisdom from a library of Christian theologians and authors. Each response continues the conversation with additional questions to help me work my way through a topic. I highly recommend this effective ministry tool."</p>
+      <div class="testimonial-cite">— Clark Cothern, Senior Pastor, Vallecito Church</div>
     </div>
+  </section>
+
+  <section class="tight">
+    <h2>Selah for Churches in action</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:16px;">Click a card for more detail.</p>
+    <div class="grid" id="feature-grid"></div>
+    <div class="see-more-link"><a href="#everything-included">…and so much more →</a></div>
+  </section>
+
+  <hr class="role-divider">
+
+  <section class="tight">
+    <h2>Who benefits from Selah for Churches?</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Not just the pastor. Click a title to see how others on staff are using Selah.</p>
+    <div class="role-grid" id="role-chips"></div>
   </section>
 
   <section class="tight">
@@ -153,7 +227,7 @@
           <tr><td>Seats 5–9</td><td>$12/seat/mo</td></tr>
           <tr><td>Seats 10+</td><td>$10/seat/mo</td></tr>
         </table>
-        <div class="price-note">Volume pricing: adding more seats into a new pricing level re-prices all seats, not just the new ones. Each leadership space adds 200 pooled exchanges/month per seat.</div>
+        <div class="price-note">Volume pricing: adding more seats into a new pricing level re-prices all seats, not just the new ones. Each leadership seat adds 200 pooled exchanges/month.</div>
         <ul>
           <li>Full study &amp; teaching-prep access</li>
           <li>Any leader can be assigned to the administrator role</li>
@@ -170,14 +244,33 @@
           <tr><td>Seats 100–999</td><td>$7/seat/mo</td></tr>
           <tr><td>Seats 1000+</td><td>$6.50/seat/mo</td></tr>
         </table>
-        <div class="price-note">10-seat minimum to start. You can add members once your church has an active Leadership plan. Each space adds an additional 100 pooled exchanges each month.</div>
+        <div class="price-note">10-seat minimum to start. You can add members once your church has an active Leadership plan. Each seat adds 100 pooled exchanges each month.</div>
         <ul>
           <li>Personal study access for congregation members</li>
-          <li>Roster adjustments can be made through the admin dashboard.</li>
+          <li>Roster adjustments made through the admin dashboard</li>
         </ul>
       </div>
 
     </div>
+    <div class="trial-note">Membership seats are only available to churches with an active Leadership plan — start with Leadership, then open it up to your congregation whenever you're ready.</div>
+  </section>
+
+  <section class="tight" id="everything-included">
+    <h2>Everything included with Selah for Churches</h2>
+    <div class="spec-table" id="spec-table"></div>
+  </section>
+
+  <section class="tight">
+    <div class="cta-box">
+      <h2>Are you ready?</h2>
+      <p>Start with a Leadership seat today.</p>
+      <a class="cta-btn" href="/pro/?notice=Create%20your%20account%20below%20--%20once%20you%27re%20in%2C%20connect%20your%20church%20from%20the%20dashboard%20menu.">Let's begin →</a>
+    </div>
+  </section>
+
+  <section class="tight">
+    <h2>Additional features in development</h2>
+    <ul class="soon-list" id="soon-list"></ul>
   </section>
 
   <section>
@@ -193,6 +286,145 @@
   </footer>
 
 </div>
+
+<!-- ── Shared detail popup ── -->
+<div class="modal-overlay" id="detail-modal" onclick="closeDetailBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detail-title"></h3>
+      <button class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+// Church-specific framing of the same underlying, already-shipped Selah
+// features (see ministry.html's FEATURES/SPEC for the individual-Pro framing
+// of the same product). Anything not actually built belongs in SOON only.
+const FEATURES = [
+  { title: "Leadership Access",
+    teaser: "Full study and teaching-prep tools for staff and leaders.",
+    detail: "Pastors, leaders, teachers, and board members on a Leadership seat get full access, including Session Recaps -- a written summary, source material, citations, and discussion questions from any conversation. Past sessions can be recalled at any time for continuing study." },
+  { title: "Congregation Membership",
+    teaser: "The same core study tool, priced for your whole congregation.",
+    detail: "Members get the same underlying biblical material and conversation depth as Leadership, just without the Session Recap teaching-prep tools. Their sessions stay persistent too, so personal study picks back up right where they left off." },
+  { title: "Selah Dashboard",
+    teaser: "One place to manage billing, seats, and roles.",
+    detail: "Billing details, adding members, reassigning roles, and roster adjustments are all consolidated in one place for administrative ease. Church-wide planning tools are also accessed here." },
+  { title: "Privacy by Design",
+    teaser: "Private conversations stay private -- even from church staff.",
+    detail: "Every leader or member can be assured no one else in the church has access to the content of their private conversations. Only non-personal, aggregated topic information may be collected for church planning purposes." },
+  { title: "Pooled, Seat-Based Exchanges",
+    teaser: "Usage pools across your whole roster, not locked per person.",
+    detail: "Each Leadership seat adds 200 pooled exchanges a month; each Membership seat adds 100. The pool is shared church-wide, so a quiet month for one person covers a busy month for another." },
+  { title: "Conversations That Remember You",
+    teaser: "Sessions that survive redeploys and device changes.",
+    detail: "Every leader and member can pick up right where they left off, on any device, even weeks later. Nothing is lost to a server restart or a new browser tab -- study builds on itself instead of starting over." },
+];
+
+const SPEC = [
+  { title: "Leadership Access", bullets: [
+    "Full study and teaching-prep conversation access",
+    "Session Recaps: summary, sources, citations, and discussion questions from any conversation",
+    "Any leader can be assigned the administrator role" ] },
+  { title: "Congregation Membership", bullets: [
+    "The same underlying biblical material and conversation depth as Leadership",
+    "Persistent sessions for ongoing personal study",
+    "Available once your church has an active Leadership plan" ] },
+  { title: "Selah Dashboard", bullets: [
+    "Billing, seat management, and role reassignment in one place",
+    "Roster adjustments made by any administrator",
+    "Church-wide planning tools" ] },
+  { title: "Privacy by Design", bullets: [
+    "No church staff or admin can read another member's private conversations",
+    "Only non-personal, aggregated topic data is ever collected",
+    "Built for honest, unguarded personal study" ] },
+  { title: "Honest, Multi-Voice Theology", bullets: [
+    "Draws on 60+ respected theologians across multiple traditions",
+    "Shows where thoughtful Christians genuinely disagree, and why",
+    "Feels like a room full of wise voices, not one opinionated bot" ] },
+  { title: "Side-by-Side Translation Insight", bullets: [
+    "Compares a verse across NIV, ESV, KJV, and NASB instantly",
+    "Flags whether a wording difference is theological or just stylistic",
+    "Saves guesswork during sermon or lesson prep" ] },
+  { title: "Pooled, Seat-Based Exchanges", bullets: [
+    "200 pooled exchanges/month per Leadership seat, 100 per Membership seat",
+    "Shared church-wide, not locked to one person",
+    "Scales automatically as you add seats" ] },
+];
+
+// Not built yet -- kept visually distinct and non-clickable, never presented
+// as live today.
+const SOON = [
+  { title: "Congregation-Wide Study Trends",
+    detail: "Aggregated, anonymized insight into which topics your congregation is exploring, to help shape sermon series and small-group curriculum." },
+  { title: "Small-Group Curriculum Builder",
+    detail: "Turn a leader's own Session Recap directly into a ready-to-run small-group lesson plan." },
+];
+
+const ROLES = [
+  { title: "Senior Pastors", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
+  { title: "Small Group Leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
+  { title: "Youth Leader", detail: "Build high-energy lessons suited for high-energy young people." },
+  { title: "Children's Ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
+  { title: "Drama & Worship Arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
+  { title: "Worship & Music Leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
+  { title: "Pastoral Care & Counseling", detail: "Build a library of theologically sound answers you can draw on in crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
+  { title: "Elder / Board Training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
+  { title: "Congregation Members", detail: "Personal Bible study that picks up right where it left off, week after week -- subsidized by the church, priced for everyone." },
+];
+
+function renderTiles() {
+  const grid = document.getElementById("feature-grid");
+  grid.innerHTML = FEATURES.map((f, i) =>
+    `<button class="tile" onclick="openDetail('feature', ${i})">
+       <div class="tile-title">${f.title}</div>
+       <div class="tile-teaser">${f.teaser}</div>
+     </button>`
+  ).join("");
+
+  const spec = document.getElementById("spec-table");
+  spec.innerHTML =
+    `<div class="spec-row spec-header">
+       <div class="spec-feature">What's Included</div>
+       <div class="spec-benefits">Why It Matters</div>
+     </div>` +
+    SPEC.map(s =>
+      `<div class="spec-row">
+         <div class="spec-feature">${s.title}</div>
+         <div class="spec-benefits"><ul>${s.bullets.map(b => `<li>${b}</li>`).join("")}</ul></div>
+       </div>`
+    ).join("");
+
+  const soon = document.getElementById("soon-list");
+  soon.innerHTML = SOON.map(s =>
+    `<li><div class="soon-title">${s.title}</div><div class="soon-detail">${s.detail}</div></li>`
+  ).join("");
+
+  const roleGrid = document.getElementById("role-chips");
+  roleGrid.innerHTML = ROLES.map((r, i) =>
+    `<button class="role-card" onclick="openDetail('role', ${i})">
+       <div class="role-card-title">${r.title}</div>
+     </button>`
+  ).join("");
+}
+renderTiles();
+
+function openDetail(kind, i) {
+  const item = kind === "feature" ? FEATURES[i] : ROLES[i];
+  document.getElementById("detail-title").textContent = item.title;
+  document.getElementById("detail-body").textContent = item.detail;
+  document.getElementById("detail-modal").classList.add("show");
+}
+function closeDetail() {
+  document.getElementById("detail-modal").classList.remove("show");
+}
+function closeDetailBg(e) {
+  if (e.target === document.getElementById("detail-modal")) closeDetail();
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
+</script>
 
 </body>
 </html>
