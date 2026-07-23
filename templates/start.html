@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah — Sign In</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 420px; padding: 24px; }
+  .brand { text-align: center; margin-bottom: 20px; }
+  .brand-title { font-size: 1.3rem; font-weight: 700; color: #2f6b66; letter-spacing: 0.02em; }
+  .brand-sub { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
+  .card {
+    background: white; border-radius: 10px; border: 1px solid #e2e4e9;
+    padding: 24px 22px;
+  }
+  .card p.lead { font-size: 0.85rem; color: #374151; line-height: 1.5; margin-bottom: 18px; }
+  label {
+    display: block; font-size: 0.72rem; font-weight: 600; color: #374151;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+  }
+  input {
+    width: 100%; padding: 10px 12px; margin-bottom: 14px;
+    border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;
+    font-family: inherit;
+  }
+  input:focus { outline: none; border-color: #2f6b66; }
+  button {
+    width: 100%; padding: 11px; border: none; border-radius: 6px;
+    background: #2f6b66; color: white; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #275b57; }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  .msg {
+    font-size: 0.8rem; padding: 10px 12px; border-radius: 6px; margin-bottom: 14px;
+    display: none;
+  }
+  .msg.error { background: #fef2f2; color: #991b1b; display: block; }
+  .footnote {
+    text-align: center; font-size: 0.72rem; color: #9ca3af; margin-top: 16px; line-height: 1.5;
+  }
+  .footnote a { color: #2f6b66; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-title">Selah</div>
+    <div class="brand-sub">Exploring Theology</div>
+  </div>
+
+  <div class="card">
+    <p class="lead">Enter your email and we'll take you to the right sign-in page — free tool or Selah for Ministry, whichever is yours. No need to remember which one that is.</p>
+    <div id="msg" class="msg"></div>
+    <label for="email">Email</label>
+    <input type="email" id="email" autocomplete="email" required>
+    <button id="btn-continue" onclick="findDoor()">Continue</button>
+  </div>
+
+  <div class="footnote">
+    New here? <a href="/access">Try the free tool</a> or <a href="/ministry">learn about Selah for Ministry</a>.
+  </div>
+</div>
+
+<script>
+function showMsg(text) {
+  const el = document.getElementById("msg");
+  el.textContent = text;
+  el.className = "msg error";
+}
+
+async function findDoor() {
+  const email = document.getElementById("email").value.trim();
+  if (!email) { showMsg("Enter your email."); return; }
+
+  const btn = document.getElementById("btn-continue");
+  btn.disabled = true; btn.textContent = "Checking...";
+
+  try {
+    const res = await fetch("/start/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.error || "Something went wrong.");
+      btn.disabled = false; btn.textContent = "Continue";
+      return;
+    }
+    const params = new URLSearchParams({ email });
+    if (data.notice) params.set("notice", data.notice);
+    window.location.href = data.destination + "?" + params.toString();
+  } catch (e) {
+    showMsg("Couldn't reach Selah right now. Try again in a moment.");
+    btn.disabled = false; btn.textContent = "Continue";
+  }
+}
+
+document.getElementById("email").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") findDoor();
+});
+</script>
+</body>
+</html>

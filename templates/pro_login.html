@@ -67,7 +67,7 @@
       </form>
       <div class="toggle"><a onclick="showForgotPanel()">Forgot password?</a></div>
       <div class="toggle">No account yet? <a onclick="toggle()">Create one</a></div>
-      <div class="note">Looking for the free tool instead? <a href="/access" style="color:#2f6b66;">Go there</a>.</div>
+      <div class="note">Not sure which account you have? <a href="/start" style="color:#2f6b66;">Let us figure it out</a> — or <a href="/access" style="color:#2f6b66;">go straight to the free tool</a>.</div>
     </div>
 
     <!-- ── Forgot password -- request the reset email, added 2026-07-13.
@@ -144,6 +144,16 @@ function showLoginPanel() {
   document.getElementById("signup-invite-code").value = invite;
   document.getElementById("signup-sub").textContent = "You've been invited -- create your account to join.";
   toggle();
+})();
+
+// Prefill from /start, the unified "which door" entry point added
+// 2026-07-23 -- /start/route already decided this email belongs on the
+// login (not signup) panel before ever sending someone here, so this only
+// ever needs to fill the login form's email field, never toggle panels.
+(function prefillFromStart() {
+  const params = new URLSearchParams(window.location.search);
+  const email = params.get("email");
+  if (email) document.getElementById("login-email").value = email;
 })();
 
 // Client-side only -- password_confirm is never sent to /pro/signup (no

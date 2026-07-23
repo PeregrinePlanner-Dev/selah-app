@@ -1,4 +1,5 @@
 import os
+import time
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -6,7 +7,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from dotenv import load_dotenv
 from anthropic import Anthropic
 
-from pro_auth import pro_bp
+from pro_auth import pro_bp, get_service_client
 from pro_chat import pro_chat_bp, _check_and_reserve_usage
 from pro_billing import pro_billing_bp
 from pro_org import pro_org_bp
@@ -189,6 +190,103 @@ def support():
     # Added 2026-07-18 at Rick's request, replacing the plan to rely solely
     # on Ko-fi's own hosted page.
     return render_template("support.html")
+
+# ── Unified "which door" entry point ────────────────────────────────────────
+# Added 2026-07-23, directly out of Clark's real Pro-login incident: Selah has
+# two structurally separate sign-in systems (free tool at /access, Selah for
+# Ministry at /pro) that someone has to already know to pick between -- Clark
+# didn't, guessed wrong, and it looked like a broken app. /start removes the
+# guess: one email box, and the server tells you which door is yours based on
+# what's actually in the database, rather than making a person self-diagnose.
+# Deliberately NOT wired in as the new default for "/" or the marketing pages'
+# existing sign-in links yet -- that's a bigger content decision (do we want
+# every visitor funneled through an extra step, even ones who already know
+# where they're going) left for Rick to make deliberately, not slipped in
+# under today's time pressure. For now this is an additive, linked-to option
+# from both existing login pages (see access.html / pro_login.html footers).
+_start_lookup_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+START_LOOKUP_LIMIT = int(os.environ.get("START_LOOKUP_LIMIT", "20"))
+START_LOOKUP_WINDOW_SECONDS = int(os.environ.get("START_LOOKUP_WINDOW_SECONDS", "600"))  # 10 min
+
+
+def _start_lookup_allowed(ip: str) -> bool:
+    """Generous, read-only-abuse guard -- this endpoint has no side effects
+    (it's a lookup, not a signup/login attempt), so the limit here exists only
+    to blunt email-enumeration scraping, not to protect an account. Same
+    self-cleaning trailing-window pattern as pro_auth.py's rate limiter,
+    duplicated rather than imported to keep app.py and pro_auth.py's existing
+    no-cross-imports-from-each-other pattern intact."""
+    now = time.time()
+    attempts = _start_lookup_attempts[f"ip:{ip}"]
+    attempts[:] = [t for t in attempts if now - t < START_LOOKUP_WINDOW_SECONDS]
+    if len(attempts) >= START_LOOKUP_LIMIT:
+        return False
+    attempts.append(now)
+    return True
+
+
+@app.route("/start")
+def start():
+    return render_template("start.html")
+
+
+@app.route("/start/route", methods=["POST"])
+def start_route():
+    """Looks up an email against public.profiles (which stores email
+    directly -- confirmed by checking the schema rather than assuming) joined
+    to its organization's subscriptions.tier_slug, and tells the client which
+    login page to send the visitor to. Read-only, via the service client
+    (bypasses RLS -- there's no logged-in user yet to scope this to). Never
+    reveals anything beyond "pro" vs "free" vs "unknown" -- no account details,
+    no confirmation of exact match beyond that routing decision."""
+    if not _start_lookup_allowed(get_client_ip()):
+        return jsonify({"error": "Too many attempts from this connection -- please wait a few minutes and try again."}), 429
+
+    body = request.json or {}
+    email = (body.get("email") or "").strip()
+    if not email:
+        return jsonify({"error": "Enter your email."}), 400
+
+    destination = "/access/"
+    notice = None
+    try:
+        svc = get_service_client()
+        prof = (
+            svc.table("profiles")
+            .select("organization_id")
+            .ilike("email", email)
+            .limit(1)
+            .execute()
+        )
+        if prof.data and prof.data[0].get("organization_id"):
+            org_id = prof.data[0]["organization_id"]
+            # Fetch ALL subscription rows for this org, not just one -- found
+            # live while building this (Clark's own org, checked directly):
+            # an org can carry a stale leftover 'free' subscriptions row
+            # alongside its real paid tier(s) picked up later (e.g. a solo
+            # signup that got upgraded to a Church plan without the old row
+            # ever being cleared). Grabbing an arbitrary single row with
+            # .limit(1) risked landing on the stale 'free' one and sending a
+            # real Pro/Church user to the wrong door -- the exact bug this
+            # page exists to prevent. "Pro" if ANY row is a non-free tier.
+            sub = (
+                svc.table("subscriptions")
+                .select("tier_slug")
+                .eq("organization_id", org_id)
+                .execute()
+            )
+            tier_slugs = [row.get("tier_slug") for row in (sub.data or [])]
+            if any(t and t != "free" for t in tier_slugs):
+                destination = "/pro/"
+                notice = "We found a Selah for Ministry account for this email -- sign in below."
+    except Exception:
+        # Never let a lookup failure block someone from getting *somewhere* --
+        # worst case, default to the free tool's door, which handles both new
+        # and returning free-tier users gracefully either way.
+        pass
+
+    return jsonify({"destination": destination, "notice": notice})
+
 
 @app.route("/invite")
 def invite():
