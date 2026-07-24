@@ -166,6 +166,21 @@ TRIAL_CAP_HIT_MESSAGE = (
     "talking with your study companion."
 )
 
+# 'lapsed' tier_slug (added 2026-07-24): where a subscription lands after
+# EITHER cancellation path -- Individual Pro or Church/Org seat -- via the
+# customer.subscription.deleted webhook handler in pro_billing.py, which
+# used to set tier_slug='free' there. Deliberately hard-locked the same way
+# trial expiry is (checked before the cap gate below, blocks chat outright)
+# rather than left to fall through to TIER_CONVERSATION_CAPS' DEFAULT_CAP --
+# a canceled subscriber quietly keeping the free tier's monthly allowance
+# was never an intentional decision, just what happened by default before
+# this tier existed. Revisit if the business ever wants a softer landing
+# (e.g. free-tier access instead of a full lock) for lapsed subscribers.
+LAPSED_MESSAGE = (
+    "Your subscription has ended. Choose a plan to keep talking with your "
+    "study companion."
+)
+
 # Prep Doc is a separate, more expensive action (a full untruncated-history
 # Sonnet call) than an ordinary chat turn -- tracked under its own
 # module_slug ('prep_mode', matching the module_registry row seeded back in
@@ -510,6 +525,24 @@ def pro_chat():
         sub_status = "trialing"
         trial_end = new_trial_end.isoformat()
         trial_just_started = True
+
+    # Lapsed-subscription hard lock (added 2026-07-24): mirrors the trial-
+    # expiry gate immediately below -- checked before the cap-check gate,
+    # blocks chat outright rather than falling through to a tier cap.
+    # tier_slug='lapsed' is set by pro_billing.py's customer.subscription.
+    # deleted handler for BOTH cancellation paths (Individual Pro and
+    # Church/Org seats), so this one check covers both.
+    if not is_comped and tier_slug == "lapsed":
+        return jsonify({
+            "reply": LAPSED_MESSAGE,
+            "question": "",
+            "sources": [],
+            "node": "",
+            "anchor": "",
+            "chips": [],
+            "turn": 0,
+            "upgrade_required": True,
+        })
 
     # Trial-expiry-by-date gate: nothing in Stripe is watching this clock
     # (no subscription/card exists during a card-free trial), so this has

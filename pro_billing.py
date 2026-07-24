@@ -1206,7 +1206,8 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
         # Permanent marker of which pool this row is -- set every sync
         # (not just on creation), and deliberately NEVER cleared by the
         # customer.subscription.deleted handler below, which overwrites
-        # tier_slug to 'free' on full cancellation. Task #41's cascade job
+        # tier_slug to 'lapsed' (was 'free' until 2026-07-24) on full
+        # cancellation. Task #41's cascade job
         # (pro_scheduler.py) reads this after cancellation to know which
         # roster to migrate, once tier_slug itself no longer says so.
         "seat_type": seat_type,
@@ -1366,13 +1367,13 @@ def _sync_subscription_row(subscription, organization_id=None):
         # an INSERT -- is_new_row alone would never fire this. Also gated on
         # price_info being known -- never anchor a lock date to a guessed
         # tier_slug (see the unrecognized-price branches below). Note:
-        # customer.subscription.deleted (below) sets tier_slug='free' but
-        # leaves price_lock_expires_at as-is, so a later resubscribe still
-        # has it non-NULL and correctly skips re-anchoring -- the original
-        # first-subscribe date sticks even across a cancel/resubscribe
-        # cycle. That's a real policy choice, not an oversight: revisit if
-        # the business instead wants a lapsed-then-returning subscriber's
-        # lock clock to restart.
+        # customer.subscription.deleted (below) sets tier_slug='lapsed'
+        # (was 'free' until 2026-07-24) but leaves price_lock_expires_at
+        # as-is, so a later resubscribe still has it non-NULL and correctly
+        # skips re-anchoring -- the original first-subscribe date sticks
+        # even across a cancel/resubscribe cycle. That's a real policy
+        # choice, not an oversight: revisit if the business instead wants a
+        # lapsed-then-returning subscriber's lock clock to restart.
         started_at = (
             datetime.fromtimestamp(subscription["created"], tz=timezone.utc)
             if subscription.get("created")
@@ -1469,10 +1470,18 @@ def stripe_webhook():
     elif event_type == "customer.subscription.deleted":
         # Subscription fully ended (distinct from cancel_at_period_end=true,
         # which arrives as customer.subscription.updated while status is
-        # still 'active' until the period actually ends) -- drop back to
-        # the free tier's cap, same lifecycle as any lapsed SaaS
-        # subscription. Revisit if a different landing tier is ever wanted
-        # for lapsed-but-recent subscribers.
+        # still 'active' until the period actually ends) -- lands on the
+        # 'lapsed' tier_slug, NOT 'free' (changed 2026-07-24, Rick's call).
+        # 'lapsed' is a hard lock, same treatment as trial expiry
+        # (pro_chat.py checks it before the cap gate and blocks chat
+        # outright with an upgrade_required response) -- deliberately not
+        # the same as 'free', which still grants a real monthly allowance.
+        # A canceled/lapsed subscriber should see a "resubscribe" wall, not
+        # quietly keep chatting on the free tier's cap. This is the ONE
+        # write-site for both cancellation paths: Individual Pro and
+        # Church/Org seats both funnel through this same handler (see the
+        # tier_slug scoping below), so there is no second place that needs
+        # this same change.
         #
         # Church/Org note (2026-07-12): an org can hold TWO simultaneous
         # subscriptions (church_leadership + church_member) -- the naive
@@ -1493,7 +1502,7 @@ def stripe_webhook():
 
             svc = get_service_client()
             query = svc.table("subscriptions").update({
-                "tier_slug": "free",
+                "tier_slug": "lapsed",
                 "status": "canceled",
             }).eq("organization_id", organization_id)
             if tier_slug:
