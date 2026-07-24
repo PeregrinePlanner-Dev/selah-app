@@ -26,7 +26,7 @@ from functools import wraps
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from supabase import create_client, Client
 
-from pro_email import send_welcome_email, send_seat_granted_email, send_account_deletion_email
+from pro_email import send_welcome_email, send_seat_granted_email, send_account_deletion_email, send_password_reset_email
 
 pro_bp = Blueprint("pro", __name__, url_prefix="/pro")
 
@@ -486,19 +486,22 @@ def logout():
 
 @pro_bp.route("/forgot-password", methods=["POST"])
 def forgot_password_request():
-    """Sends a password-reset email via Supabase's own reset flow, added
-    2026-07-13. reset_password_for_email() emails a recovery link that
-    redirects the browser to /pro/reset-password with session tokens in
-    the URL FRAGMENT (never sent to this server directly -- that page's
-    own JS reads them and POSTs to reset_password_submit() below).
+    """Sends a password-reset email, added 2026-07-13, moved off Supabase's
+    own mailer onto Resend 2026-07-24 (see send_password_reset_email() in
+    pro_email.py for why -- Clark's real 2026-07-23 spam-folder incident,
+    root-caused to Supabase's default shared sender identity, not the
+    Custom SMTP transport, which was already Resend-backed and didn't help).
 
-    Uses Supabase's own built-in reset email (subject/body configurable in
-    the Supabase dashboard's Auth > Email Templates), NOT pro_email.py/
-    Resend -- reset_password_for_email() is the single well-documented,
-    stable call that both sends the email AND sets up the recovery token
-    the way Supabase's own redirect flow expects. Revisit if branding
-    consistency with the rest of pro_email.py's templates matters enough
-    to justify swapping to admin.generate_link() + a Resend template.
+    Uses get_service_client().auth.admin.generate_link() (type="recovery")
+    to create the recovery token/redirect link WITHOUT letting Supabase
+    email it itself, then sends the actual email through pro_email.py like
+    everything else in this app. The generated action_link still points
+    through Supabase's own /auth/v1/verify redirect first -- the browser
+    ends up on /pro/reset-password with session tokens in the URL FRAGMENT
+    exactly as before (never sent to this server directly -- that page's
+    own JS reads them and POSTs to reset_password_submit() below). No
+    change needed to reset_password_page()/reset_password_submit() --
+    only how the link gets to the user changed, not the link's shape.
 
     REQUIRES a matching entry in the Supabase dashboard's Authentication ->
     URL Configuration -> Redirect URLs allow-list (e.g.
@@ -511,7 +514,9 @@ def forgot_password_request():
     Always redirects with the same generic notice regardless of whether
     the email actually has an account -- standard anti-enumeration
     practice, so this endpoint can't be used to check who has a Selah
-    account."""
+    account. generate_link() itself will raise/fail for an email with no
+    account; that failure is swallowed the same way the old code swallowed
+    reset_password_for_email()'s failures, for the same reason."""
     if not csrf_valid():
         return redirect(url_for("pro.pro_home", error="Your session expired -- please try again."))
 
@@ -521,10 +526,12 @@ def forgot_password_request():
         return redirect(url_for("pro.pro_home", notice=generic_notice))
 
     try:
-        get_supabase().auth.reset_password_for_email(
-            email,
-            {"redirect_to": url_for("pro.reset_password_page", _external=True)},
-        )
+        result = get_service_client().auth.admin.generate_link({
+            "type": "recovery",
+            "email": email,
+            "options": {"redirect_to": url_for("pro.reset_password_page", _external=True)},
+        })
+        send_password_reset_email(email, result.properties.action_link)
     except Exception:
         # Never reveal whether this failed because the email doesn't exist
         # vs. a real error -- same generic message either way.

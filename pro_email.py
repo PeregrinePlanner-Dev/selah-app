@@ -163,6 +163,29 @@ def send_reactivated_email(to: str, org_name: str) -> bool:
     return send_email(to, subject, html)
 
 
+def send_password_reset_email(to: str, reset_link: str) -> bool:
+    """Sent for the 'forgot password' flow -- pro_auth.py
+    forgot_password_request(). Added 2026-07-24, replacing Supabase's own
+    built-in reset_password_for_email() send: that call worked, but used
+    Supabase's default shared mailer/sender identity rather than this
+    project's verified Resend sending domain, and it was the direct root
+    cause of Clark's real 2026-07-23 incident (5 reset emails sent, only
+    the first ever got clicked -- the rest landed in spam per Supabase's
+    own default-sender reputation, confirmed by Clark checking his spam
+    folder directly). reset_link comes from
+    get_service_client().auth.admin.generate_link() -- same underlying
+    Supabase recovery token/redirect mechanism as before, just generated
+    without letting Supabase email it itself, so the actual send now goes
+    through the same Resend path as every other email in this file."""
+    subject = "Reset your Selah for Ministry password"
+    html = _wrap(f"""
+      <p>Someone (hopefully you) requested a password reset for your Selah for Ministry account.</p>
+      <p><a href="{reset_link}" style="color:#2f6b66; font-weight:600;">Reset your password</a></p>
+      <p style="color:#6b7280; font-size:0.85rem;">If you didn't request this, you can safely ignore this email -- your password won't change unless you click the link above and set a new one.</p>
+    """)
+    return send_email(to, subject, html)
+
+
 def send_promoted_admin_email(to: str, org_name: str) -> bool:
     """Sent when an existing roster member is granted admin access --
     pro_org.py promote_admin()."""
