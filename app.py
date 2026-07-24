@@ -740,25 +740,6 @@ def upload_session():
 
     return jsonify({"greeting": greeting, "node": node, "anchor": prev_anchor})
 
-# ── TEMPORARY -- added 2026-07-24, remove after Sentry verification ────────
-# Sole purpose: confirm SENTRY_DSN (just added to Render) is actually
-# capturing real exceptions end-to-end, since the sandbox this was built in
-# can't reach Sentry's ingest servers directly to test it any other way.
-# Deliberately public (no auth, no request body, touches no data) -- raises
-# on purpose, nothing else happens. Hit it once, confirm the event shows up
-# in Sentry's Issues tab for the "python" project, then this whole route
-# gets deleted in the very next commit. Do not leave a live route that
-# intentionally 500s sitting in production past that check.
-@app.route("/_sentry_verify_temp")
-def _sentry_verify_temp():
-    raise RuntimeError(
-        "Sentry verification test -- triggered manually 2026-07-24 to "
-        "confirm SENTRY_DSN is wired correctly. Safe to resolve/ignore in "
-        "Sentry. This route is temporary and will be removed immediately "
-        "after this confirms working."
-    )
-
-
 if __name__ == "__main__":
     print(f"Selah running --> http://localhost:5000")
     print(f"Nodes loaded: {len(NODES)}")
