@@ -107,6 +107,35 @@ _TIER_INFO = {
     "immerse": {"tier_slug": "individual_immerse", "monthly": 49.00, "annual": 490.00},
 }
 
+# Public alias, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+# finding): ministry.html and pro_app.html both hardcoded these same six
+# figures ($17/$170, $28/$280, $49/$490) independently -- the exact shape
+# of gap that let Peregrine's roi.html show stale prices for 4 days after a
+# real pricing correction. This is now the one place the dollar amounts
+# live; both templates read from it via their render_template() calls
+# instead of hardcoding. Internal code above keeps using the private
+# _TIER_INFO name unchanged -- this is purely an additive export.
+TIER_INFO = _TIER_INFO
+
+
+def _fmt_price(amount: float) -> str:
+    """14.00 -> '14', 7.50 -> '7.50' -- matches the existing hand-written
+    convention already used in ministry.html/church.html/pro_app.html
+    (whole dollars shown bare, genuine cents always shown with two
+    decimals). Centralized here, added 2026-07-24, so template display
+    strings and the underlying dollar amounts can never format
+    inconsistently across the pages that show them."""
+    return str(int(amount)) if amount == int(amount) else f"{amount:.2f}"
+
+
+# Pre-formatted display strings for the templates, computed once at import
+# time rather than per-request -- ministry.html and pro_app.html both need
+# the same six values (monthly/annual per Individual Pro tier).
+DISPLAY_PRICING = {
+    tier: {"monthly": _fmt_price(info["monthly"]), "annual": _fmt_price(info["annual"])}
+    for tier, info in TIER_INFO.items()
+}
+
 # Maps a Price ID back to what we persist on our own side after a
 # checkout/renewal -- Stripe's webhook payloads only carry the price ID, not
 # a ready-made "$17, monthly, explore" summary, so this is the one place
@@ -206,6 +235,16 @@ BASE_CHURCH_CAP = {"leader": 200, "member": 100}
 CHURCH_SEAT_TIERS = {
     "leader": [(4, 14.00), (9, 12.00), (None, 10.00)],
     "member": [(24, 8.00), (99, 7.50), (999, 7.00), (None, 6.50)],
+}
+
+# Pre-formatted per-bracket display strings for church.html, added
+# 2026-07-24 (Selah_Structured_Audit_2026-07-24.md finding) -- church.html
+# previously hardcoded all 7 of these figures independently of this dict,
+# the same table this comment already says they're meant to stay in sync
+# with. Computed at import time, same pattern as DISPLAY_PRICING above.
+CHURCH_SEAT_DISPLAY = {
+    seat_type: [_fmt_price(price) for _upper, price in brackets]
+    for seat_type, brackets in CHURCH_SEAT_TIERS.items()
 }
 
 

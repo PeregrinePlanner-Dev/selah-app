@@ -6,10 +6,12 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from anthropic import Anthropic
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 
 from pro_auth import pro_bp, get_service_client
 from pro_chat import pro_chat_bp, _check_and_reserve_usage
-from pro_billing import pro_billing_bp
+from pro_billing import pro_billing_bp, DISPLAY_PRICING, CHURCH_SEAT_DISPLAY
 from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
 from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id, clear_inactivity_flag
@@ -21,6 +23,29 @@ from engine import (
 )
 
 load_dotenv()
+
+# Error tracking, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+# finding: no observability tool connected -- this week's full-site outage
+# was diagnosed entirely by hand, Render Events tab + manual log grep,
+# because nothing surfaces exceptions automatically. Mirrors Peregrine's
+# existing Sentry setup: errors-only (traces_sample_rate=0.0, no
+# performance-monitoring cost), send_default_pii=False. Deliberately
+# optional/non-blocking -- SENTRY_DSN doesn't exist yet as of this commit
+# (Sentry project creation is disabled for members on the artistyle org;
+# Rick needs to either enable that in Sentry's org settings or create the
+# "selah" project himself and hand back the DSN) -- the app must keep
+# working with zero Sentry coverage until that DSN is set, the same way
+# Peregrine's own Sentry wiring shipped before its DSN was confirmed live.
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=0.0,
+        send_default_pii=False,
+    )
+else:
+    print("NOTE: SENTRY_DSN not set -- error tracking is not active. See Selah_Structured_Audit_2026-07-24.md.")
 
 
 def _validate_required_secrets() -> None:
@@ -204,7 +229,7 @@ def index():
     # of the main app -- no separate hosting/service needed. Until DNS is
     # live, preview at /ministry on the existing domain.
     if request.host.startswith("ministry."):
-        return render_template("ministry.html")
+        return render_template("ministry.html", pricing=DISPLAY_PRICING)
     # Free-tier gate, added 2026-07-17 -- the ministry landing page, /church,
     # and the /invite explainer page (below) deliberately stay open; only
     # the actual chat tool requires sign-in now.
@@ -217,15 +242,17 @@ def index():
 
 @app.route("/ministry")
 def ministry():
-    return render_template("ministry.html")
+    return render_template("ministry.html", pricing=DISPLAY_PRICING)
 
 @app.route("/church")
 def church():
     # Dedicated Church/Org marketing page -- linked from the brief teaser
-    # section on ministry.html. Replaces the old approach of just noting
-    # church pricing wasn't ready yet; pricing is locked now (Task #7),
-    # pulled from pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13.
-    return render_template("church.html")
+    # section on ministry.html. Pricing is locked (Task #7), pulled from
+    # pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13 comment claimed this
+    # was already dynamic -- it wasn't (church.html hardcoded all 7 figures
+    # independently, confirmed 2026-07-24 while fixing the same gap for
+    # ministry.html/pro_app.html); now actually wired via CHURCH_SEAT_DISPLAY.
+    return render_template("church.html", seats=CHURCH_SEAT_DISPLAY)
 
 @app.route("/support")
 def support():

@@ -41,6 +41,29 @@ resend.api_key = RESEND_API_KEY
 FROM_ADDRESS = "Selah for Ministry <notifications@selahexploringtheology.com>"
 
 
+def _log_send_attempt(to: str, subject: str, success: bool, error: str = "") -> None:
+    """Best-effort write to email_send_log, added 2026-07-24 (Selah_
+    Structured_Audit_2026-07-24.md finding: no observability tool, and this
+    is the single choke point every transactional email in the app goes
+    through, so it's the cheapest possible place to catch a repeat of the
+    two real incidents that already happened -- an SMTP rate-limit
+    exhaustion and a wrong Resend sending domain, both silent for 24h+).
+    Deliberately never allowed to affect the caller: a logging failure
+    (network hiccup, Supabase hiccup) must not turn a successful send into
+    a reported failure, or vice versa -- swallowed and printed, same
+    best-effort philosophy as email sending itself already has."""
+    try:
+        from pro_auth import get_service_client
+        get_service_client().table("email_send_log").insert({
+            "to_email": to,
+            "subject": subject,
+            "success": success,
+            "error": error[:2000] if error else None,
+        }).execute()
+    except Exception as e:
+        print(f"[EMAIL] email_send_log write failed (non-fatal, send outcome unaffected): {e}")
+
+
 def send_email(to: str, subject: str, html: str) -> bool:
     """Sends one email. Returns True if Resend accepted it, False on any
     failure (missing key, API error, etc.) -- callers should treat email as
@@ -48,6 +71,7 @@ def send_email(to: str, subject: str, html: str) -> bool:
     that triggered it."""
     if not RESEND_API_KEY:
         print(f"[EMAIL] RESEND_API_KEY not set -- skipping send to {to!r} (subject: {subject!r})")
+        _log_send_attempt(to, subject, False, "RESEND_API_KEY not set")
         return False
     try:
         resend.Emails.send({
@@ -56,9 +80,11 @@ def send_email(to: str, subject: str, html: str) -> bool:
             "subject": subject,
             "html": html,
         })
+        _log_send_attempt(to, subject, True)
         return True
     except Exception as e:
         print(f"[EMAIL] Failed to send to {to!r} (subject: {subject!r}): {e}")
+        _log_send_attempt(to, subject, False, str(e))
         return False
 
 

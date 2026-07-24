@@ -27,6 +27,7 @@ from engine import (
     attach_scripture_verification,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token
+from pro_billing import DISPLAY_PRICING
 
 pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
 
@@ -1062,4 +1063,5 @@ def pro_app():
         node_display_names=NODE_DISPLAY_NAMES,
         email=session.get("sb_email", ""),
         csrf_token=csrf_token(),
+        pricing=DISPLAY_PRICING,
     )
