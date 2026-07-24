@@ -233,12 +233,14 @@
         </div>
         <div class="row-actions">
           <form method="POST" action="{{ url_for('free_gate.admin_waitlist_invite') }}" onsubmit="return preventDoubleSubmit(this);">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="id" value="{{ row.id }}">
             <input type="hidden" name="name" value="{{ row.name or '' }}">
             <input type="hidden" name="email" value="{{ row.email }}">
             <button type="submit">Send invite</button>
           </form>
           <form method="POST" action="{{ url_for('free_gate.admin_waitlist_decline') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="id" value="{{ row.id }}">
             <button type="submit" class="decline">Decline</button>
           </form>
@@ -297,6 +299,7 @@
       <div class="msg success">{{ move_result.note }}</div>
     {% endif %}
     <form method="POST" action="{{ url_for('free_gate.admin_move_account') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="move-email">Their email (must already have a Selah account)</label>
       <input type="email" id="move-email" name="email" required>
       <label for="move-org">Move into</label>
@@ -327,6 +330,7 @@
     {% if not logged_in %}
       <p class="lead">Enter the admin key to issue invites.</p>
       <form method="POST" action="{{ url_for('free_gate.admin_login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="key">Admin key</label>
         <div class="pwd-field">
           <input type="password" id="key" name="key" required autofocus>
@@ -348,6 +352,7 @@
 
       <p class="lead">Issue a new invite. It's tied to this exact email — it won't work for anyone else.</p>
       <form method="POST" action="{{ url_for('free_gate.admin_invite') }}" onsubmit="return preventDoubleSubmit(this);">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="name">Name (optional)</label>
         <input type="text" id="name" name="name">
         <label for="email">Email</label>
@@ -355,6 +360,7 @@
         <button type="submit">Create &amp; send invite</button>
       </form>
       <form method="POST" action="{{ url_for('free_gate.admin_logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="secondary">Log out</button>
       </form>
     {% endif %}

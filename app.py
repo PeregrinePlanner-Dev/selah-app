@@ -22,6 +22,50 @@ from engine import (
 
 load_dotenv()
 
+
+def _validate_required_secrets() -> None:
+    """Fail loudly at startup instead of booting successfully and failing
+    confusingly on first use. Added 2026-07-24 (Selah_Structured_Audit_
+    2026-07-24.md finding): every required secret in this codebase was
+    previously read via os.environ.get(key, "") or a default, with zero
+    presence check anywhere -- app.secret_key even fell back to a literal,
+    publicly-known insecure string if unset. Split into two tiers:
+    HARD-required (nothing in the app works correctly without these --
+    refuse to boot, same as BUILD_PROTOCOL.md's equivalent Peregrine fix)
+    and IMPORTANT (a real feature degrades without these, but the rest of
+    the app -- chat, auth -- can still serve traffic, so log CRITICAL and
+    keep running rather than taking the whole site down over a missing
+    Stripe key). Every one of these is already expected to be set on the
+    live Render deploy today, so this should be a silent no-op in
+    production and only ever fire if a future deploy accidentally drops
+    one -- exactly the failure mode this exists to catch fast instead of
+    letting it surface as a confusing 500 later."""
+    hard_required = {
+        "SUPABASE_URL": "every auth/chat route needs this",
+        "SUPABASE_ANON_KEY": "Pro and free-tier auth can't function without it",
+        "SUPABASE_SERVICE_ROLE_KEY": "usage caps, admin actions, and the free-tier tier-assignment trigger all depend on it",
+        "FLASK_SECRET_KEY": "without a real value, sessions would be signed with a publicly-known fallback string",
+        "ANTHROPIC_API_KEY_FREE": "the free tool can't generate a single response without it",
+    }
+    missing_hard = [k for k in hard_required if not os.environ.get(k)]
+    if missing_hard:
+        lines = "\n".join(f"  - {k}: {hard_required[k]}" for k in missing_hard)
+        raise SystemExit("CRITICAL: refusing to start -- required secret(s) missing:\n" + lines)
+
+    important = {
+        "STRIPE_SECRET_KEY": "Stripe billing will fail on every checkout/portal call",
+        "STRIPE_WEBHOOK_SECRET": "Stripe webhooks (subscription updates, cancellations) will be rejected -- billing state can silently go stale",
+        "RESEND_API_KEY": "transactional email (invites, password resets, receipts) will silently fail to send",
+    }
+    missing_important = [k for k in important if not os.environ.get(k)]
+    if missing_important:
+        print("CRITICAL: app is starting with missing secret(s) -- real functionality will be broken:")
+        for k in missing_important:
+            print(f"  - {k}: {important[k]}")
+
+
+_validate_required_secrets()
+
 app = Flask(__name__)
 
 # ── Anthropic Workspace split, 2026-07-20 ───────────────────────────────────
@@ -44,7 +88,7 @@ free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"))
 # Selah for Ministry (Pro) auth -- additive only, registered as a separate
 # blueprint under /pro/*. The free tool's existing routes below are
 # untouched by this. Added 2026-07-07.
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-change-me")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")  # presence already guaranteed by _validate_required_secrets() above -- no insecure fallback
 app.register_blueprint(pro_bp)
 app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
