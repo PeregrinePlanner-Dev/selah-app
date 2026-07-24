@@ -300,6 +300,14 @@ def invite():
 def legal():
     return render_template("legal.html")
 
+@app.route("/church-guide")
+def church_guide():
+    # Public, no-login static page -- same pattern as /legal and /support --
+    # so it's shareable as a plain link (e.g. in the promoted-admin email)
+    # before someone's even logged in, added 2026-07-24 per the audit finding
+    # that no written admin documentation existed anywhere.
+    return render_template("church_admin_guide.html")
+
 @app.route("/chat", methods=["POST"])
 def chat():
     # Free-tier gate, added 2026-07-17. Checked before the rate limiter --

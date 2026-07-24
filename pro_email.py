@@ -169,6 +169,7 @@ def send_promoted_admin_email(to: str, org_name: str) -> bool:
     subject = f"You're now an admin at {org_name}"
     html = _wrap(f"""
       <p>You've been given admin access at <strong>{org_name}</strong> on Selah for Ministry. You can now manage seats, invitations, and the roster from the Church/Org dashboard.</p>
+      <p>New to this? The <a href="https://selahexploringtheology.com/church-guide">Admin Guide</a> walks through seats, invitations, and roster management screen by screen.</p>
     """)
     return send_email(to, subject, html)
 
