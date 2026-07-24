@@ -32,6 +32,16 @@
     font-family: inherit;
   }
   input:focus { outline: none; border-color: #2f6b66; }
+  /* Show/hide password toggle -- added 2026-07-24 after Clark reported
+     mistyped-password trouble with no way to check what he'd typed. */
+  .pwd-field { position: relative; }
+  .pwd-field input { padding-right: 52px; }
+  .pwd-toggle-btn {
+    position: absolute; right: 8px; top: 0; transform: translateY(9px);
+    width: auto; padding: 4px 8px; border: none; background: none;
+    color: #2f6b66; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  }
+  .pwd-toggle-btn:hover { background: #eef6f5; border-radius: 6px; }
   button {
     width: 100%; padding: 11px; border: none; border-radius: 6px;
     background: #2f6b66; color: white; font-size: 0.88rem; font-weight: 600;
@@ -318,7 +328,10 @@
       <p class="lead">Enter the admin key to issue invites.</p>
       <form method="POST" action="{{ url_for('free_gate.admin_login') }}">
         <label for="key">Admin key</label>
-        <input type="password" id="key" name="key" required autofocus>
+        <div class="pwd-field">
+          <input type="password" id="key" name="key" required autofocus>
+          <button type="button" class="pwd-toggle-btn" onclick="togglePwd('key', this)">Show</button>
+        </div>
         <button type="submit">Unlock</button>
       </form>
     {% else %}
@@ -348,6 +361,20 @@
   </div>
 </div>
 <script>
+// Show/hide password toggle -- added 2026-07-24 after Clark reported
+// mistyped-password trouble with no way to check what he'd typed.
+function togglePwd(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "Hide";
+  } else {
+    input.type = "password";
+    btn.textContent = "Show";
+  }
+}
+
 // Added 2026-07-23, real bug found live: rockymttiler@aol.com ended up with
 // two duplicate, unused invite codes created 9 seconds apart -- these are
 // plain HTML form POSTs with no client-side guard at all, so a double-click
