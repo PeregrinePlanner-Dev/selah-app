@@ -178,6 +178,32 @@ def csrf_valid() -> bool:
     return bool(session_token) and secrets.compare_digest(session_token, submitted)
 
 
+# Trial-abuse deterrent, added 2026-07-24 (Rick flagged this as a real gap:
+# the card-free 14-day/25-exchange trial has no deterrent against repeat
+# signups). Full review: 05- Future/Selah_Structured_Audit_2026-07-24.md.
+# This closes only the cheapest, most common trick -- Gmail-style
+# "+alias@gmail.com" addresses all deliver to the same inbox but Supabase
+# Auth (and this app) treat them as distinct accounts, so someone can farm
+# unlimited trials from one real mailbox with zero extra signup friction.
+# Blocking it outright at signup (not silently normalizing/merging) is a
+# standard, low-risk pattern -- doesn't touch the trial policy itself, just
+# closes a well-known loophole. Deliberately NOT attempting dot-insertion
+# normalization (gmail.com treats "j.doe"/"jdoe" as the same address, most
+# other providers don't) -- that's a fuzzier, riskier heuristic that risks
+# false-positive-blocking real distinct users on less-common providers, not
+# a clear net win the way the plus-alias block is.
+def _is_plus_alias_email(email: str) -> bool:
+    local = email.split("@", 1)[0] if "@" in email else email
+    return "+" in local
+
+
+_PLUS_ALIAS_SIGNUP_ERROR = (
+    "Please sign up with your main email address (without a \"+\" alias) -- "
+    "we use one trial per email address, and \"+\" addresses route to the "
+    "same inbox as your main one anyway."
+)
+
+
 _supabase_client: Client | None = None
 _service_client: Client | None = None
 
@@ -317,6 +343,8 @@ def signup():
         return redirect(url_for("pro.pro_home", error="Email and password are required."))
     if not first_name or not last_name:
         return redirect(url_for("pro.pro_home", error="First and last name are required."))
+    if _is_plus_alias_email(email):
+        return redirect(url_for("pro.pro_home", error=_PLUS_ALIAS_SIGNUP_ERROR))
 
     try:
         signup_kwargs = {"email": email, "password": password}

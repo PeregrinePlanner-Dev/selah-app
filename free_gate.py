@@ -59,7 +59,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 
-from pro_auth import get_supabase, get_service_client, csrf_token, csrf_valid
+from pro_auth import get_supabase, get_service_client, csrf_token, csrf_valid, _is_plus_alias_email, _PLUS_ALIAS_SIGNUP_ERROR
 from pro_email import send_email
 from pro_chat import _billing_month_today
 
@@ -385,6 +385,22 @@ def access_request():
 
     if not email or "@" not in email:
         return jsonify({"error": "Enter a valid email address."}), 400
+
+    # Trial/free-tier abuse deterrent, added 2026-07-24 (see pro_auth.py's
+    # _is_plus_alias_email() docstring for the full reasoning -- same
+    # underlying gap, same fix, applied here too since this path grants a
+    # fresh free-tier account off the same handle_new_user() trigger). This
+    # route also serves RETURNING users (should_create_user handles both),
+    # so unlike pro_auth.signup() -- which is guaranteed brand-new -- this
+    # can't block on the alias alone without risking a false-positive block
+    # on an existing account that happens to use a "+" address. One extra
+    # profiles lookup (email has Supabase Auth's own unique constraint
+    # behind it) tells the difference; only block if this would actually
+    # create a new account.
+    if _is_plus_alias_email(email):
+        existing = get_service_client().table("profiles").select("id").eq("email", email).limit(1).execute()
+        if not existing.data:
+            return jsonify({"error": _PLUS_ALIAS_SIGNUP_ERROR}), 400
 
     try:
         get_supabase().auth.sign_in_with_otp({
