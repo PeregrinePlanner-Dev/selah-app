@@ -180,7 +180,7 @@ FOUNDER_NOTIFICATION_EMAIL = os.environ.get("FOUNDER_NOTIFICATION_EMAIL", "admin
 # doc's correction. All three env-overridable without a code change once
 # real numbers exist to replace the guesses.
 FREE_TIER_COST_PER_EXCHANGE = float(os.environ.get("FREE_TIER_COST_PER_EXCHANGE", "0.45"))
-FREE_TIER_MONTHLY_BUDGET = float(os.environ.get("FREE_TIER_MONTHLY_BUDGET", "50"))
+FREE_TIER_MONTHLY_BUDGET = float(os.environ.get("FREE_TIER_MONTHLY_BUDGET", "100"))
 FREE_TIER_CAPACITY_MARGIN = float(os.environ.get("FREE_TIER_CAPACITY_MARGIN", "0.25"))
 
 
