@@ -220,6 +220,41 @@ def check_rate_limit(ip: str) -> str | None:
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
 
+# ── UTM / referrer capture, added 2026-07-24 (confirmed priority by Rick, ────
+# 2026-07-20; profiles had no marketing-attribution columns at all before
+# today). First-touch model: captured once per browser session on the first
+# GET that carries any utm_* param or a cross-site referrer, then carried in
+# the Flask session cookie (shared across the free tool's fg_* and Pro's
+# sb_* auth, since both ultimately write to the same profiles table) until
+# signup actually happens -- pro_auth.signup() and free_gate._complete_signin()
+# both do a best-effort, write-once (WHERE utm_source IS NULL) profiles
+# update with whatever landed here. A user who never signs up costs nothing
+# extra; a user who signs up days after their first visit still gets
+# correctly attributed to that first visit, not to whatever page happened to
+# host the signup form.
+_UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+
+
+@app.before_request
+def _capture_utm_attribution():
+    if "utm_captured" in session:
+        return
+    found = {k: request.args.get(k, "").strip() for k in _UTM_KEYS}
+    referrer = (request.referrer or "").strip()
+    if any(found.values()) or referrer:
+        for k, v in found.items():
+            if v:
+                session[k] = v[:200]  # defensive cap -- these are attacker-controlled query params
+        if referrer:
+            session["signup_referrer"] = referrer[:500]
+    # Marks this session as "checked," regardless of whether anything was
+    # found -- so a later page view in the same session (now with no UTM
+    # params, since campaign links only carry them on the first click)
+    # doesn't get treated as a fresh, param-less "visit" that overwrites
+    # nothing but also doesn't need re-checking every request.
+    session["utm_captured"] = True
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")

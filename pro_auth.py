@@ -376,6 +376,23 @@ def signup():
     except Exception:
         pass
 
+    # UTM/referrer attribution, added 2026-07-24 -- whatever app.py's
+    # before_request hook captured into the session (first page load this
+    # browser session that carried a utm_* param or referrer) gets written
+    # onto the brand-new profile here. No WHERE-null guard needed like
+    # free_gate's equivalent below -- this row was just created by
+    # sign_up() a few lines up, so it's guaranteed to be the first write.
+    utm_fields = {k: session[k] for k in
+                  ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+                  if session.get(k)}
+    if session.get("signup_referrer"):
+        utm_fields["signup_referrer"] = session["signup_referrer"]
+    if utm_fields:
+        try:
+            get_service_client().table("profiles").update(utm_fields).eq("id", result.user.id).execute()
+        except Exception:
+            pass
+
     # Tell them plainly if the invite they used didn't actually work, or if
     # it worked but the pool was full (pending/waitlisted) -- never let
     # either of those pass silently. Read via the service client since RLS

@@ -244,6 +244,24 @@ def _complete_signin(user_id: str, email: str, access_token: str,
     session["fg_email"] = email
     session["fg_user_id"] = user_id
     session["fg_organization_id"] = profile.data[0]["organization_id"]
+
+    # UTM/referrer attribution, added 2026-07-24. Unlike pro_auth.signup(),
+    # this helper runs on EVERY sign-in (new account or returning), so a
+    # WHERE utm_source IS NULL guard is required -- without it, a returning
+    # user's later login (now with no campaign params on the URL) would
+    # overwrite real first-touch attribution with nothing. Best-effort, same
+    # as the rest of this function's error handling.
+    utm_fields = {k: session[k] for k in
+                  ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+                  if session.get(k)}
+    if session.get("signup_referrer"):
+        utm_fields["signup_referrer"] = session["signup_referrer"]
+    if utm_fields:
+        try:
+            svc.table("profiles").update(utm_fields).eq("id", user_id).is_("utm_source", "null").execute()
+        except Exception:
+            pass
+
     return True
 
 
