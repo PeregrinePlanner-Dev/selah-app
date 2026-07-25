@@ -382,25 +382,38 @@ def access_request():
     invite_code = data.get("invite_code", "").strip()
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
+    age_confirmed = bool(data.get("age_confirmed"))
 
     if not email or "@" not in email:
         return jsonify({"error": "Enter a valid email address."}), 400
 
+    # Single profiles lookup, now shared by two checks below -- both only
+    # matter for a BRAND-NEW account, never for someone signing back into
+    # one that already exists. (email has Supabase Auth's own unique
+    # constraint behind it, so this is a reliable new-vs-returning signal.)
+    existing = get_service_client().table("profiles").select("id").eq("email", email).limit(1).execute()
+    is_new_signup = not existing.data
+
     # Trial/free-tier abuse deterrent, added 2026-07-24 (see pro_auth.py's
     # _is_plus_alias_email() docstring for the full reasoning -- same
     # underlying gap, same fix, applied here too since this path grants a
-    # fresh free-tier account off the same handle_new_user() trigger). This
-    # route also serves RETURNING users (should_create_user handles both),
-    # so unlike pro_auth.signup() -- which is guaranteed brand-new -- this
-    # can't block on the alias alone without risking a false-positive block
-    # on an existing account that happens to use a "+" address. One extra
-    # profiles lookup (email has Supabase Auth's own unique constraint
-    # behind it) tells the difference; only block if this would actually
-    # create a new account.
-    if _is_plus_alias_email(email):
-        existing = get_service_client().table("profiles").select("id").eq("email", email).limit(1).execute()
-        if not existing.data:
-            return jsonify({"error": _PLUS_ALIAS_SIGNUP_ERROR}), 400
+    # fresh free-tier account off the same handle_new_user() trigger).
+    if is_new_signup and _is_plus_alias_email(email):
+        return jsonify({"error": _PLUS_ALIAS_SIGNUP_ERROR}), 400
+
+    # Age gate, added 2026-07-25: the free tier moved from fully anonymous
+    # to email-verified accounts on 2026-07-17 (see this file's module
+    # docstring), which means it now collects real personal information
+    # (email, name) with no age check behind it -- a real COPPA gap caught
+    # while working through Selah's Termly privacy-policy questionnaire.
+    # Rick's call, 2026-07-25: 13+ minimum on the free tier (18+ already
+    # required on Pro, enforced separately in pro_auth.py). Enforced
+    # server-side, not just the checkbox in access.html, since a client-only
+    # check is trivially bypassable by anyone calling this endpoint
+    # directly. Only gates brand-new accounts -- someone who created an
+    # account before this check shipped can still sign back in normally.
+    if is_new_signup and not age_confirmed:
+        return jsonify({"error": "You must confirm you're 13 years of age or older to create a free account."}), 400
 
     try:
         get_supabase().auth.sign_in_with_otp({
