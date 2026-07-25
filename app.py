@@ -9,11 +9,12 @@ from anthropic import Anthropic
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
-from pro_auth import pro_bp, get_service_client
+from pro_auth import pro_bp, get_service_client, csrf_token, csrf_valid
 from pro_chat import pro_chat_bp, _check_and_reserve_usage
 from pro_billing import pro_billing_bp, DISPLAY_PRICING, CHURCH_SEAT_DISPLAY
 from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
+from pro_email import send_email
 from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id, clear_inactivity_flag
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
@@ -405,6 +406,76 @@ def invite():
 @app.route("/legal")
 def legal():
     return render_template("legal.html")
+
+# ── Privacy/data-request contact form ───────────────────────────────────────
+# Added 2026-07-25, mid-Termly-questionnaire: Florida, Nebraska, and Texas
+# each require at least two methods for submitting privacy requests, and
+# email (arrowroot56@gmail.com, already in legal.html Section 12) was the
+# only real channel that existed. This is the second one -- deliberately
+# minimal (no ticketing, no auto-routing by request type) so today's Termly
+# answer is honest rather than aspirational; a fuller build can come later.
+# Sends via the same Resend pipeline/observability as every other
+# transactional email in the app (pro_email.send_email -> email_send_log).
+_contact_submit_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+CONTACT_SUBMIT_LIMIT = int(os.environ.get("CONTACT_SUBMIT_LIMIT", "5"))
+CONTACT_SUBMIT_WINDOW_SECONDS = int(os.environ.get("CONTACT_SUBMIT_WINDOW_SECONDS", "600"))  # 10 min
+
+
+def _contact_submit_allowed(ip: str) -> bool:
+    """Same self-cleaning trailing-window pattern as _start_lookup_allowed
+    above -- generous limit, this just blunts basic spam floods, not a
+    security boundary."""
+    now = time.time()
+    attempts = _contact_submit_attempts[f"ip:{ip}"]
+    attempts[:] = [t for t in attempts if now - t < CONTACT_SUBMIT_WINDOW_SECONDS]
+    if len(attempts) >= CONTACT_SUBMIT_LIMIT:
+        return False
+    attempts.append(now)
+    return True
+
+
+@app.route("/privacy-contact")
+def privacy_contact():
+    return render_template(
+        "privacy_contact.html",
+        csrf_token=csrf_token(),
+        sent=request.args.get("sent") == "1",
+        error=request.args.get("error", ""),
+    )
+
+
+@app.route("/privacy-contact/submit", methods=["POST"])
+def privacy_contact_submit():
+    if not csrf_valid():
+        return redirect(url_for("privacy_contact", error="Your session expired -- please try again."))
+
+    # Honeypot -- real users never see this field (hidden via CSS on the
+    # template); a bot that fills every input trips it silently, no error
+    # shown back, so scrapers don't learn which field to skip.
+    if request.form.get("website", "").strip():
+        return redirect(url_for("privacy_contact", sent="1"))
+
+    if not _contact_submit_allowed(get_client_ip()):
+        return redirect(url_for("privacy_contact", error="Too many submissions from this connection -- please wait a few minutes and try again."))
+
+    name         = request.form.get("name", "").strip()[:200]
+    email        = request.form.get("email", "").strip()[:200]
+    request_type = request.form.get("request_type", "").strip()[:100]
+    message      = request.form.get("message", "").strip()[:5000]
+
+    if not email or not message:
+        return redirect(url_for("privacy_contact", error="Email and message are required."))
+
+    body = f"""
+      <p><strong>New privacy/contact request from selahexploringtheology.com</strong></p>
+      <p><strong>Name:</strong> {name or '(not provided)'}</p>
+      <p><strong>Email:</strong> {email}</p>
+      <p><strong>Request type:</strong> {request_type or '(not specified)'}</p>
+      <p><strong>Message:</strong><br>{message}</p>
+    """
+    send_email("arrowroot56@gmail.com", f"Selah privacy contact form: {request_type or 'General'}", body)
+
+    return redirect(url_for("privacy_contact", sent="1"))
 
 @app.route("/church-guide")
 def church_guide():
