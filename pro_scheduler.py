@@ -30,9 +30,8 @@ from pro_email import (
     send_roster_removal_email,
     send_cancellation_reminder_email,
     send_cascade_admin_summary_email,
-    send_email,
 )
-from free_gate import send_free_tier_inactivity_nudge_email, _release_free_seat, FOUNDER_NOTIFICATION_EMAIL
+from free_gate import send_free_tier_inactivity_nudge_email, _release_free_seat
 
 pro_scheduler_bp = Blueprint("pro_scheduler", __name__, url_prefix="/pro/internal")
 
@@ -278,63 +277,6 @@ def _send_free_tier_inactivity_nudges(svc) -> dict:
     return {"nudged": nudged, "released": released}
 
 
-def _check_email_health(svc) -> dict:
-    """Job 4 -- added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
-    finding: no observability tool connected; this week's outage and two
-    earlier incidents -- a Supabase SMTP rate-limit exhaustion and a wrong
-    Resend sending domain -- were both silent for 24h+ before a human
-    happened to notice). Reads email_send_log (written by every
-    send_email() call in pro_email.py -- the single choke point every
-    transactional email in this app goes through) and alerts if any send
-    failed in the last 24h. A logged failure means resend.Emails.send()
-    itself raised -- a real systemic problem (bad key, unverified domain,
-    rate limit, network), not a later bounce -- so this is a deliberately
-    low-noise, high-signal check: any row here is worth a look, not a
-    threshold to tune.
-
-    Known limitation, same one the original 2026-07-20 audit's proposal for
-    this job already carried: if the underlying problem IS that outbound
-    email is fully broken, the alert email sent below could fail too. Not
-    solved here -- the `print()` line is the fallback (visible in Render's
-    logs), and this becomes fully redundant the moment Sentry's DSN is set
-    (see app.py), at which point _validate_required_secrets-class coverage
-    plus this job overlap rather than either standing alone."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    failures = (
-        svc.table("email_send_log")
-        .select("id, to_email, subject, error, created_at")
-        .eq("success", False)
-        .gte("created_at", cutoff)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    rows = failures.data or []
-    if not rows:
-        return {"failures_last_24h": 0, "alert_sent": False}
-
-    print(f"[SCHEDULER] CRITICAL: {len(rows)} email send failure(s) in the last 24h -- {rows[0].get('error', '')[:200]!r} (most recent, to {rows[0].get('to_email')!r})")
-
-    try:
-        import sentry_sdk
-        sentry_sdk.capture_message(
-            f"Selah: {len(rows)} email send failure(s) in the last 24h", level="error"
-        )
-    except Exception:
-        pass  # Sentry not configured yet (no DSN) -- the print() above and the alert email below still cover it
-
-    lines = "".join(
-        f"<li>{r['created_at']} — to {r.get('to_email')!r}, subject {r.get('subject')!r}: {r.get('error')}</li>"
-        for r in rows[:10]
-    )
-    alert_sent = send_email(
-        FOUNDER_NOTIFICATION_EMAIL,
-        f"Selah: {len(rows)} email send failure(s) in the last 24h",
-        f"<p>The daily health check found {len(rows)} failed email send(s) in the last 24 hours:</p><ul>{lines}</ul>"
-        f"<p>Each of these is a real send-attempt failure (not a bounce) -- worth checking Resend/Supabase directly.</p>",
-    )
-    return {"failures_last_24h": len(rows), "alert_sent": alert_sent}
-
-
 @pro_scheduler_bp.route("/run-scheduled-jobs", methods=["POST"])
 def run_scheduled_jobs():
     """Single entry point a Render Cron Job hits once a day:
@@ -366,18 +308,10 @@ def run_scheduled_jobs():
     except Exception as e:
         print(f"[SCHEDULER] inactivity job crashed: {e}")
 
-    email_health = {"failures_last_24h": 0, "alert_sent": False}
-    try:
-        email_health = _check_email_health(svc)
-    except Exception as e:
-        print(f"[SCHEDULER] email health check crashed: {e}")
-
     return jsonify({
         "ok": True,
         "reminders_sent": reminders_sent,
         "cascades_processed": orgs_cascaded,
         "inactivity_nudges_sent": inactivity_result["nudged"],
         "inactivity_auto_released": inactivity_result["released"],
-        "email_failures_last_24h": email_health["failures_last_24h"],
-        "email_alert_sent": email_health["alert_sent"],
     })

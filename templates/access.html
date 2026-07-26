@@ -103,16 +103,6 @@
         exactly as before for anyone arriving via a pre-filled link; there's
         just nothing left for a person to see or type by hand. -->
         <input type="hidden" id="invite_code">
-        <!-- Age gate, added 2026-07-25 -- the free tier collects real
-        personal information (email, name) as of the 2026-07-17
-        accounts change, so it needs an age floor. Self-attestation only
-        (same as virtually every consumer product's 13+ checkbox), but
-        also enforced server-side in free_gate.py's access_request(), not
-        just here -- this checkbox alone is not the real gate. -->
-        <label class="checkbox-label" style="display:flex; align-items:flex-start; gap:8px; font-weight:normal; font-size:0.85rem; margin:14px 0;">
-          <input type="checkbox" id="age_confirmed" style="margin-top:3px;">
-          <span>I confirm I am 13 years of age or older.</span>
-        </label>
         <button id="btn-request" onclick="requestCode()">Continue</button>
         <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have an invite? Join the waitlist</a></div>
       </div>
@@ -153,7 +143,7 @@
   </div>
 
   <div class="footnote">
-    No password required — just your email and, optionally, your name. <a href="/legal">Privacy</a>
+    No password, nothing stored beyond what keeps this free for everyone. <a href="/legal">Privacy</a>
   </div>
   <div class="footnote">
     Not sure which account you have? <a href="/start">Let us figure it out</a> — or <a href="/pro/">go straight to Selah for Ministry</a>.
@@ -287,9 +277,7 @@ async function requestCode() {
   const invite_code = document.getElementById("invite_code").value.trim();
   const first_name = document.getElementById("first_name").value.trim();
   const last_name = document.getElementById("last_name").value.trim();
-  const age_confirmed = document.getElementById("age_confirmed").checked;
   if (!email) { showMsg("Enter your email.", "error"); return; }
-  if (!age_confirmed) { showMsg("Please confirm you're 13 or older to continue.", "error"); return; }
 
   const btn = document.getElementById("btn-request");
   btn.disabled = true; btn.textContent = "Sending...";
@@ -298,7 +286,7 @@ async function requestCode() {
     const res = await fetch("/access/request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, invite_code, first_name, last_name, age_confirmed }),
+      body: JSON.stringify({ email, invite_code, first_name, last_name }),
     });
     const data = await res.json();
     if (!res.ok) {

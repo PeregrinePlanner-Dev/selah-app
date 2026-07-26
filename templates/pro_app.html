@@ -1044,20 +1044,6 @@ function openChangePasswordModal() {
   document.getElementById("change-password-error").style.display = "none";
   document.getElementById("change-password-modal").classList.add("show");
 }
-// Show/hide password toggle -- added 2026-07-24 after Clark reported
-// mistyped-password login trouble with no way to check what he'd typed.
-function togglePwd(inputId, btn) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  if (input.type === "password") {
-    input.type = "text";
-    btn.textContent = "Hide";
-  } else {
-    input.type = "password";
-    btn.textContent = "Show";
-  }
-}
-
 function closeChangePasswordModal() {
   document.getElementById("change-password-modal").classList.remove("show");
 }
@@ -1570,20 +1556,11 @@ checkPromoParam();
     <div class="modal-body">
       <div class="error-text" id="change-password-error" style="display:none; margin-bottom:12px;"></div>
       <label for="cp-current" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Current password</label>
-      <div style="position:relative; margin-bottom:12px;">
-        <input type="password" id="cp-current" style="width:100%; margin-bottom:0; padding:8px 44px 8px 10px; border:1px solid #d1d5db; border-radius:7px;">
-        <button type="button" onclick="togglePwd('cp-current', this)" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; color:#2f6b66; font-size:0.72rem; font-weight:600; cursor:pointer; padding:4px 6px;">Show</button>
-      </div>
+      <input type="password" id="cp-current" style="width:100%; margin-bottom:12px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
       <label for="cp-new" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">New password</label>
-      <div style="position:relative; margin-bottom:12px;">
-        <input type="password" id="cp-new" minlength="6" style="width:100%; margin-bottom:0; padding:8px 44px 8px 10px; border:1px solid #d1d5db; border-radius:7px;">
-        <button type="button" onclick="togglePwd('cp-new', this)" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; color:#2f6b66; font-size:0.72rem; font-weight:600; cursor:pointer; padding:4px 6px;">Show</button>
-      </div>
+      <input type="password" id="cp-new" minlength="6" style="width:100%; margin-bottom:12px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
       <label for="cp-confirm" style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Confirm new password</label>
-      <div style="position:relative; margin-bottom:4px;">
-        <input type="password" id="cp-confirm" minlength="6" style="width:100%; margin-bottom:0; padding:8px 44px 8px 10px; border:1px solid #d1d5db; border-radius:7px;">
-        <button type="button" onclick="togglePwd('cp-confirm', this)" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; color:#2f6b66; font-size:0.72rem; font-weight:600; cursor:pointer; padding:4px 6px;">Show</button>
-      </div>
+      <input type="password" id="cp-confirm" minlength="6" style="width:100%; margin-bottom:4px; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px;">
       <div class="recap-done-actions">
         <button class="recap-secondary-btn" onclick="closeChangePasswordModal()">Cancel</button>
         <button class="session-delete-confirm-btn" id="cp-submit-btn" onclick="submitChangePassword()" style="background:#2f6b66;">Change Password</button>
@@ -1645,10 +1622,10 @@ checkPromoParam();
         <div class="tier-block-name">Explore <span class="tier-block-cap">120 exchanges/mo</span></div>
         <div class="tier-block-row">
           <button class="plan-option-btn" onclick="selectPlan('explore','monthly')">
-            <div class="plan-option-name">${{ pricing.explore.monthly }}/mo</div>
+            <div class="plan-option-name">$17/mo</div>
           </button>
           <button class="plan-option-btn" onclick="selectPlan('explore','annual')">
-            <div class="plan-option-name">${{ pricing.explore.annual }}/yr</div>
+            <div class="plan-option-name">$170/yr</div>
           </button>
         </div>
       </div>
@@ -1657,10 +1634,10 @@ checkPromoParam();
         <div class="tier-block-name">Pursue <span class="tier-block-cap">225 exchanges/mo</span></div>
         <div class="tier-block-row">
           <button class="plan-option-btn" onclick="selectPlan('pursue','monthly')">
-            <div class="plan-option-name">${{ pricing.pursue.monthly }}/mo</div>
+            <div class="plan-option-name">$28/mo</div>
           </button>
           <button class="plan-option-btn" onclick="selectPlan('pursue','annual')">
-            <div class="plan-option-name">${{ pricing.pursue.annual }}/yr</div>
+            <div class="plan-option-name">$280/yr</div>
           </button>
         </div>
       </div>
@@ -1669,10 +1646,10 @@ checkPromoParam();
         <div class="tier-block-name">Immerse <span class="tier-block-cap">400 exchanges/mo</span></div>
         <div class="tier-block-row">
           <button class="plan-option-btn" onclick="selectPlan('immerse','monthly')">
-            <div class="plan-option-name">${{ pricing.immerse.monthly }}/mo</div>
+            <div class="plan-option-name">$49/mo</div>
           </button>
           <button class="plan-option-btn" onclick="selectPlan('immerse','annual')">
-            <div class="plan-option-name">${{ pricing.immerse.annual }}/yr</div>
+            <div class="plan-option-name">$490/yr</div>
           </button>
         </div>
       </div>

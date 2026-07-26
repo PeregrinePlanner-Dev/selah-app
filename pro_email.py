@@ -41,29 +41,6 @@ resend.api_key = RESEND_API_KEY
 FROM_ADDRESS = "Selah for Ministry <notifications@selahexploringtheology.com>"
 
 
-def _log_send_attempt(to: str, subject: str, success: bool, error: str = "") -> None:
-    """Best-effort write to email_send_log, added 2026-07-24 (Selah_
-    Structured_Audit_2026-07-24.md finding: no observability tool, and this
-    is the single choke point every transactional email in the app goes
-    through, so it's the cheapest possible place to catch a repeat of the
-    two real incidents that already happened -- an SMTP rate-limit
-    exhaustion and a wrong Resend sending domain, both silent for 24h+).
-    Deliberately never allowed to affect the caller: a logging failure
-    (network hiccup, Supabase hiccup) must not turn a successful send into
-    a reported failure, or vice versa -- swallowed and printed, same
-    best-effort philosophy as email sending itself already has."""
-    try:
-        from pro_auth import get_service_client
-        get_service_client().table("email_send_log").insert({
-            "to_email": to,
-            "subject": subject,
-            "success": success,
-            "error": error[:2000] if error else None,
-        }).execute()
-    except Exception as e:
-        print(f"[EMAIL] email_send_log write failed (non-fatal, send outcome unaffected): {e}")
-
-
 def send_email(to: str, subject: str, html: str) -> bool:
     """Sends one email. Returns True if Resend accepted it, False on any
     failure (missing key, API error, etc.) -- callers should treat email as
@@ -71,7 +48,6 @@ def send_email(to: str, subject: str, html: str) -> bool:
     that triggered it."""
     if not RESEND_API_KEY:
         print(f"[EMAIL] RESEND_API_KEY not set -- skipping send to {to!r} (subject: {subject!r})")
-        _log_send_attempt(to, subject, False, "RESEND_API_KEY not set")
         return False
     try:
         resend.Emails.send({
@@ -80,11 +56,9 @@ def send_email(to: str, subject: str, html: str) -> bool:
             "subject": subject,
             "html": html,
         })
-        _log_send_attempt(to, subject, True)
         return True
     except Exception as e:
         print(f"[EMAIL] Failed to send to {to!r} (subject: {subject!r}): {e}")
-        _log_send_attempt(to, subject, False, str(e))
         return False
 
 
@@ -189,36 +163,12 @@ def send_reactivated_email(to: str, org_name: str) -> bool:
     return send_email(to, subject, html)
 
 
-def send_password_reset_email(to: str, reset_link: str) -> bool:
-    """Sent for the 'forgot password' flow -- pro_auth.py
-    forgot_password_request(). Added 2026-07-24, replacing Supabase's own
-    built-in reset_password_for_email() send: that call worked, but used
-    Supabase's default shared mailer/sender identity rather than this
-    project's verified Resend sending domain, and it was the direct root
-    cause of Clark's real 2026-07-23 incident (5 reset emails sent, only
-    the first ever got clicked -- the rest landed in spam per Supabase's
-    own default-sender reputation, confirmed by Clark checking his spam
-    folder directly). reset_link comes from
-    get_service_client().auth.admin.generate_link() -- same underlying
-    Supabase recovery token/redirect mechanism as before, just generated
-    without letting Supabase email it itself, so the actual send now goes
-    through the same Resend path as every other email in this file."""
-    subject = "Reset your Selah for Ministry password"
-    html = _wrap(f"""
-      <p>Someone (hopefully you) requested a password reset for your Selah for Ministry account.</p>
-      <p><a href="{reset_link}" style="color:#2f6b66; font-weight:600;">Reset your password</a></p>
-      <p style="color:#6b7280; font-size:0.85rem;">If you didn't request this, you can safely ignore this email -- your password won't change unless you click the link above and set a new one.</p>
-    """)
-    return send_email(to, subject, html)
-
-
 def send_promoted_admin_email(to: str, org_name: str) -> bool:
     """Sent when an existing roster member is granted admin access --
     pro_org.py promote_admin()."""
     subject = f"You're now an admin at {org_name}"
     html = _wrap(f"""
       <p>You've been given admin access at <strong>{org_name}</strong> on Selah for Ministry. You can now manage seats, invitations, and the roster from the Church/Org dashboard.</p>
-      <p>New to this? The <a href="https://selahexploringtheology.com/church-guide">Admin Guide</a> walks through seats, invitations, and roster management screen by screen.</p>
     """)
     return send_email(to, subject, html)
 

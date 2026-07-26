@@ -791,7 +791,29 @@ def _ensure_fresh_access_token() -> None:
 
     try:
         result = get_supabase().auth.refresh_session(refresh_token)
-    except Exception:
+    except Exception as e:
+        # Race condition confirmed live 2026-07-26 (Sentry PYTHON-2, 3
+        # occurrences in one hour across pro_org.org_status,
+        # pro_chat.list_sessions, and pro_billing.billing_status -- all real
+        # traffic, not a test). pro_app.html fires /pro/sessions,
+        # /pro/org/status, and /pro/billing/status as separate concurrent
+        # fetches on page load. Each request is stateless and reads the same
+        # pre-refresh cookie; Supabase refresh tokens are single-use
+        # (rotating), so whichever request's refresh call lands first wins
+        # and the others get "Invalid Refresh Token: Already Used" even
+        # though the session itself is completely fine -- there is nothing
+        # actually wrong with the user's login.
+        #
+        # Since this is a *proactive* refresh (_TOKEN_REFRESH_BUFFER_SECONDS
+        # gives up to 60s of headroom before real expiry), the access token
+        # already sitting in session is still genuinely valid when a losing
+        # request hits this -- so on this specific error, just proceed with
+        # it rather than killing a good session. A truly dead/revoked
+        # refresh token (password change elsewhere, weeks of inactivity)
+        # will still raise here and clear the session as before; only the
+        # single-use-collision case is treated as harmless.
+        if "already used" in str(e).lower():
+            return
         session.pop("sb_access_token", None)
         session.pop("sb_refresh_token", None)
         session.pop("sb_expires_at", None)
