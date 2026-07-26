@@ -59,7 +59,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 
-from pro_auth import get_supabase, get_service_client
+from pro_auth import get_supabase, get_service_client, csrf_token, csrf_valid, _is_plus_alias_email, _PLUS_ALIAS_SIGNUP_ERROR
 from pro_email import send_email
 from pro_chat import _billing_month_today
 
@@ -102,6 +102,16 @@ _access_verify_attempts: dict = defaultdict(list)   # {"ip:1.2.3.4" | "email:x@y
 
 RATE_LIMIT_REQUEST_MESSAGE = "Too many attempts from this connection -- please wait a few minutes and try again."
 RATE_LIMIT_VERIFY_MESSAGE = "Too many attempts -- please wait a few minutes and try again, or request a fresh code."
+
+# Admin-login rate limiting, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+# finding) -- /admin/login had zero throttling on a shared-secret key with
+# no per-person lockout. Same per-IP trailing-window shape as the two
+# limiters above; a tighter window than ACCESS_REQUEST since a wrong guess
+# here is a much more direct attack than a spammed email-send.
+ADMIN_LOGIN_LIMIT = int(os.environ.get("ADMIN_LOGIN_LIMIT", "8"))
+ADMIN_LOGIN_WINDOW_SECONDS = int(os.environ.get("ADMIN_LOGIN_WINDOW_SECONDS", "600"))  # 10 min
+_admin_login_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+RATE_LIMIT_ADMIN_LOGIN_MESSAGE = "Too many attempts from this connection -- please wait a few minutes and try again."
 
 
 def _get_client_ip() -> str:
@@ -180,7 +190,7 @@ FOUNDER_NOTIFICATION_EMAIL = os.environ.get("FOUNDER_NOTIFICATION_EMAIL", "admin
 # doc's correction. All three env-overridable without a code change once
 # real numbers exist to replace the guesses.
 FREE_TIER_COST_PER_EXCHANGE = float(os.environ.get("FREE_TIER_COST_PER_EXCHANGE", "0.45"))
-FREE_TIER_MONTHLY_BUDGET = float(os.environ.get("FREE_TIER_MONTHLY_BUDGET", "50"))
+FREE_TIER_MONTHLY_BUDGET = float(os.environ.get("FREE_TIER_MONTHLY_BUDGET", "100"))
 FREE_TIER_CAPACITY_MARGIN = float(os.environ.get("FREE_TIER_CAPACITY_MARGIN", "0.25"))
 
 
@@ -234,6 +244,24 @@ def _complete_signin(user_id: str, email: str, access_token: str,
     session["fg_email"] = email
     session["fg_user_id"] = user_id
     session["fg_organization_id"] = profile.data[0]["organization_id"]
+
+    # UTM/referrer attribution, added 2026-07-24. Unlike pro_auth.signup(),
+    # this helper runs on EVERY sign-in (new account or returning), so a
+    # WHERE utm_source IS NULL guard is required -- without it, a returning
+    # user's later login (now with no campaign params on the URL) would
+    # overwrite real first-touch attribution with nothing. Best-effort, same
+    # as the rest of this function's error handling.
+    utm_fields = {k: session[k] for k in
+                  ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+                  if session.get(k)}
+    if session.get("signup_referrer"):
+        utm_fields["signup_referrer"] = session["signup_referrer"]
+    if utm_fields:
+        try:
+            svc.table("profiles").update(utm_fields).eq("id", user_id).is_("utm_source", "null").execute()
+        except Exception:
+            pass
+
     return True
 
 
@@ -354,9 +382,38 @@ def access_request():
     invite_code = data.get("invite_code", "").strip()
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
+    age_confirmed = bool(data.get("age_confirmed"))
 
     if not email or "@" not in email:
         return jsonify({"error": "Enter a valid email address."}), 400
+
+    # Single profiles lookup, now shared by two checks below -- both only
+    # matter for a BRAND-NEW account, never for someone signing back into
+    # one that already exists. (email has Supabase Auth's own unique
+    # constraint behind it, so this is a reliable new-vs-returning signal.)
+    existing = get_service_client().table("profiles").select("id").eq("email", email).limit(1).execute()
+    is_new_signup = not existing.data
+
+    # Trial/free-tier abuse deterrent, added 2026-07-24 (see pro_auth.py's
+    # _is_plus_alias_email() docstring for the full reasoning -- same
+    # underlying gap, same fix, applied here too since this path grants a
+    # fresh free-tier account off the same handle_new_user() trigger).
+    if is_new_signup and _is_plus_alias_email(email):
+        return jsonify({"error": _PLUS_ALIAS_SIGNUP_ERROR}), 400
+
+    # Age gate, added 2026-07-25: the free tier moved from fully anonymous
+    # to email-verified accounts on 2026-07-17 (see this file's module
+    # docstring), which means it now collects real personal information
+    # (email, name) with no age check behind it -- a real COPPA gap caught
+    # while working through Selah's Termly privacy-policy questionnaire.
+    # Rick's call, 2026-07-25: 13+ minimum on the free tier (18+ already
+    # required on Pro, enforced separately in pro_auth.py). Enforced
+    # server-side, not just the checkbox in access.html, since a client-only
+    # check is trivially bypassable by anyone calling this endpoint
+    # directly. Only gates brand-new accounts -- someone who created an
+    # account before this check shipped can still sign back in normally.
+    if is_new_signup and not age_confirmed:
+        return jsonify({"error": "You must confirm you're 13 years of age or older to create a free account."}), 400
 
     try:
         get_supabase().auth.sign_in_with_otp({
@@ -967,6 +1024,12 @@ def _founder_admin_context() -> dict:
         "church_orgs": _church_org_activity_snapshot() if is_founder else [],
         "invite_queue": _free_tier_invite_queue_snapshot() if is_founder else None,
         "flagged_signups": _flagged_signups_snapshot() if is_founder else [],
+        # CSRF token, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+        # finding): this page's 6 forms had zero CSRF protection, unlike
+        # pro_auth.py's equivalent forms. Bundled here so every render call
+        # on this page gets it automatically, the same reasoning this dict
+        # already existed for -- one place, can't drift out of sync.
+        "csrf_token": csrf_token(),
     }
 
 
@@ -1064,6 +1127,10 @@ def admin_move_account():
     reasoning -- this route just validates the form and calls it."""
     if not _is_founder():
         return redirect(url_for("free_gate.admin_home"))
+    if not csrf_valid():
+        return render_template("free_admin.html", logged_in=True,
+                                error="Your session expired -- reload the page and try again.",
+                                **_founder_admin_context())
 
     email = (request.form.get("email") or "").strip().lower()
     organization_id = (request.form.get("organization_id") or "").strip()
@@ -1102,21 +1169,41 @@ def admin_home():
 
 @free_gate_bp.route("/admin/login", methods=["POST"])
 def admin_login():
+    # CSRF + rate limiting added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+    # finding) -- this is the actual brute-force-guessable entry point onto
+    # this page (a shared secret key, not a per-person password), so the
+    # rate limit here matters more than on the routes behind it, which all
+    # already require an authenticated fg_admin_role session first. Same
+    # per-IP limiter shape as ACCESS_REQUEST_LIMIT above.
+    if not csrf_valid():
+        return render_template("free_admin.html", logged_in=False,
+                                error="Your session expired -- reload the page and try again.",
+                                csrf_token=csrf_token())
+    if not _check_and_record(_admin_login_attempts, f"ip:{_get_client_ip()}",
+                              ADMIN_LOGIN_LIMIT, ADMIN_LOGIN_WINDOW_SECONDS):
+        return render_template("free_admin.html", logged_in=False,
+                                error=RATE_LIMIT_ADMIN_LOGIN_MESSAGE,
+                                csrf_token=csrf_token())
+
     key = (request.form.get("key") or "").strip()
     if not FREE_TIER_ADMIN_KEY:
         return render_template("free_admin.html", logged_in=False,
-                                error="FREE_TIER_ADMIN_KEY isn't set on the server -- nothing to check against.")
+                                error="FREE_TIER_ADMIN_KEY isn't set on the server -- nothing to check against.",
+                                csrf_token=csrf_token())
     if key and key == FREE_TIER_ADMIN_KEY:
         session["fg_admin_role"] = "founder"
         return redirect(url_for("free_gate.admin_home"))
     if key and INVITER_ADMIN_KEY and key == INVITER_ADMIN_KEY:
         session["fg_admin_role"] = "inviter"
         return redirect(url_for("free_gate.admin_home"))
-    return render_template("free_admin.html", logged_in=False, error="Wrong key.")
+    return render_template("free_admin.html", logged_in=False, error="Wrong key.",
+                            csrf_token=csrf_token())
 
 
 @free_gate_bp.route("/admin/logout", methods=["POST"])
 def admin_logout():
+    if not csrf_valid():
+        return redirect(url_for("free_gate.admin_home"))
     session.pop("fg_admin_role", None)
     return redirect(url_for("free_gate.admin_home"))
 
@@ -1158,6 +1245,10 @@ def admin_invite():
     down, bad address typo, etc.) so the invite isn't silently lost."""
     if not _is_admin():
         return redirect(url_for("free_gate.admin_home"))
+    if not csrf_valid():
+        return render_template("free_admin.html", logged_in=True,
+                                error="Your session expired -- reload the page and try again.",
+                                **_founder_admin_context())
 
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
@@ -1180,6 +1271,8 @@ def admin_waitlist_invite():
     template, since a POST endpoint is reachable directly regardless of
     what the UI shows."""
     if not _is_founder():
+        return redirect(url_for("free_gate.admin_home"))
+    if not csrf_valid():
         return redirect(url_for("free_gate.admin_home"))
 
     row_id = (request.form.get("id") or "").strip()
@@ -1206,6 +1299,8 @@ def admin_waitlist_decline():
     submitted a name/email to a waitlist form isn't owed a rejection notice
     the same way a real applicant would be."""
     if not _is_founder():
+        return redirect(url_for("free_gate.admin_home"))
+    if not csrf_valid():
         return redirect(url_for("free_gate.admin_home"))
 
     row_id = (request.form.get("id") or "").strip()

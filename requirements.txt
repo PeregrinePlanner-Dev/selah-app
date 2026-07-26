@@ -5,3 +5,4 @@ gunicorn
 supabase
 stripe
 resend
+sentry-sdk[flask]

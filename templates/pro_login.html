@@ -32,6 +32,16 @@ per Cloudflare's own docs -- proxying/caching it breaks future updates. -->
     width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
     font-size: 0.95rem; margin-bottom: 14px;
   }
+  /* Show/hide password toggle -- added 2026-07-24 after Clark reported
+     mistyped-password trouble with no way to check what he'd typed. */
+  .pwd-field { position: relative; }
+  .pwd-field input[type="password"], .pwd-field input[type="text"] { padding-right: 52px; }
+  .pwd-toggle-btn {
+    position: absolute; right: 8px; top: 0; transform: translateY(6px);
+    width: auto; padding: 4px 8px; border: none; background: none;
+    color: #2f6b66; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  }
+  .pwd-toggle-btn:hover { background: #eef6f5; border-radius: 6px; }
   button {
     width: 100%; padding: 11px; border: none; border-radius: 8px;
     background: #2f6b66; color: white; font-size: 0.95rem; font-weight: 600; cursor: pointer;
@@ -68,7 +78,10 @@ per Cloudflare's own docs -- proxying/caching it breaks future updates. -->
         <label for="login-email">Email</label>
         <input type="email" id="login-email" name="email" required>
         <label for="login-password">Password</label>
-        <input type="password" id="login-password" name="password" required>
+        <div class="pwd-field">
+          <input type="password" id="login-password" name="password" required>
+          <button type="button" class="pwd-toggle-btn" onclick="togglePwd('login-password', this)">Show</button>
+        </div>
         <button type="submit">Sign In</button>
       </form>
       <div class="toggle"><a onclick="showForgotPanel()">Forgot password?</a></div>
@@ -107,9 +120,15 @@ per Cloudflare's own docs -- proxying/caching it breaks future updates. -->
         <label for="signup-email">Email</label>
         <input type="email" id="signup-email" name="email" required>
         <label for="signup-password">Password</label>
-        <input type="password" id="signup-password" name="password" required minlength="6">
+        <div class="pwd-field">
+          <input type="password" id="signup-password" name="password" required minlength="6">
+          <button type="button" class="pwd-toggle-btn" onclick="togglePwd('signup-password', this)">Show</button>
+        </div>
         <label for="signup-password-confirm">Confirm Password</label>
-        <input type="password" id="signup-password-confirm" required minlength="6">
+        <div class="pwd-field">
+          <input type="password" id="signup-password-confirm" required minlength="6">
+          <button type="button" class="pwd-toggle-btn" onclick="togglePwd('signup-password-confirm', this)">Show</button>
+        </div>
         <div id="password-mismatch" class="error" style="display:none;">Passwords don't match — check both fields and try again.</div>
         {% if turnstile_site_key %}
         <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin-bottom:14px;"></div>
@@ -122,6 +141,21 @@ per Cloudflare's own docs -- proxying/caching it breaks future updates. -->
 </div>
 
 <script>
+// Show/hide password toggle -- added 2026-07-24. Looks the input up by id
+// rather than relying on DOM position so it's safe to reuse across every
+// password field on this page without caring what markup surrounds it.
+function togglePwd(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "Hide";
+  } else {
+    input.type = "password";
+    btn.textContent = "Show";
+  }
+}
+
 function toggle() {
   document.getElementById('login-panel').style.display =
     document.getElementById('login-panel').style.display === 'none' ? 'block' : 'none';

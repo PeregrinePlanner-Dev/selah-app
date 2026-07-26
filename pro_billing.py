@@ -107,6 +107,35 @@ _TIER_INFO = {
     "immerse": {"tier_slug": "individual_immerse", "monthly": 49.00, "annual": 490.00},
 }
 
+# Public alias, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+# finding): ministry.html and pro_app.html both hardcoded these same six
+# figures ($17/$170, $28/$280, $49/$490) independently -- the exact shape
+# of gap that let Peregrine's roi.html show stale prices for 4 days after a
+# real pricing correction. This is now the one place the dollar amounts
+# live; both templates read from it via their render_template() calls
+# instead of hardcoding. Internal code above keeps using the private
+# _TIER_INFO name unchanged -- this is purely an additive export.
+TIER_INFO = _TIER_INFO
+
+
+def _fmt_price(amount: float) -> str:
+    """14.00 -> '14', 7.50 -> '7.50' -- matches the existing hand-written
+    convention already used in ministry.html/church.html/pro_app.html
+    (whole dollars shown bare, genuine cents always shown with two
+    decimals). Centralized here, added 2026-07-24, so template display
+    strings and the underlying dollar amounts can never format
+    inconsistently across the pages that show them."""
+    return str(int(amount)) if amount == int(amount) else f"{amount:.2f}"
+
+
+# Pre-formatted display strings for the templates, computed once at import
+# time rather than per-request -- ministry.html and pro_app.html both need
+# the same six values (monthly/annual per Individual Pro tier).
+DISPLAY_PRICING = {
+    tier: {"monthly": _fmt_price(info["monthly"]), "annual": _fmt_price(info["annual"])}
+    for tier, info in TIER_INFO.items()
+}
+
 # Maps a Price ID back to what we persist on our own side after a
 # checkout/renewal -- Stripe's webhook payloads only carry the price ID, not
 # a ready-made "$17, monthly, explore" summary, so this is the one place
@@ -206,6 +235,16 @@ BASE_CHURCH_CAP = {"leader": 200, "member": 100}
 CHURCH_SEAT_TIERS = {
     "leader": [(4, 14.00), (9, 12.00), (None, 10.00)],
     "member": [(24, 8.00), (99, 7.50), (999, 7.00), (None, 6.50)],
+}
+
+# Pre-formatted per-bracket display strings for church.html, added
+# 2026-07-24 (Selah_Structured_Audit_2026-07-24.md finding) -- church.html
+# previously hardcoded all 7 of these figures independently of this dict,
+# the same table this comment already says they're meant to stay in sync
+# with. Computed at import time, same pattern as DISPLAY_PRICING above.
+CHURCH_SEAT_DISPLAY = {
+    seat_type: [_fmt_price(price) for _upper, price in brackets]
+    for seat_type, brackets in CHURCH_SEAT_TIERS.items()
 }
 
 
@@ -1206,7 +1245,8 @@ def _sync_church_subscription_row(subscription, organization_id, seat_type):
         # Permanent marker of which pool this row is -- set every sync
         # (not just on creation), and deliberately NEVER cleared by the
         # customer.subscription.deleted handler below, which overwrites
-        # tier_slug to 'free' on full cancellation. Task #41's cascade job
+        # tier_slug to 'lapsed' (was 'free' until 2026-07-24) on full
+        # cancellation. Task #41's cascade job
         # (pro_scheduler.py) reads this after cancellation to know which
         # roster to migrate, once tier_slug itself no longer says so.
         "seat_type": seat_type,
@@ -1366,13 +1406,13 @@ def _sync_subscription_row(subscription, organization_id=None):
         # an INSERT -- is_new_row alone would never fire this. Also gated on
         # price_info being known -- never anchor a lock date to a guessed
         # tier_slug (see the unrecognized-price branches below). Note:
-        # customer.subscription.deleted (below) sets tier_slug='free' but
-        # leaves price_lock_expires_at as-is, so a later resubscribe still
-        # has it non-NULL and correctly skips re-anchoring -- the original
-        # first-subscribe date sticks even across a cancel/resubscribe
-        # cycle. That's a real policy choice, not an oversight: revisit if
-        # the business instead wants a lapsed-then-returning subscriber's
-        # lock clock to restart.
+        # customer.subscription.deleted (below) sets tier_slug='lapsed'
+        # (was 'free' until 2026-07-24) but leaves price_lock_expires_at
+        # as-is, so a later resubscribe still has it non-NULL and correctly
+        # skips re-anchoring -- the original first-subscribe date sticks
+        # even across a cancel/resubscribe cycle. That's a real policy
+        # choice, not an oversight: revisit if the business instead wants a
+        # lapsed-then-returning subscriber's lock clock to restart.
         started_at = (
             datetime.fromtimestamp(subscription["created"], tz=timezone.utc)
             if subscription.get("created")
@@ -1469,10 +1509,18 @@ def stripe_webhook():
     elif event_type == "customer.subscription.deleted":
         # Subscription fully ended (distinct from cancel_at_period_end=true,
         # which arrives as customer.subscription.updated while status is
-        # still 'active' until the period actually ends) -- drop back to
-        # the free tier's cap, same lifecycle as any lapsed SaaS
-        # subscription. Revisit if a different landing tier is ever wanted
-        # for lapsed-but-recent subscribers.
+        # still 'active' until the period actually ends) -- lands on the
+        # 'lapsed' tier_slug, NOT 'free' (changed 2026-07-24, Rick's call).
+        # 'lapsed' is a hard lock, same treatment as trial expiry
+        # (pro_chat.py checks it before the cap gate and blocks chat
+        # outright with an upgrade_required response) -- deliberately not
+        # the same as 'free', which still grants a real monthly allowance.
+        # A canceled/lapsed subscriber should see a "resubscribe" wall, not
+        # quietly keep chatting on the free tier's cap. This is the ONE
+        # write-site for both cancellation paths: Individual Pro and
+        # Church/Org seats both funnel through this same handler (see the
+        # tier_slug scoping below), so there is no second place that needs
+        # this same change.
         #
         # Church/Org note (2026-07-12): an org can hold TWO simultaneous
         # subscriptions (church_leadership + church_member) -- the naive
@@ -1493,7 +1541,7 @@ def stripe_webhook():
 
             svc = get_service_client()
             query = svc.table("subscriptions").update({
-                "tier_slug": "free",
+                "tier_slug": "lapsed",
                 "status": "canceled",
             }).eq("organization_id", organization_id)
             if tier_slug:

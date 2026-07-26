@@ -6,12 +6,15 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from anthropic import Anthropic
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 
-from pro_auth import pro_bp, get_service_client
+from pro_auth import pro_bp, get_service_client, csrf_token, csrf_valid
 from pro_chat import pro_chat_bp, _check_and_reserve_usage
-from pro_billing import pro_billing_bp
+from pro_billing import pro_billing_bp, DISPLAY_PRICING, CHURCH_SEAT_DISPLAY
 from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
+from pro_email import send_email
 from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id, clear_inactivity_flag
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
@@ -21,6 +24,73 @@ from engine import (
 )
 
 load_dotenv()
+
+# Error tracking, added 2026-07-24 (Selah_Structured_Audit_2026-07-24.md
+# finding: no observability tool connected -- this week's full-site outage
+# was diagnosed entirely by hand, Render Events tab + manual log grep,
+# because nothing surfaces exceptions automatically. Mirrors Peregrine's
+# existing Sentry setup: errors-only (traces_sample_rate=0.0, no
+# performance-monitoring cost), send_default_pii=False. Deliberately
+# optional/non-blocking -- SENTRY_DSN doesn't exist yet as of this commit
+# (Sentry project creation is disabled for members on the artistyle org;
+# Rick needs to either enable that in Sentry's org settings or create the
+# "selah" project himself and hand back the DSN) -- the app must keep
+# working with zero Sentry coverage until that DSN is set, the same way
+# Peregrine's own Sentry wiring shipped before its DSN was confirmed live.
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=0.0,
+        send_default_pii=False,
+    )
+else:
+    print("NOTE: SENTRY_DSN not set -- error tracking is not active. See Selah_Structured_Audit_2026-07-24.md.")
+
+
+def _validate_required_secrets() -> None:
+    """Fail loudly at startup instead of booting successfully and failing
+    confusingly on first use. Added 2026-07-24 (Selah_Structured_Audit_
+    2026-07-24.md finding): every required secret in this codebase was
+    previously read via os.environ.get(key, "") or a default, with zero
+    presence check anywhere -- app.secret_key even fell back to a literal,
+    publicly-known insecure string if unset. Split into two tiers:
+    HARD-required (nothing in the app works correctly without these --
+    refuse to boot, same as BUILD_PROTOCOL.md's equivalent Peregrine fix)
+    and IMPORTANT (a real feature degrades without these, but the rest of
+    the app -- chat, auth -- can still serve traffic, so log CRITICAL and
+    keep running rather than taking the whole site down over a missing
+    Stripe key). Every one of these is already expected to be set on the
+    live Render deploy today, so this should be a silent no-op in
+    production and only ever fire if a future deploy accidentally drops
+    one -- exactly the failure mode this exists to catch fast instead of
+    letting it surface as a confusing 500 later."""
+    hard_required = {
+        "SUPABASE_URL": "every auth/chat route needs this",
+        "SUPABASE_ANON_KEY": "Pro and free-tier auth can't function without it",
+        "SUPABASE_SERVICE_ROLE_KEY": "usage caps, admin actions, and the free-tier tier-assignment trigger all depend on it",
+        "FLASK_SECRET_KEY": "without a real value, sessions would be signed with a publicly-known fallback string",
+        "ANTHROPIC_API_KEY_FREE": "the free tool can't generate a single response without it",
+    }
+    missing_hard = [k for k in hard_required if not os.environ.get(k)]
+    if missing_hard:
+        lines = "\n".join(f"  - {k}: {hard_required[k]}" for k in missing_hard)
+        raise SystemExit("CRITICAL: refusing to start -- required secret(s) missing:\n" + lines)
+
+    important = {
+        "STRIPE_SECRET_KEY": "Stripe billing will fail on every checkout/portal call",
+        "STRIPE_WEBHOOK_SECRET": "Stripe webhooks (subscription updates, cancellations) will be rejected -- billing state can silently go stale",
+        "RESEND_API_KEY": "transactional email (invites, password resets, receipts) will silently fail to send",
+    }
+    missing_important = [k for k in important if not os.environ.get(k)]
+    if missing_important:
+        print("CRITICAL: app is starting with missing secret(s) -- real functionality will be broken:")
+        for k in missing_important:
+            print(f"  - {k}: {important[k]}")
+
+
+_validate_required_secrets()
 
 app = Flask(__name__)
 
@@ -44,7 +114,7 @@ free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"))
 # Selah for Ministry (Pro) auth -- additive only, registered as a separate
 # blueprint under /pro/*. The free tool's existing routes below are
 # untouched by this. Added 2026-07-07.
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-change-me")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")  # presence already guaranteed by _validate_required_secrets() above -- no insecure fallback
 app.register_blueprint(pro_bp)
 app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
@@ -151,6 +221,41 @@ def check_rate_limit(ip: str) -> str | None:
 # ── In-memory conversations ───────────────────────────────────────────────────
 conversations: dict = {}
 
+# ── UTM / referrer capture, added 2026-07-24 (confirmed priority by Rick, ────
+# 2026-07-20; profiles had no marketing-attribution columns at all before
+# today). First-touch model: captured once per browser session on the first
+# GET that carries any utm_* param or a cross-site referrer, then carried in
+# the Flask session cookie (shared across the free tool's fg_* and Pro's
+# sb_* auth, since both ultimately write to the same profiles table) until
+# signup actually happens -- pro_auth.signup() and free_gate._complete_signin()
+# both do a best-effort, write-once (WHERE utm_source IS NULL) profiles
+# update with whatever landed here. A user who never signs up costs nothing
+# extra; a user who signs up days after their first visit still gets
+# correctly attributed to that first visit, not to whatever page happened to
+# host the signup form.
+_UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+
+
+@app.before_request
+def _capture_utm_attribution():
+    if "utm_captured" in session:
+        return
+    found = {k: request.args.get(k, "").strip() for k in _UTM_KEYS}
+    referrer = (request.referrer or "").strip()
+    if any(found.values()) or referrer:
+        for k, v in found.items():
+            if v:
+                session[k] = v[:200]  # defensive cap -- these are attacker-controlled query params
+        if referrer:
+            session["signup_referrer"] = referrer[:500]
+    # Marks this session as "checked," regardless of whether anything was
+    # found -- so a later page view in the same session (now with no UTM
+    # params, since campaign links only carry them on the first click)
+    # doesn't get treated as a fresh, param-less "visit" that overwrites
+    # nothing but also doesn't need re-checking every request.
+    session["utm_captured"] = True
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -160,7 +265,7 @@ def index():
     # of the main app -- no separate hosting/service needed. Until DNS is
     # live, preview at /ministry on the existing domain.
     if request.host.startswith("ministry."):
-        return render_template("ministry.html")
+        return render_template("ministry.html", pricing=DISPLAY_PRICING)
     # Free-tier gate, added 2026-07-17 -- the ministry landing page, /church,
     # and the /invite explainer page (below) deliberately stay open; only
     # the actual chat tool requires sign-in now.
@@ -173,15 +278,17 @@ def index():
 
 @app.route("/ministry")
 def ministry():
-    return render_template("ministry.html")
+    return render_template("ministry.html", pricing=DISPLAY_PRICING)
 
 @app.route("/church")
 def church():
     # Dedicated Church/Org marketing page -- linked from the brief teaser
-    # section on ministry.html. Replaces the old approach of just noting
-    # church pricing wasn't ready yet; pricing is locked now (Task #7),
-    # pulled from pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13.
-    return render_template("church.html")
+    # section on ministry.html. Pricing is locked (Task #7), pulled from
+    # pro_billing.py's CHURCH_SEAT_TIERS. 2026-07-13 comment claimed this
+    # was already dynamic -- it wasn't (church.html hardcoded all 7 figures
+    # independently, confirmed 2026-07-24 while fixing the same gap for
+    # ministry.html/pro_app.html); now actually wired via CHURCH_SEAT_DISPLAY.
+    return render_template("church.html", seats=CHURCH_SEAT_DISPLAY)
 
 @app.route("/support")
 def support():
@@ -299,6 +406,84 @@ def invite():
 @app.route("/legal")
 def legal():
     return render_template("legal.html")
+
+# ── Privacy/data-request contact form ───────────────────────────────────────
+# Added 2026-07-25, mid-Termly-questionnaire: Florida, Nebraska, and Texas
+# each require at least two methods for submitting privacy requests, and
+# email (arrowroot56@gmail.com, already in legal.html Section 12) was the
+# only real channel that existed. This is the second one -- deliberately
+# minimal (no ticketing, no auto-routing by request type) so today's Termly
+# answer is honest rather than aspirational; a fuller build can come later.
+# Sends via the same Resend pipeline/observability as every other
+# transactional email in the app (pro_email.send_email -> email_send_log).
+_contact_submit_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+CONTACT_SUBMIT_LIMIT = int(os.environ.get("CONTACT_SUBMIT_LIMIT", "5"))
+CONTACT_SUBMIT_WINDOW_SECONDS = int(os.environ.get("CONTACT_SUBMIT_WINDOW_SECONDS", "600"))  # 10 min
+
+
+def _contact_submit_allowed(ip: str) -> bool:
+    """Same self-cleaning trailing-window pattern as _start_lookup_allowed
+    above -- generous limit, this just blunts basic spam floods, not a
+    security boundary."""
+    now = time.time()
+    attempts = _contact_submit_attempts[f"ip:{ip}"]
+    attempts[:] = [t for t in attempts if now - t < CONTACT_SUBMIT_WINDOW_SECONDS]
+    if len(attempts) >= CONTACT_SUBMIT_LIMIT:
+        return False
+    attempts.append(now)
+    return True
+
+
+@app.route("/privacy-contact")
+def privacy_contact():
+    return render_template(
+        "privacy_contact.html",
+        csrf_token=csrf_token(),
+        sent=request.args.get("sent") == "1",
+        error=request.args.get("error", ""),
+    )
+
+
+@app.route("/privacy-contact/submit", methods=["POST"])
+def privacy_contact_submit():
+    if not csrf_valid():
+        return redirect(url_for("privacy_contact", error="Your session expired -- please try again."))
+
+    # Honeypot -- real users never see this field (hidden via CSS on the
+    # template); a bot that fills every input trips it silently, no error
+    # shown back, so scrapers don't learn which field to skip.
+    if request.form.get("website", "").strip():
+        return redirect(url_for("privacy_contact", sent="1"))
+
+    if not _contact_submit_allowed(get_client_ip()):
+        return redirect(url_for("privacy_contact", error="Too many submissions from this connection -- please wait a few minutes and try again."))
+
+    name         = request.form.get("name", "").strip()[:200]
+    email        = request.form.get("email", "").strip()[:200]
+    request_type = request.form.get("request_type", "").strip()[:100]
+    message      = request.form.get("message", "").strip()[:5000]
+
+    if not email or not message:
+        return redirect(url_for("privacy_contact", error="Email and message are required."))
+
+    body = f"""
+      <p><strong>New privacy/contact request from selahexploringtheology.com</strong></p>
+      <p><strong>Name:</strong> {name or '(not provided)'}</p>
+      <p><strong>Email:</strong> {email}</p>
+      <p><strong>Request type:</strong> {request_type or '(not specified)'}</p>
+      <p><strong>Message:</strong><br>{message}</p>
+    """
+    send_email("arrowroot56@gmail.com", f"Selah privacy contact form: {request_type or 'General'}", body)
+
+    return redirect(url_for("privacy_contact", sent="1"))
+
+@app.route("/church-guide")
+def church_guide():
+    # Public, no-login static page -- same pattern as /legal and /support --
+    # so it's shareable as a plain link (e.g. in the promoted-admin email)
+    # before someone's even logged in, added 2026-07-24 per the audit finding
+    # that no written admin documentation existed anywhere.
+    return render_template("church_admin_guide.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
