@@ -106,12 +106,27 @@ LOGIN_ATTEMPT_LIMIT = int(os.environ.get("LOGIN_ATTEMPT_LIMIT", "8"))
 LOGIN_WINDOW_SECONDS = int(os.environ.get("LOGIN_WINDOW_SECONDS", "300"))     # 5 min
 SIGNUP_ATTEMPT_LIMIT = int(os.environ.get("SIGNUP_ATTEMPT_LIMIT", "5"))
 SIGNUP_WINDOW_SECONDS = int(os.environ.get("SIGNUP_WINDOW_SECONDS", "600"))   # 10 min
+# Added 2026-07-26 -- forgot_password_request() had no rate limit at all
+# (unlike login/signup above), found after live logs showed a narrow band
+# of IPs hammering /admin/generate_link with nonexistent emails every 1-3
+# hours for 24+ hours straight -- account-enumeration/probing against this
+# specific endpoint, not credential stuffing against login (which was
+# already capped). Same dual IP+email approach as login: per-IP catches an
+# attacker rotating target emails from one source; per-email catches
+# someone inbox-bombing one specific real person with repeated reset
+# emails from rotating IPs. Tighter window than login's since a genuine
+# user has no real reason to request more than a couple of resets in ten
+# minutes.
+FORGOT_PASSWORD_ATTEMPT_LIMIT = int(os.environ.get("FORGOT_PASSWORD_ATTEMPT_LIMIT", "5"))
+FORGOT_PASSWORD_WINDOW_SECONDS = int(os.environ.get("FORGOT_PASSWORD_WINDOW_SECONDS", "600"))  # 10 min
 
 _login_attempts: dict = defaultdict(list)   # {"ip:1.2.3.4" | "email:x@y.com": [timestamps]}
 _signup_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4": [timestamps]}
+_forgot_password_attempts: dict = defaultdict(list)  # {"ip:1.2.3.4" | "email:x@y.com": [timestamps]}
 
 RATE_LIMIT_LOGIN_MESSAGE = "Too many login attempts from this connection -- please wait a few minutes and try again."
 RATE_LIMIT_SIGNUP_MESSAGE = "Too many signup attempts from this connection -- please wait a few minutes and try again."
+RATE_LIMIT_FORGOT_PASSWORD_MESSAGE = "Too many password reset requests -- please wait a few minutes and try again."
 
 def _get_client_ip() -> str:
     """Real client IP behind Render's proxy, falling back to remote_addr --
@@ -575,6 +590,23 @@ def forgot_password_request():
     email = request.form.get("email", "").strip()
     generic_notice = "If an account exists for that email, a password reset link is on its way."
     if not email:
+        return redirect(url_for("pro.pro_home", notice=generic_notice))
+
+    # Rate-limited same as login/signup above -- checked before the
+    # Supabase admin.generate_link() call, not after, so a throttled
+    # request never spends an API call (or sends an email) at all. Both
+    # checks must pass -- see FORGOT_PASSWORD_ATTEMPT_LIMIT's comment above
+    # for why IP alone or email alone isn't enough. Deliberately still
+    # returns the same generic notice either way (not the login/signup
+    # routes' distinct rate-limit error) -- this endpoint's whole design is
+    # "never reveal anything different based on what happened server-side,"
+    # and a visibly different message on rate-limit would itself leak that
+    # the email/IP combination is being actively probed.
+    ip_ok = _check_and_record(_forgot_password_attempts, f"ip:{_get_client_ip()}",
+                               FORGOT_PASSWORD_ATTEMPT_LIMIT, FORGOT_PASSWORD_WINDOW_SECONDS)
+    email_ok = _check_and_record(_forgot_password_attempts, f"email:{email.lower()}",
+                                  FORGOT_PASSWORD_ATTEMPT_LIMIT, FORGOT_PASSWORD_WINDOW_SECONDS)
+    if not ip_ok or not email_ok:
         return redirect(url_for("pro.pro_home", notice=generic_notice))
 
     try:
