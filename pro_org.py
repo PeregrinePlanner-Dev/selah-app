@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, session, render_template, url_for
 
 from engine import NODE_DISPLAY_NAMES
-from pro_auth import login_required, get_user_supabase, get_service_client, _check_and_record
+from pro_auth import login_required, get_user_supabase, get_service_client, _check_and_record, csrf_token, csrf_valid
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
 from pro_email import (
     send_roster_removal_email,
@@ -317,6 +317,8 @@ def remove_from_roster():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     profile_id = body.get("profile_id")
@@ -378,6 +380,8 @@ def create_invite():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     invite_type = body.get("invite_type", "")
@@ -430,6 +434,8 @@ def revoke_invite():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     token_id = body.get("token_id")
@@ -473,6 +479,8 @@ def suspend_member():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     profile_id = body.get("profile_id")
@@ -514,6 +522,8 @@ def reactivate_member():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     profile_id = body.get("profile_id")
@@ -552,6 +562,8 @@ def promote_admin():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     profile_id = body.get("profile_id")
@@ -602,6 +614,8 @@ def demote_admin():
     organization_id, err = _get_admin_org_id()
     if err:
         return err
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
 
     body = request.json or {}
     profile_id = body.get("profile_id")
@@ -864,4 +878,5 @@ def org_dashboard():
     branching server-side so the page never needs a hard redirect mid-flow
     (e.g. right after /church/start succeeds, this same page just re-reads
     its own status and swaps views in place)."""
-    return render_template("church_dashboard.html", email=session.get("sb_email", ""))
+    return render_template("church_dashboard.html", email=session.get("sb_email", ""),
+                            csrf_token=csrf_token())

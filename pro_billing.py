@@ -56,7 +56,7 @@ from datetime import date, datetime, timezone
 import stripe
 from flask import Blueprint, request, jsonify, url_for, session
 
-from pro_auth import login_required, get_user_supabase, get_service_client
+from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, csrf_valid
 from pro_email import send_waitlist_promoted_email, send_exchange_block_confirmation_email
 
 pro_billing_bp = Blueprint("pro_billing", __name__, url_prefix="/pro/billing")
@@ -300,6 +300,8 @@ def create_checkout_session():
     a silent fallback. plan defaults to "monthly" and silently falls back to
     that tier's monthly price if the annual Price isn't configured yet, so a
     tier can launch monthly-only."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
@@ -378,6 +380,8 @@ def create_checkout_session():
 def create_portal_session():
     """Redirects to Stripe's hosted Customer Portal -- self-serve cancel,
     card update, and invoice history, none of which this app builds itself."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
@@ -491,6 +495,9 @@ def start_church_org():
     yet and can always be revisited later; postal_code has no such
     "decide later" grace since disambiguation matters from the first
     purchase onward."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
+
     body = request.json or {}
     postal_code = (body.get("postal_code") or "").strip()
     org_name = (body.get("org_name") or "").strip() or None
@@ -538,6 +545,8 @@ def create_church_checkout_session():
     Membership can't be purchased standalone (Section 16: it's opened BY a
     Leadership purchase, never sold on its own) -- checked against the org's
     existing subscriptions before allowing it."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
@@ -636,6 +645,8 @@ def create_church_block_checkout_session():
     checkout.session.completed once payment is actually confirmed (see
     _apply_church_exchange_block below). This route only starts the
     payment."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
     if not STRIPE_PRICE_CHURCH_EXCHANGE_BLOCK:
@@ -808,6 +819,8 @@ def preview_seat_change():
     anything, since the actual update route bills immediately
     (create_prorations), not at the next cycle. body: {"seat_type":
     "leader"|"member", "new_quantity": int}."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
@@ -891,6 +904,8 @@ def update_seat_quantity():
     prorated charge actually succeeded (see _sync_church_subscription) --
     this route just starts that; it doesn't grant access itself. body:
     {"seat_type": "leader"|"member", "new_quantity": int}."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 
@@ -974,6 +989,8 @@ def decrease_seat_quantity():
     a profile that's no longer on the roster), the Stripe change never
     happens and nothing is billed for a decrease that didn't fully clear
     its own precondition."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
     if not stripe.api_key:
         return jsonify({"error": "Billing isn't set up yet -- check back soon."}), 503
 

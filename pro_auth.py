@@ -169,12 +169,19 @@ def csrf_token() -> str:
 
 
 def csrf_valid() -> bool:
-    """Constant-time compare of the submitted csrf_token form field against
-    this session's own token. Returns False (never raises) on any missing
-    piece -- a session with no token yet, or a submission with no field --
-    so every caller can treat it as a plain pass/fail check."""
+    """Constant-time compare of the submitted CSRF token against this
+    session's own token. Checks two sources so one function covers both
+    call styles in this codebase: the hidden 'csrf_token' form field used
+    by traditional <form> POSTs (pro_login.html, the two forms in
+    pro_app.html), and the 'X-CSRF-Token' header used by JSON/fetch-based
+    API calls -- added 2026-07-26 when CSRF coverage was extended to
+    pro_org.py's and pro_billing.py's JSON routes, which have no form
+    field to carry a token in. Returns False (never raises) on any
+    missing piece -- a session with no token yet, or a submission with
+    neither field nor header -- so every caller can treat it as a plain
+    pass/fail check."""
     session_token = session.get("csrf_token")
-    submitted = request.form.get("csrf_token", "")
+    submitted = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
     return bool(session_token) and secrets.compare_digest(session_token, submitted)
 
 
@@ -597,7 +604,7 @@ def reset_password_page():
     someone lands here with no fragment at all (direct navigation, or an
     already-used/expired link), the page's own JS shows an error instead
     of the form -- nothing server-side to check at this GET."""
-    return render_template("reset_password.html")
+    return render_template("reset_password.html", csrf_token=csrf_token())
 
 
 @pro_bp.route("/reset-password", methods=["POST"])
@@ -610,6 +617,9 @@ def reset_password_submit():
     never the shared get_supabase()/get_user_supabase() singletons, so an
     invalid or expired recovery token from one request can't affect any
     other concurrent request in this process."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
+
     body = request.json or {}
     access_token = body.get("access_token")
     refresh_token = body.get("refresh_token")
@@ -717,6 +727,9 @@ def change_password():
     reset_password_submit() above -- get_user_supabase()'s
     postgrest.auth(token) only authenticates REST table calls, not the
     auth.* client itself."""
+    if not csrf_valid():
+        return jsonify({"error": "Your session expired -- reload the page and try again."}), 403
+
     body = request.json or {}
     current_password = body.get("current_password", "")
     new_password = body.get("new_password", "")

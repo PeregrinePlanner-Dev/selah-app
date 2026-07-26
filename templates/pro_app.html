@@ -517,6 +517,13 @@
 </footer>
 
 <script>
+// CSRF token for JSON/fetch-based API calls, added 2026-07-26 -- the two
+// existing hidden-field forms on this page already read {{ csrf_token }}
+// directly, but every fetch() call below needs it too, sent as a header
+// since a JSON body has no form field to carry it in. csrf_valid() on the
+// server checks both sources.
+const CSRF_TOKEN = "{{ csrf_token }}";
+
 // Unlike the free tool, currentSessionId starts null -- it's a real
 // planning_sessions row id, assigned by the server on the FIRST /pro/chat
 // call, not a client-generated UUID. Resuming a past session (clicking it
@@ -1080,7 +1087,7 @@ async function submitChangePassword() {
   try {
     const res = await fetch("/pro/account/change-password", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ current_password: current, new_password: next }),
     });
     const data = await res.json();
@@ -1335,7 +1342,7 @@ async function goToPortal() {
   try {
     const res = await fetch("/pro/billing/portal", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({}),
     });
     const data = await res.json();
@@ -1357,7 +1364,7 @@ async function selectPlan(tier, plan) {
   try {
     const res = await fetch("/pro/billing/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ tier, plan, promo: _activePromo }),
     });
     const data = await res.json();

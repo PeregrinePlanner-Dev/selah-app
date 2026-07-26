@@ -350,6 +350,12 @@
 </div>
 
 <script>
+// CSRF token for JSON/fetch-based API calls, added 2026-07-26 -- every
+// mutating fetch() on this page needs it, sent as a header since a JSON
+// body has no form field to carry it in. csrf_valid() on the server
+// checks both sources.
+const CSRF_TOKEN = "{{ csrf_token }}";
+
 const SEAT_LABEL = { leader: "Leadership", member: "Membership" };
 const SEAT_PRICING_TIERS = {
   leader: {
@@ -594,7 +600,7 @@ async function buyBlock(seatType) {
   try {
     const res = await fetch("/pro/billing/church/blocks/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ seat_type: seatType, quantity: qty }),
     });
     const data = await res.json();
@@ -618,7 +624,7 @@ async function startChurch() {
   try {
     const res = await fetch("/pro/billing/church/start", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ postal_code, org_name }),
     });
     const data = await res.json();
@@ -694,7 +700,7 @@ async function submitBuySeats() {
   try {
     const res = await fetch("/pro/billing/church/seats/preview", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ seat_type: seatType, new_quantity: qty }),
     });
     const data = await res.json();
@@ -792,7 +798,7 @@ async function submitSeatChange(seatType, newQty) {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -814,7 +820,7 @@ async function purchaseSeats(seatType, qty) {
   try {
     const res = await fetch("/pro/billing/church/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ seat_type: seatType, quantity: qty }),
     });
     const data = await res.json();
@@ -844,7 +850,7 @@ async function generateInvite() {
   try {
     const res = await fetch("/pro/org/invites", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ invite_type, invited_email }),
     });
     const data = await res.json();
@@ -900,7 +906,7 @@ async function revokeInvite(tokenId) {
   try {
     const res = await fetch("/pro/org/invites/revoke", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ token_id: tokenId }),
     });
     const data = await res.json();
@@ -1095,7 +1101,7 @@ async function rosterAction(url, profile_id) {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ profile_id }),
     });
     const data = await res.json();
@@ -1111,7 +1117,7 @@ async function removeMemberConfirmed(id) {
   try {
     const res = await fetch("/pro/org/roster/remove", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
       body: JSON.stringify({ profile_id: id }),
     });
     const data = await res.json();
