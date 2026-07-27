@@ -108,28 +108,41 @@ def route_to_node(message: str) -> str:
 # quoted verse reference (or its text) was real. This pass checks REFERENCE
 # EXISTENCE (does "Book Chapter:Verse" resolve to a real passage) at two
 # confidence tiers:
-#   - "exact": the 33 books in scripture_index.json fetched from real,
-#     public-domain KJV text (github.com/aruljohn/Bible-kjv) -- checked
-#     against the actual chapter+verse count for that specific chapter.
-#   - "chapter-level": the remaining 33 books, checked against well-
-#     established chapter-count reference data (not fetched verse-by-verse
-#     this pass) -- validates the chapter exists and the verse number is
-#     within the KJV's longest-chapter bound (Psalm 119 = 176 verses), but
-#     can't catch "chapter 3 only has 20 verses and this says 45."
+#   - "exact": every book, checked against the actual chapter+verse count
+#     for that specific chapter. All 66 books reached "exact" tier as of
+#     2026-07-27 (see below) -- the "chapter-level"-only tier described
+#     below no longer applies to any book, kept only so old callers/tests
+#     referencing that confidence value don't break.
+#   - "chapter-level": legacy tier, unreachable now that all 66 books have
+#     real verse counts (see verse_counts is never None anymore), kept for
+#     backward compatibility with any code checking for this string.
 # Flag-only, never blocking, per the audit's own recommendation -- a failed
 # check means "could not confirm this reference exists," not "this is
-# definitely wrong." Exact QUOTED-TEXT verification (does the wording match
-# canonical text, not just does the reference exist) is a larger follow-up
-# noted in Selah_Full_Stack_Audit_2026-07-14.md Section 2.2 -- it requires
-# full canonical text for the 33 "chapter-level" books, which hit real
-# acquisition friction this pass (the fetch tooling available caps around
-# ~100K characters per call, and several of those books -- Genesis, Psalms,
-# Isaiah -- need chunked multi-call fetches to get in full). Reference-
-# existence checking ships now because it's the cheaper, still-valuable
-# half of the problem: it catches a fabricated "Isaiah 84:12" outright,
-# just not a real "John 3:16" quoted with one word silently changed.
-# Added 2026-07-15.
+# definitely wrong." Added 2026-07-15.
+#
+# **2026-07-27 update:** full canonical KJV text for all 66 books (not just
+# reference-existence counts) is now bundled locally in kjv_full.json --
+# see the Translation Comparison section below for why (eliminates the
+# Sonnet call that used to generate the KJV line from memory on every
+# Translation Compare request). scripture_index.json's verse_counts are now
+# derived directly from that same real text for all 66 books (previously
+# only 33 books had exact counts; the other 33 had chapter-count-only data
+# pending full-text acquisition, which hit real friction on 2026-07-15 --
+# chunked per-chapter API fetches would have needed ~960 individual calls
+# across the 31 highest-priority books. Resolved instead via the `kjv`
+# npm package, which bundles the full 1769 Blayney-standardized KJV text
+# (31,102 verses) as a single local dataset -- no chunking, no per-chapter
+# API calls, no spend-limit risk. Cross-validated: all 66 books' chapter
+# counts and all 35 previously-"exact" books' verse counts matched with
+# zero discrepancies before the upgrade was trusted.
 SCRIPTURE_INDEX = json.loads((BASE_DIR / "scripture_index.json").read_text(encoding="utf-8"))
+
+# Full local KJV verse text (public domain, 1769 Blayney-standardized),
+# keyed book -> chapter(str) -> verse(str) -> text. Added 2026-07-27 to stop
+# paying a Sonnet call to regenerate KJV wording from memory on every
+# Translation Compare request -- see get_local_kjv_text() and
+# generate_translation_comparison() below.
+KJV_FULL = json.loads((BASE_DIR / "kjv_full.json").read_text(encoding="utf-8"))
 
 _BOOK_ALIASES = {
     "gen": "Genesis", "ge": "Genesis",
@@ -259,6 +272,28 @@ def verify_scripture_reference(label: str) -> dict:
         return {"status": "unverified", "confidence": None,
                 "reason": f"{parsed['book']} {parsed['chapter']} has {max_verse} verses"}
     return {"status": "valid", "confidence": "exact"}
+
+
+def get_local_kjv_text(book: str, chapter: int, verse_start: int, verse_end: int) -> str | None:
+    """Looks up real KJV verse text from the locally bundled full-text data
+    (KJV_FULL / kjv_full.json -- public domain 1769 Blayney-standardized
+    text, added 2026-07-27). Returns None if the book/chapter/verse isn't
+    found rather than raising -- a verified reference should always resolve
+    given kjv_full.json now covers all 66 books, but this stays defensive
+    so a gap fails soft (falls back to full Sonnet generation in
+    generate_translation_comparison) instead of ever throwing mid-request.
+    A verse range is joined into one string with single spaces, matching
+    how the model was already asked to render a range in one line."""
+    chapter_data = KJV_FULL.get(book, {}).get(str(chapter))
+    if not chapter_data:
+        return None
+    parts = []
+    for v in range(verse_start, verse_end + 1):
+        text = chapter_data.get(str(v))
+        if text is None:
+            return None
+        parts.append(text)
+    return " ".join(parts)
 
 
 def attach_scripture_verification(sources: list) -> list:
@@ -624,7 +659,57 @@ def generate_prep_doc(node_name: str, messages: list, sources: list, sections: l
 # same shape as generate_prep_doc(): no QUESTION/SOURCE tags, no
 # conversation history, just a direct prompt-in, text-out generation.
 # Added 2026-07-08.
+# Main path (as of 2026-07-27): the KJV line is no longer generated by the
+# model at all -- it's spliced in from local, verbatim public-domain text
+# (see get_local_kjv_text()). The real KJV wording is still given to the
+# model as grounding context (not asked to reproduce it) so the NOTE's
+# theological-divergence comparison is checked against the actual words,
+# not Sonnet's memory of the KJV. This drops one full translation's worth
+# of OUTPUT tokens (the more expensive side of the ledger) per request,
+# replacing it with a similar amount of INPUT tokens (cheaper) plus a
+# same-day accuracy win: the displayed KJV text can no longer drift from
+# the real wording the way a memory-generated line theoretically could.
 TRANSLATION_COMPARE_INSTRUCTIONS = """\
+A person exploring systematic theology wants to see how different English \
+translations render a specific Bible reference, and whether the differences \
+in wording actually change the theological weight of the passage or are \
+merely stylistic.
+
+Reference: {reference}
+
+For grounding only -- do not reproduce this line yourself, it is already \
+handled -- here is the real, exact King James Version text of this passage, \
+taken directly from the actual public-domain 1769 text (use it, not your own \
+recollection, when writing the NOTE below):
+
+KJV (for reference only): {kjv_text}
+
+Produce, in this exact order, for these three translations -- NIV, ESV, \
+NASB -- and nothing else:
+
+NIV: [the verse text in the NIV]
+ESV: [the verse text in the ESV]
+NASB: [the verse text in the NASB 1995 edition specifically] (NASB 1995)
+
+The "(NASB 1995)" citation at the end of the NASB line is a real attribution \
+requirement from the publisher (The Lockman Foundation) -- always include it \
+exactly as shown, not as optional styling.
+
+NOTE: [2-4 sentences identifying whether the translations genuinely diverge \
+in a way that matters theologically -- a different verb tense, a rendered-vs-\
+transliterated term, a clause attached to a different phrase -- and if so, \
+what is actually at stake in that difference. Compare all four translations, \
+including the real KJV text given above. If the translations do not \
+meaningfully diverge, say so plainly rather than manufacturing a difference \
+where none exists. Never editorialize about which translation is "correct."]
+"""
+
+# Fallback path only -- used if a reference somehow verifies as valid but
+# has no local KJV match (should be unreachable now that kjv_full.json
+# covers all 66 books, but failing soft to the original all-four-model-
+# generated behavior is safer than ever showing a blank KJV line). This is
+# the pre-2026-07-27 prompt, unchanged.
+TRANSLATION_COMPARE_INSTRUCTIONS_FALLBACK = """\
 A person exploring systematic theology wants to see how different English \
 translations render a specific Bible reference, and whether the differences \
 in wording actually change the theological weight of the passage or are \
@@ -671,12 +756,38 @@ def format_reference_for_lookup(reference: str) -> str:
 
 _TRANSLATION_VERSIONS = ("NIV", "ESV", "KJV", "NASB")
 
+# What we actually ask the model to generate now that KJV is spliced in
+# locally -- see TRANSLATION_COMPARE_INSTRUCTIONS above. Order matters only
+# for parse_translation_comparison_model(); display order is still the full
+# _TRANSLATION_VERSIONS tuple.
+_MODEL_TRANSLATION_VERSIONS = ("NIV", "ESV", "NASB")
+
 
 def parse_translation_comparison(raw: str) -> dict:
-    """Extracts the four translation lines and the closing NOTE from
-    generate_translation_comparison()'s raw output."""
+    """Extracts the four translation lines and the closing NOTE from raw
+    model output. Used only by the fallback path now (see
+    generate_translation_comparison) -- the main path uses
+    parse_translation_comparison_model() below, which expects three lines,
+    not four."""
     translations = []
     for version in _TRANSLATION_VERSIONS:
+        m = re.search(rf'^{version}:\s*(.+)$', raw, re.MULTILINE)
+        translations.append({
+            "version": version,
+            "text": m.group(1).strip() if m else "",
+        })
+    note_m = re.search(r'NOTE:\s*(.+)', raw, re.DOTALL)
+    note = note_m.group(1).strip() if note_m else ""
+    return {"translations": translations, "note": note}
+
+
+def parse_translation_comparison_model(raw: str) -> dict:
+    """Same as parse_translation_comparison() but for the main path's
+    3-translation model output (NIV/ESV/NASB -- KJV is spliced in
+    separately from local text, never asked of the model). Added
+    2026-07-27."""
+    translations = []
+    for version in _MODEL_TRANSLATION_VERSIONS:
         m = re.search(rf'^{version}:\s*(.+)$', raw, re.MULTILINE)
         translations.append({
             "version": version,
@@ -700,7 +811,19 @@ def generate_translation_comparison(reference: str) -> dict:
     already instructed to produce, without spending an API call on it.
     Cheaper AND more reliable than trusting the model's own self-check
     (added 2026-07-15, see the Scripture reference verification block
-    above)."""
+    above).
+
+    **2026-07-27: KJV is no longer one of the four translations the model
+    generates.** It's public domain, so its real text is looked up locally
+    (get_local_kjv_text(), backed by kjv_full.json) and spliced into the
+    result directly -- the model is asked for NIV/ESV/NASB only, with the
+    real KJV wording given as grounding context for the NOTE. Saves one
+    full translation's worth of output tokens (the expensive side of the
+    ledger) on every single Translation Compare call, and removes any risk
+    of the displayed KJV line being a model-remembered paraphrase rather
+    than the actual historic text. Falls back to the pre-existing
+    all-four-model-generated behavior if the local lookup somehow misses
+    (defensive only -- kjv_full.json covers all 66 books as of this date)."""
     clean_reference = format_reference_for_lookup(reference)
     check = verify_scripture_reference(clean_reference)
     if check["status"] == "unverified":
@@ -711,7 +834,32 @@ def generate_translation_comparison(reference: str) -> dict:
             ],
             "note": "This doesn't match a recognizable Bible reference -- please check the citation.",
         }
-    prompt = TRANSLATION_COMPARE_INSTRUCTIONS.format(reference=clean_reference)
+
+    parsed = parse_scripture_reference(clean_reference)
+    kjv_text = None
+    if parsed:
+        kjv_text = get_local_kjv_text(
+            parsed["book"], parsed["chapter"], parsed["verse_start"], parsed["verse_end"]
+        )
+
+    if kjv_text:
+        prompt = TRANSLATION_COMPARE_INSTRUCTIONS.format(
+            reference=clean_reference, kjv_text=kjv_text
+        )
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=700,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        model_result = parse_translation_comparison_model(raw)
+        by_version = {t["version"]: t["text"] for t in model_result["translations"]}
+        by_version["KJV"] = kjv_text
+        translations = [{"version": v, "text": by_version.get(v, "")} for v in _TRANSLATION_VERSIONS]
+        return {"translations": translations, "note": model_result["note"]}
+
+    # Defensive fallback -- see docstring above; should be unreachable.
+    prompt = TRANSLATION_COMPARE_INSTRUCTIONS_FALLBACK.format(reference=clean_reference)
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=800,
