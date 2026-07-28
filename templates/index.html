@@ -545,7 +545,7 @@ function updatePrompt(question) { /* unused — chips replace this */ }
 function normalizeLabel(label) {
   // Strip parenthetical notes, dates, trailing qualifiers; lowercase for comparison
   return label
-    .replace(/\(.*?\)/g, '')          // remove (NIV), (354-430), (referenced...) etc.
+    .replace(/\(.*?\)/g, '')          // remove (NASB), (354-430), (referenced...) etc.
     .replace(/\s*(referenced|implied|implicit|unnamed).*$/i, '')
     .toLowerCase().trim();
 }
@@ -754,7 +754,7 @@ async function uploadSession(event) {
     blocks.forEach(block => {
       const lines = block.trim().split('\n');
       if (lines.length < 2) return;
-      const header = lines[0]; // e.g. "Scripture — Matthew 6:33 (NIV)"
+      const header = lines[0]; // e.g. "Scripture — Matthew 6:33 (NASB)"
       const content = lines.slice(1).join(' ').trim();
       const typeMatch = header.match(/^(Scripture|Theologian)\s+—\s+(.+)$/);
       if (typeMatch && content) {

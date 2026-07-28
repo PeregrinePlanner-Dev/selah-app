@@ -216,7 +216,7 @@ _REF_RE = re.compile(
 
 def parse_scripture_reference(label: str):
     """Parses a SOURCE tag label or translation-compare reference like
-    'John 3:16 (NIV)' or '1 Corinthians 13:4-7' into a normalized dict:
+    'John 3:16 (NASB)' or '1 Corinthians 13:4-7' into a normalized dict:
     {book, chapter, verse_start, verse_end}. Returns None if the label
     doesn't parse as book+chapter:verse at all (rare -- most SOURCE tags
     follow the documented format)."""
@@ -669,6 +669,15 @@ def generate_prep_doc(node_name: str, messages: list, sources: list, sections: l
 # replacing it with a similar amount of INPUT tokens (cheaper) plus a
 # same-day accuracy win: the displayed KJV text can no longer drift from
 # the real wording the way a memory-generated line theoretically could.
+# 2026-07-28: NIV removed entirely. Biblica denied the rights/permissions
+# request the same day (see Selah Exploring Theology.md, Open Items) --
+# their stated policy requires 2,500+ MAU and supporting metrics before
+# they'll license to a platform this early-stage, with reapplication
+# invited after 12+ months. Rick's own 07-18 request form had already
+# stated NIV would be pulled if declined, so this isn't optional cleanup.
+# NASB (Lockman Foundation, confirmed compliant 2026-07-27) is now the
+# primary/default translation everywhere NIV used to be, both here and in
+# the master prompt's in-conversation Scripture-quoting default.
 TRANSLATION_COMPARE_INSTRUCTIONS = """\
 A person exploring systematic theology wants to see how different English \
 translations render a specific Bible reference, and whether the differences \
@@ -684,12 +693,11 @@ recollection, when writing the NOTE below):
 
 KJV (for reference only): {kjv_text}
 
-Produce, in this exact order, for these three translations -- NIV, ESV, \
-NASB -- and nothing else:
+Produce, in this exact order, for these two translations -- NASB, ESV -- \
+and nothing else:
 
-NIV: [the verse text in the NIV]
-ESV: [the verse text in the ESV]
 NASB: [the verse text in the NASB 1995 edition specifically] (NASB 1995)
+ESV: [the verse text in the ESV]
 
 The "(NASB 1995)" citation at the end of the NASB line is a real attribution \
 requirement from the publisher (The Lockman Foundation) -- always include it \
@@ -698,7 +706,7 @@ exactly as shown, not as optional styling.
 NOTE: [2-4 sentences identifying whether the translations genuinely diverge \
 in a way that matters theologically -- a different verb tense, a rendered-vs-\
 transliterated term, a clause attached to a different phrase -- and if so, \
-what is actually at stake in that difference. Compare all four translations, \
+what is actually at stake in that difference. Compare all three translations, \
 including the real KJV text given above. If the translations do not \
 meaningfully diverge, say so plainly rather than manufacturing a difference \
 where none exists. Never editorialize about which translation is "correct."]
@@ -706,9 +714,11 @@ where none exists. Never editorialize about which translation is "correct."]
 
 # Fallback path only -- used if a reference somehow verifies as valid but
 # has no local KJV match (should be unreachable now that kjv_full.json
-# covers all 66 books, but failing soft to the original all-four-model-
-# generated behavior is safer than ever showing a blank KJV line). This is
-# the pre-2026-07-27 prompt, unchanged.
+# covers all 66 books, but failing soft to the original all-translations-
+# model-generated behavior is safer than ever showing a blank KJV line).
+# This was "the pre-2026-07-27 prompt, unchanged" until 2026-07-28, when
+# NIV was removed here too (see the note above TRANSLATION_COMPARE_
+# INSTRUCTIONS) -- three translations now, not four.
 TRANSLATION_COMPARE_INSTRUCTIONS_FALLBACK = """\
 A person exploring systematic theology wants to see how different English \
 translations render a specific Bible reference, and whether the differences \
@@ -717,13 +727,12 @@ merely stylistic.
 
 Reference: {reference}
 
-Produce, in this exact order, for these four translations -- NIV, ESV, KJV, \
-NASB -- and nothing else:
+Produce, in this exact order, for these three translations -- NASB, ESV, \
+KJV -- and nothing else:
 
-NIV: [the verse text in the NIV]
+NASB: [the verse text in the NASB 1995 edition specifically] (NASB 1995)
 ESV: [the verse text in the ESV]
 KJV: [the verse text in the KJV]
-NASB: [the verse text in the NASB 1995 edition specifically] (NASB 1995)
 
 The "(NASB 1995)" citation at the end of the NASB line is a real attribution \
 requirement from the publisher (The Lockman Foundation) -- always include it \
@@ -738,37 +747,39 @@ where none exists. Never editorialize about which translation is "correct."]
 
 If the reference given is not a real, identifiable Bible passage, respond \
 with exactly:
-NIV: (reference not recognized)
+NASB: (reference not recognized)
 ESV: (reference not recognized)
 KJV: (reference not recognized)
-NASB: (reference not recognized)
 NOTE: This doesn't match a recognizable Bible reference -- please check the citation.
 """
 
 
 def format_reference_for_lookup(reference: str) -> str:
     """Strips a trailing '(Translation)' parenthetical off a stored source
-    label (e.g. 'John 3:16 (NIV)' -> 'John 3:16') so the comparison prompt
+    label (e.g. 'John 3:16 (NASB)' -> 'John 3:16') so the comparison prompt
     asks about the passage itself, not the one translation it happened to be
     quoted in originally."""
     return re.sub(r'\s*\([^)]*\)\s*$', '', reference).strip()
 
 
-_TRANSLATION_VERSIONS = ("NIV", "ESV", "KJV", "NASB")
+# 2026-07-28: NIV dropped (Biblica denied the license -- see note above
+# TRANSLATION_COMPARE_INSTRUCTIONS). NASB listed first now that it's the
+# default/primary translation everywhere, not just alphabetical/legacy order.
+_TRANSLATION_VERSIONS = ("NASB", "ESV", "KJV")
 
 # What we actually ask the model to generate now that KJV is spliced in
 # locally -- see TRANSLATION_COMPARE_INSTRUCTIONS above. Order matters only
 # for parse_translation_comparison_model(); display order is still the full
 # _TRANSLATION_VERSIONS tuple.
-_MODEL_TRANSLATION_VERSIONS = ("NIV", "ESV", "NASB")
+_MODEL_TRANSLATION_VERSIONS = ("NASB", "ESV")
 
 
 def parse_translation_comparison(raw: str) -> dict:
-    """Extracts the four translation lines and the closing NOTE from raw
+    """Extracts the three translation lines and the closing NOTE from raw
     model output. Used only by the fallback path now (see
     generate_translation_comparison) -- the main path uses
-    parse_translation_comparison_model() below, which expects three lines,
-    not four."""
+    parse_translation_comparison_model() below, which expects two lines,
+    not three (2026-07-28: was three/four before NIV was dropped)."""
     translations = []
     for version in _TRANSLATION_VERSIONS:
         m = re.search(rf'^{version}:\s*(.+)$', raw, re.MULTILINE)
@@ -783,8 +794,9 @@ def parse_translation_comparison(raw: str) -> dict:
 
 def parse_translation_comparison_model(raw: str) -> dict:
     """Same as parse_translation_comparison() but for the main path's
-    3-translation model output (NIV/ESV/NASB -- KJV is spliced in
-    separately from local text, never asked of the model). Added
+    2-translation model output (NASB/ESV -- KJV is spliced in
+    separately from local text, never asked of the model; NIV dropped
+    2026-07-28, was 3-translation NIV/ESV/NASB before). Added
     2026-07-27."""
     translations = []
     for version in _MODEL_TRANSLATION_VERSIONS:
@@ -800,7 +812,7 @@ def parse_translation_comparison_model(raw: str) -> dict:
 
 def generate_translation_comparison(reference: str) -> dict:
     """One-shot Sonnet call rendering a single Scripture reference across
-    four major translations plus a short note on whether the wording
+    three major translations plus a short note on whether the wording
     differences actually carry theological weight. Mirrors
     generate_prep_doc()'s shape: no history, no tags, direct prompt-in,
     parsed-text-out.
@@ -813,17 +825,27 @@ def generate_translation_comparison(reference: str) -> dict:
     (added 2026-07-15, see the Scripture reference verification block
     above).
 
-    **2026-07-27: KJV is no longer one of the four translations the model
+    **2026-07-27: KJV is no longer one of the translations the model
     generates.** It's public domain, so its real text is looked up locally
     (get_local_kjv_text(), backed by kjv_full.json) and spliced into the
-    result directly -- the model is asked for NIV/ESV/NASB only, with the
-    real KJV wording given as grounding context for the NOTE. Saves one
-    full translation's worth of output tokens (the expensive side of the
-    ledger) on every single Translation Compare call, and removes any risk
-    of the displayed KJV line being a model-remembered paraphrase rather
-    than the actual historic text. Falls back to the pre-existing
-    all-four-model-generated behavior if the local lookup somehow misses
-    (defensive only -- kjv_full.json covers all 66 books as of this date)."""
+    result directly -- the model is asked for NASB/ESV only (was NIV/ESV/
+    NASB before 2026-07-28, see below), with the real KJV wording given as
+    grounding context for the NOTE. Saves one full translation's worth of
+    output tokens (the expensive side of the ledger) on every single
+    Translation Compare call, and removes any risk of the displayed KJV
+    line being a model-remembered paraphrase rather than the actual
+    historic text. Falls back to the pre-existing all-translations-
+    model-generated behavior if the local lookup somehow misses
+    (defensive only -- kjv_full.json covers all 66 books as of this date).
+
+    **2026-07-28: NIV removed entirely, NASB now the primary/default
+    translation.** Biblica denied Rick's rights/permissions request the
+    same day -- their policy requires 2,500+ MAU and supporting metrics
+    before licensing to a platform this early-stage, with reapplication
+    invited after 12+ months (see Selah Exploring Theology.md, Open
+    Items). Rick's own 07-18 request form had already stated NIV would be
+    pulled if declined. Now three translations total (NASB, ESV, KJV),
+    not four."""
     clean_reference = format_reference_for_lookup(reference)
     check = verify_scripture_reference(clean_reference)
     if check["status"] == "unverified":

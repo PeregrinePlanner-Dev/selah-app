@@ -213,7 +213,7 @@ TRANSLATION_COMPARE_CAP_MESSAGE = (
 # Sanity ceiling on the reference string itself -- this is a person clicking
 # a citation already surfaced in their own Source Material panel, not a free
 # text field, but the route still accepts whatever the client sends. A real
-# reference ("1 Corinthians 15:3-8 (NIV)") is always well under this; this
+# reference ("1 Corinthians 15:3-8 (NASB)") is always well under this; this
 # just caps prompt-injection-by-length and stray token cost from a
 # malformed request, the same spirit as validating any other client input.
 MAX_REFERENCE_LENGTH = 120
@@ -864,10 +864,12 @@ def prep_doc():
 @pro_chat_bp.route("/compare_translation", methods=["POST"])
 @login_required
 def compare_translation():
-    """Renders one Scripture reference across NIV/ESV/KJV/NASB plus a short
+    """Renders one Scripture reference across NASB/ESV/KJV plus a short
     note on whether the wording differences carry real theological weight --
     "Noticing When the Words Themselves Matter." Added 2026-07-08 as the
-    second real 'mode' beyond ordinary chat, alongside Prep Doc.
+    second real 'mode' beyond ordinary chat, alongside Prep Doc. (NIV
+    dropped 2026-07-28 -- Biblica declined the rights request; see Selah
+    Exploring Theology.md, Open Items.)
 
     Deliberately stateless: doesn't touch planning_sessions at all, doesn't
     require a session_id, and isn't tied to whatever node is active -- a
