@@ -910,6 +910,11 @@ def compare_translation():
         "reference": reference,
         "translations": result["translations"],
         "note": result["note"],
+        # Original-language text (Hebrew/Aramaic OT, Greek NT), None if it
+        # doesn't resolve. Added 2026-07-29 -- always included (it's a free
+        # local lookup, not a model call) but only rendered behind the
+        # opt-in "Show original language" toggle client-side.
+        "original": result.get("original"),
     })
 
 

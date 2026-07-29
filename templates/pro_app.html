@@ -298,6 +298,23 @@
   .translation-text {
     font-size: 0.8rem; line-height: 1.6; color: #1f2937;
   }
+  /* ── Original-language toggle (added 2026-07-29) ──
+     Opt-in only -- most users can't read Hebrew/Greek/Aramaic, so this
+     never renders unless explicitly checked. Free local lookup either
+     way (see get_original_language_text() in engine.py), so the data is
+     already in the DOM before the checkbox is touched; no second
+     network round trip on toggle. */
+  .original-toggle {
+    display: flex; align-items: center; gap: 7px; margin-top: 4px;
+    font-size: 0.72rem; color: #6b7280; cursor: pointer; user-select: none;
+  }
+  .original-toggle input { cursor: pointer; margin: 0; }
+  .original-row { display: none; }
+  .original-row.show { display: block; }
+  .original-text {
+    font-size: 0.95rem; line-height: 1.9; color: #1f2937;
+  }
+  .original-text[dir="rtl"] { text-align: right; }
 
   /* ── Session Recap section-picker ── */
   .recap-checkbox {
@@ -1253,14 +1270,41 @@ function renderTranslationCompare(data) {
       <div class="translation-text">${esc(t.text || "—")}</div>
     </div>
   `).join("");
+
+  // Original-language toggle (added 2026-07-29) -- only rendered at all
+  // if the lookup actually resolved (data.original is non-null); a dead
+  // checkbox with nothing behind it is worse than no checkbox. See
+  // get_original_language_text() in engine.py for what can make this
+  // null (unrecognized book, or one of a small number of real critical-
+  // text/versification gaps -- both fail soft, never a guess).
+  const orig = data.original;
+  const originalToggleHtml = orig ? `
+    <label class="original-toggle" onclick="toggleOriginalLanguage()">
+      <input type="checkbox" id="original-toggle-checkbox">
+      Show original language (${esc(orig.language)}, ${esc(orig.edition)})
+    </label>
+    <div class="original-row" id="original-language-row">
+      <div class="translation-row">
+        <div class="translation-version">${esc(orig.language)} — ${esc(orig.edition)}</div>
+        <div class="original-text" dir="${orig.rtl ? 'rtl' : 'ltr'}">${esc(orig.text)}</div>
+      </div>
+    </div>
+  ` : "";
+
   body.innerHTML = `
-    <div class="modal-section">${rows}</div>
+    <div class="modal-section">${rows}${originalToggleHtml}</div>
     <hr class="modal-divider">
     <div class="modal-section">
       <div class="modal-section-title">Why It Matters</div>
       <p class="modal-intro">${esc(data.note || "No notable differences.")}</p>
     </div>
   `;
+}
+function toggleOriginalLanguage() {
+  const checkbox = document.getElementById("original-toggle-checkbox");
+  const row = document.getElementById("original-language-row");
+  if (!checkbox || !row) return;
+  row.classList.toggle("show", checkbox.checked);
 }
 
 document.addEventListener("keydown", e => {

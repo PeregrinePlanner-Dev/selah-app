@@ -144,6 +144,99 @@ SCRIPTURE_INDEX = json.loads((BASE_DIR / "scripture_index.json").read_text(encod
 # generate_translation_comparison() below.
 KJV_FULL = json.loads((BASE_DIR / "kjv_full.json").read_text(encoding="utf-8"))
 
+# Original-language texts (added 2026-07-29), same local-splice pattern as
+# KJV above -- real public-domain text, zero model tokens spent to fetch
+# it. Opt-in only in Translation Compare (see get_original_language_text()
+# below and the "Show original language" toggle in pro_app.html) -- most
+# users can't read Hebrew/Greek/Aramaic, so this is never generated or
+# shown unless explicitly requested.
+#
+# HEBREW_WLC: Westminster Leningrad Codex, all 39 OT books, 23,213 verses.
+# Source: Open Scriptures Hebrew Bible (openscriptures/morphhb, npm
+# `morphhb`). Base text (Leningrad Codex) is public domain; this specific
+# edition/markup is CC BY 4.0 -- see legal.html "Texts & Translations" for
+# the required attribution line. Keyed flat by WLC-native OSIS ID
+# ("Gen.1.1" -> text), NOT by English/KJV verse numbers -- see
+# KJV_TO_WLC_VERSEMAP immediately below for why that distinction matters.
+HEBREW_WLC = json.loads((BASE_DIR / "hebrew_wlc_flat.json").read_text(encoding="utf-8"))
+
+# GREEK_NT: Eberhard Nestle's 1904 Greek New Testament, all 27 NT books,
+# 7,942 verses (the source data's one "Mark.16.99" entry -- the disputed
+# Shorter Ending of Mark, bracketed as later-scribal-addition apparatus
+# material in the source rather than part of the standard 1-20 verse
+# numbering -- was dropped during extraction, not part of this dataset).
+# Source: biblicalhumanities/Nestle1904. Base text (Diego Renato dos
+# Santos) is public domain; the morphological/verse markup is CC0 (no
+# attribution legally required). Keyed flat by OSIS ID ("John.1.1" ->
+# text) -- Greek NT versification matches English almost exactly, unlike
+# the Hebrew OT (see below), so no remap table is needed here. The
+# handful of verses present in the KJV's underlying Textus Receptus but
+# absent from this critical edition (Matt 17:21/18:11/23:14, Mark
+# 7:16/9:44/9:46/11:26/15:28, Luke 17:36/23:17, Acts 8:37/15:34/19:41/
+# 24:7/28:29, Rom 16:24, 2 Cor 13:14 -- 17 verses total, cross-checked
+# against every canonical verse in scripture_index.json on 2026-07-29)
+# are real, well-documented critical-text omissions, not extraction
+# gaps -- get_local_greek_text() fails soft (returns None) for these,
+# same "no wrong text over no text" philosophy as get_local_kjv_text.
+GREEK_NT = json.loads((BASE_DIR / "greek_nt_flat.json").read_text(encoding="utf-8"))
+
+# KJV_TO_WLC_VERSEMAP: sparse English(KJV)-OSIS-ID -> WLC-native-OSIS-ID
+# remap, built from morphhb's own VerseMap.xml (same source/license as
+# HEBREW_WLC above). Real and necessary, not a defensive edge case: 27 of
+# the Hebrew Bible's 39 books have chapter and/or verse numbering that
+# differs from the English Bible (Joel has 4 Hebrew chapters vs 3
+# English; Malachi 3 vs 4; most Psalms with a superscription shift by 1
+# because Hebrew counts the heading as verse 1; etc.) -- cross-checked
+# against every canonical OT verse in scripture_index.json on 2026-07-29,
+# 100% resolved. Any KJV-OSIS-ID NOT in this map is unaffected -- same ID
+# in both systems, used as-is. A handful of values are a list of 2 WLC
+# ids rather than a single string (Ps 51:1/52:1/54:1/60:1 only -- English
+# verse 1 there covers a two-line Hebrew superscription split across WLC
+# verses 2 and 3); get_local_hebrew_text() joins those with a space.
+KJV_TO_WLC_VERSEMAP = json.loads((BASE_DIR / "kjv_to_wlc_versemap.json").read_text(encoding="utf-8"))
+
+# ARAMAIC_VERSE_LANGUAGE: the ~269 WLC-native OSIS IDs (Daniel 2:4b-7:28,
+# Ezra 4:8-6:18 and 7:12-26, Jeremiah 10:11, Genesis 31:47b) that are
+# actually written in Aramaic rather than Hebrew in the source text --
+# not a separate translation, just a language tag on top of HEBREW_WLC,
+# resolved at the exact word level -> osisID -> "Aramaic" (every word in
+# the verse is Aramaic) or "Mixed" (both languages appear in the same
+# verse). Only two verses in the whole Bible are genuinely mixed word-
+# for-word: Daniel 2:4 (the traditional Hebrew->Aramaic boundary verse
+# itself) and Genesis 31:47 (Laban's Aramaic "Jegar-sahadutha" then
+# Jacob's Hebrew "Galeed" for the same place, in the same verse) --
+# cross-checked directly against the source XML's per-word morphology
+# tags on 2026-07-29, not assumed. A verse absent from this map is pure
+# Hebrew. This only drives which label get_original_language_text()
+# shows the user -- HEBREW_WLC's actual text for these verses is already
+# correct either way.
+ARAMAIC_VERSE_LANGUAGE = json.loads((BASE_DIR / "aramaic_verse_language.json").read_text(encoding="utf-8"))
+
+# Canonical (SCRIPTURE_INDEX/KJV_FULL) book name -> OSIS abbreviation, the
+# key format HEBREW_WLC/GREEK_NT/KJV_TO_WLC_VERSEMAP actually use. Needed
+# because get_local_hebrew_text()/get_local_greek_text() take the same
+# canonical book name as get_local_kjv_text() for interface consistency.
+_CANONICAL_TO_OSIS = {
+    "Genesis": "Gen", "Exodus": "Exod", "Leviticus": "Lev", "Numbers": "Num",
+    "Deuteronomy": "Deut", "Joshua": "Josh", "Judges": "Judg", "Ruth": "Ruth",
+    "1 Samuel": "1Sam", "2 Samuel": "2Sam", "1 Kings": "1Kgs", "2 Kings": "2Kgs",
+    "1 Chronicles": "1Chr", "2 Chronicles": "2Chr", "Ezra": "Ezra", "Nehemiah": "Neh",
+    "Esther": "Esth", "Job": "Job", "Psalms": "Ps", "Proverbs": "Prov",
+    "Ecclesiastes": "Eccl", "Song of Solomon": "Song", "Isaiah": "Isa", "Jeremiah": "Jer",
+    "Lamentations": "Lam", "Ezekiel": "Ezek", "Daniel": "Dan", "Hosea": "Hos",
+    "Joel": "Joel", "Amos": "Amos", "Obadiah": "Obad", "Jonah": "Jonah",
+    "Micah": "Mic", "Nahum": "Nah", "Habakkuk": "Hab", "Zephaniah": "Zeph",
+    "Haggai": "Hag", "Zechariah": "Zech", "Malachi": "Mal",
+    "Matthew": "Matt", "Mark": "Mark", "Luke": "Luke", "John": "John", "Acts": "Acts",
+    "Romans": "Rom", "1 Corinthians": "1Cor", "2 Corinthians": "2Cor", "Galatians": "Gal",
+    "Ephesians": "Eph", "Philippians": "Phil", "Colossians": "Col",
+    "1 Thessalonians": "1Thess", "2 Thessalonians": "2Thess", "1 Timothy": "1Tim",
+    "2 Timothy": "2Tim", "Titus": "Titus", "Philemon": "Phlm", "Hebrews": "Heb",
+    "James": "Jas", "1 Peter": "1Pet", "2 Peter": "2Pet", "1 John": "1John",
+    "2 John": "2John", "3 John": "3John", "Jude": "Jude", "Revelation": "Rev",
+}
+_OT_CANONICAL_BOOKS = frozenset(list(_CANONICAL_TO_OSIS)[:39])
+
 _BOOK_ALIASES = {
     "gen": "Genesis", "ge": "Genesis",
     "exod": "Exodus", "exo": "Exodus", "ex": "Exodus",
@@ -294,6 +387,97 @@ def get_local_kjv_text(book: str, chapter: int, verse_start: int, verse_end: int
             return None
         parts.append(text)
     return " ".join(parts)
+
+
+def get_local_hebrew_text(book: str, chapter: int, verse_start: int, verse_end: int):
+    """Looks up real Hebrew (WLC) verse text for an Old Testament book,
+    given the same canonical book name / English chapter+verse numbering
+    get_local_kjv_text() takes. Added 2026-07-29.
+
+    Returns (text, language) or None if the book/chapter/verse doesn't
+    resolve -- same fails-soft philosophy as get_local_kjv_text(): a gap
+    here (whether a genuinely unmapped reference or, for NT books, simply
+    "not applicable") means the original-language line is silently
+    omitted, never a guess.
+
+    language is "Hebrew" if no verse in the range has any Aramaic,
+    "Aramaic" if every verse is entirely Aramaic, or "Hebrew/Aramaic" for
+    anything in between -- including a range that touches Daniel 2:4 or
+    Genesis 31:47, the only two verses in the Bible genuinely mixed word-
+    for-word (see ARAMAIC_VERSE_LANGUAGE above)."""
+    if book not in _OT_CANONICAL_BOOKS:
+        return None
+    osis_book = _CANONICAL_TO_OSIS[book]
+    parts = []
+    langs_seen = set()
+    for v in range(verse_start, verse_end + 1):
+        kjv_id = f"{osis_book}.{chapter}.{v}"
+        target = KJV_TO_WLC_VERSEMAP.get(kjv_id, kjv_id)
+        targets = target if isinstance(target, list) else [target]
+        verse_texts = []
+        for t in targets:
+            text = HEBREW_WLC.get(t)
+            if text is None:
+                return None
+            verse_texts.append(text)
+            langs_seen.add(ARAMAIC_VERSE_LANGUAGE.get(t, "Hebrew"))
+        parts.append(" ".join(verse_texts))
+    if langs_seen == {"Aramaic"}:
+        language = "Aramaic"
+    elif langs_seen == {"Hebrew"}:
+        language = "Hebrew"
+    else:
+        language = "Hebrew/Aramaic"
+    return " ".join(parts), language
+
+
+def get_local_greek_text(book: str, chapter: int, verse_start: int, verse_end: int):
+    """Looks up real Greek (Nestle 1904) verse text for a New Testament
+    book. Same canonical book name / English chapter+verse numbering as
+    get_local_kjv_text(). Added 2026-07-29.
+
+    Returns text or None. A None here for a verse within a real NT
+    reference most likely means it's one of the 17 verses present in the
+    Textus Receptus underlying the KJV but absent from this critical
+    edition (see the GREEK_NT module comment above) -- not a bug, and
+    deliberately not distinguished from any other kind of gap: the
+    original-language line just doesn't render for that reference,
+    rather than asserting a reason that would need its own upkeep."""
+    if book not in _CANONICAL_TO_OSIS or book in _OT_CANONICAL_BOOKS:
+        return None
+    osis_book = _CANONICAL_TO_OSIS[book]
+    parts = []
+    for v in range(verse_start, verse_end + 1):
+        text = GREEK_NT.get(f"{osis_book}.{chapter}.{v}")
+        if text is None:
+            return None
+        parts.append(text)
+    return " ".join(parts)
+
+
+def get_original_language_text(book: str, chapter: int, verse_start: int, verse_end: int):
+    """Resolves a canonical reference to its actual original-language
+    text -- Hebrew for the OT, Greek for the NT, correctly relabeled
+    Aramaic for the handful of OT passages genuinely written in Aramaic
+    (Daniel 2:4b-7:28, Ezra 4:8-6:18 and 7:12-26, Jeremiah 10:11, Genesis
+    31:47b). Added 2026-07-29 for the opt-in "Show original language"
+    toggle in Translation Compare (see pro_app.html) -- deliberately not
+    shown by default, since most users can't read any of these three.
+
+    Returns {"language": ..., "edition": ..., "text": ..., "rtl": bool}
+    or None if nothing resolves (unrecognized book, or a real gap -- see
+    get_local_hebrew_text()/get_local_greek_text() docstrings). Zero
+    model cost either way -- pure local lookup, same as the KJV splice."""
+    if book in _OT_CANONICAL_BOOKS:
+        result = get_local_hebrew_text(book, chapter, verse_start, verse_end)
+        if result is None:
+            return None
+        text, language = result
+        return {"language": language, "edition": "Westminster Leningrad Codex", "text": text, "rtl": True}
+    text = get_local_greek_text(book, chapter, verse_start, verse_end)
+    if text is None:
+        return None
+    return {"language": "Greek", "edition": "Nestle 1904", "text": text, "rtl": False}
 
 
 def attach_scripture_verification(sources: list) -> list:
@@ -845,7 +1029,17 @@ def generate_translation_comparison(reference: str) -> dict:
     invited after 12+ months (see Selah Exploring Theology.md, Open
     Items). Rick's own 07-18 request form had already stated NIV would be
     pulled if declined. Now three translations total (NASB, ESV, KJV),
-    not four."""
+    not four.
+
+    **2026-07-29: added "original" to the returned dict** -- the
+    Hebrew/Aramaic/Greek original-language text for this same reference,
+    via get_original_language_text() (None if it doesn't resolve). Always
+    computed, since it's a free local lookup like KJV, not a model call --
+    but deliberately NOT one of the always-rendered _TRANSLATION_VERSIONS
+    columns. It's opt-in, shown only behind the "Show original language"
+    toggle in pro_app.html, since most users can't read any of the three.
+    Computing it unconditionally here (rather than only on request) means
+    toggling it on the frontend never costs a second round trip."""
     clean_reference = format_reference_for_lookup(reference)
     check = verify_scripture_reference(clean_reference)
     if check["status"] == "unverified":
@@ -855,12 +1049,17 @@ def generate_translation_comparison(reference: str) -> dict:
                 for v in _TRANSLATION_VERSIONS
             ],
             "note": "This doesn't match a recognizable Bible reference -- please check the citation.",
+            "original": None,
         }
 
     parsed = parse_scripture_reference(clean_reference)
     kjv_text = None
+    original = None
     if parsed:
         kjv_text = get_local_kjv_text(
+            parsed["book"], parsed["chapter"], parsed["verse_start"], parsed["verse_end"]
+        )
+        original = get_original_language_text(
             parsed["book"], parsed["chapter"], parsed["verse_start"], parsed["verse_end"]
         )
 
@@ -878,7 +1077,7 @@ def generate_translation_comparison(reference: str) -> dict:
         by_version = {t["version"]: t["text"] for t in model_result["translations"]}
         by_version["KJV"] = kjv_text
         translations = [{"version": v, "text": by_version.get(v, "")} for v in _TRANSLATION_VERSIONS]
-        return {"translations": translations, "note": model_result["note"]}
+        return {"translations": translations, "note": model_result["note"], "original": original}
 
     # Defensive fallback -- see docstring above; should be unreachable.
     prompt = TRANSLATION_COMPARE_INSTRUCTIONS_FALLBACK.format(reference=clean_reference)
@@ -888,4 +1087,6 @@ def generate_translation_comparison(reference: str) -> dict:
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
-    return parse_translation_comparison(raw)
+    result = parse_translation_comparison(raw)
+    result["original"] = original
+    return result
