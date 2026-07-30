@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, session, render_template, url_for
 
 from engine import NODE_DISPLAY_NAMES
-from pro_auth import login_required, get_user_supabase, get_service_client, _check_and_record, csrf_token, csrf_valid
+from pro_auth import login_required, get_user_supabase, get_service_client, _check_and_record, csrf_token, csrf_valid, query_with_jwt_fallback
 from pro_billing import MAX_ORG_ADMINS, promote_waitlisted_if_room, CHURCH_SEAT_TIER_SLUGS
 from pro_email import (
     send_roster_removal_email,
@@ -669,11 +669,21 @@ def org_status():
     seat-count totals aren't sensitive information within someone's own
     org."""
     sb = get_user_supabase()
-    profile_resp = (
-        sb.table("profiles")
-        .select("organization_id, is_org_admin, seat_type")
-        .limit(1)
-        .execute()
+    user_id = session.get("sb_user_id")
+    # query_with_jwt_fallback() (pro_auth.py, added 2026-07-30) -- recovers
+    # from the Sentry PYTHON-5 concurrent-refresh race (see that function's
+    # docstring); fallback filter is .eq('id', session['sb_user_id']),
+    # exactly what RLS would have scoped this read to anyway.
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles")
+            .select("organization_id, is_org_admin, seat_type")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, is_org_admin, seat_type")
+            .eq("id", user_id)
+            .limit(1)
+            .execute(),
     )
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400

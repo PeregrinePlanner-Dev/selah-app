@@ -880,3 +880,60 @@ def get_user_supabase() -> Client:
     sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     sb.postgrest.auth(session["sb_access_token"])
     return sb
+
+
+# ── JWT-expiry race fallback ────────────────────────────────────────────────
+# Added 2026-07-30 in direct response to Sentry PYTHON-3/4/5/6 (live
+# 2026-07-28/29, all four "APIError: JWT expired", all recurring across a
+# ~22hr span, all failing on the FIRST Supabase call inside the view --
+# confirmed via each issue's real stacktrace, not guessed): pro_app.html
+# fires /pro/billing/status, /pro/org/status, and /pro/sessions concurrently
+# on page load, and /pro/chat can land in the same window. Every one of
+# those routes calls get_user_supabase(), which calls
+# _ensure_fresh_access_token() above -- and that function's existing
+# "already used" tolerance (added 2026-07-26 for Sentry PYTHON-2) was only
+# ever meant to stop a benign refresh-token race from killing a session that
+# was still fine. It wasn't a complete fix: when two or more of those
+# concurrent requests hit the proactive-refresh buffer at once, only ONE can
+# win Supabase's single-use rotating refresh token; every other one is left
+# holding an access token that can by then be genuinely, actually expired --
+# not just "within the 60s buffer" -- and Postgrest rejects it outright with
+# this exact "JWT expired" error, which was propagating as an unhandled 500.
+#
+# There is no way for a losing request to recover the winner's fresh token
+# within its own request/response cycle: Flask's session here is a
+# client-side cookie, read once at request start, and this app's Procfile
+# runs gunicorn with --workers 2 (separate OS processes, no shared memory)
+# -- so simply retrying the same RLS-scoped call with
+# _ensure_fresh_access_token(force=True) would just hit "already used" again
+# and fail identically. The fix below sidesteps the race instead of trying
+# to win it: session['sb_user_id'] (and any organization_id already read off
+# the profile) are plain values stored at login/signup, not derived from
+# the JWT, so they're still reliable even when the access/refresh token
+# pair has hit this race. Falling back to the service-role client for
+# EXACTLY this one read, with an explicit .eq(...) filter matching what RLS
+# would have enforced anyway, closes the gap without weakening the normal
+# case -- get_user_supabase()/RLS is still the first attempt, always.
+def _is_jwt_expired(e: Exception) -> bool:
+    return "jwt expired" in str(e).lower()
+
+
+def query_with_jwt_fallback(user_query, service_query):
+    """Runs `user_query()` (an RLS-scoped call via get_user_supabase()) first
+    -- RLS stays the real security boundary for the normal case, which is
+    the overwhelming majority of requests. Falls back to `service_query()`
+    (a get_service_client() call the CALLER has already scoped with its own
+    explicit .eq('id'/'user_id'/'organization_id', ...) filter) ONLY when
+    user_query() raises a Postgrest 'JWT expired' error -- any other
+    exception is re-raised unchanged, same as if this wrapper weren't here.
+
+    Both arguments are zero-arg callables (pass a lambda), not the query
+    results themselves, so user_query() is never even attempted-then-
+    discarded -- it either succeeds and its result is returned, or it raises
+    and, only for this one specific error, service_query() runs instead."""
+    try:
+        return user_query()
+    except Exception as e:
+        if not _is_jwt_expired(e):
+            raise
+        return service_query()

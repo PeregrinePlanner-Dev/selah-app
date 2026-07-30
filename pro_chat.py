@@ -26,7 +26,7 @@ from engine import (
     generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
     attach_scripture_verification,
 )
-from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token
+from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, query_with_jwt_fallback
 from pro_billing import DISPLAY_PRICING
 
 pro_chat_bp = Blueprint("pro_chat", __name__, url_prefix="/pro")
@@ -427,8 +427,23 @@ def pro_chat():
         return jsonify({"error": "empty message"}), 400
 
     sb = get_user_supabase()
+    user_id = session.get("sb_user_id")
 
-    profile_resp = sb.table("profiles").select("organization_id, seat_status, seat_type, suspended_at").limit(1).execute()
+    # query_with_jwt_fallback() (pro_auth.py, added 2026-07-30) -- recovers
+    # from the Sentry PYTHON-6 concurrent-refresh race (see that function's
+    # docstring); fallback filter is .eq('id', session['sb_user_id']),
+    # exactly what RLS would have scoped this read to anyway.
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles")
+            .select("organization_id, seat_status, seat_type, suspended_at")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, seat_status, seat_type, suspended_at")
+            .eq("id", user_id)
+            .limit(1)
+            .execute(),
+    )
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
 
@@ -922,13 +937,26 @@ def compare_translation():
 @login_required
 def list_sessions():
     """List of the logged-in user's own sessions, newest first -- backs the
-    session-history panel in the real Pro UI (pro_app.html)."""
+    session-history panel in the real Pro UI (pro_app.html).
+
+    query_with_jwt_fallback() (pro_auth.py, added 2026-07-30) -- recovers
+    from the Sentry PYTHON-4 concurrent-refresh race (see that function's
+    docstring); fallback filter is .eq('user_id', session['sb_user_id']),
+    exactly what RLS would have scoped this read to anyway (planning_sessions
+    has its own user_id column, unlike the profiles-table lookups elsewhere
+    in this file which filter by id)."""
     sb = get_user_supabase()
-    resp = (
-        sb.table("planning_sessions")
-        .select("id, turn_count, updated_at, session_data")
-        .order("updated_at", desc=True)
-        .execute()
+    user_id = session.get("sb_user_id")
+    resp = query_with_jwt_fallback(
+        lambda: sb.table("planning_sessions")
+            .select("id, turn_count, updated_at, session_data")
+            .order("updated_at", desc=True)
+            .execute(),
+        lambda: get_service_client().table("planning_sessions")
+            .select("id, turn_count, updated_at, session_data")
+            .eq("user_id", user_id)
+            .order("updated_at", desc=True)
+            .execute(),
     )
     sessions = [
         {

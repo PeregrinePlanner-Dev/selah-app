@@ -56,7 +56,7 @@ from datetime import date, datetime, timezone
 import stripe
 from flask import Blueprint, request, jsonify, url_for, session
 
-from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, csrf_valid
+from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, csrf_valid, query_with_jwt_fallback
 from pro_email import send_waitlist_promoted_email, send_exchange_block_confirmation_email
 
 pro_billing_bp = Blueprint("pro_billing", __name__, url_prefix="/pro/billing")
@@ -259,9 +259,18 @@ def _get_org_id_and_email():
     """Shared lookup -- every route here needs the caller's own
     organization_id (subscriptions/stripe_customer_id are stored per-org,
     matching the multi-seat shape the rest of the schema already uses, even
-    though Individual Pro today is always a 1-profile org)."""
+    though Individual Pro today is always a 1-profile org).
+
+    Wrapped in query_with_jwt_fallback() (pro_auth.py) as of 2026-07-30 --
+    see that function's docstring for the Sentry PYTHON-3 race this
+    recovers from. Fallback filter is .eq('id', session['sb_user_id']),
+    exactly what RLS would have scoped this read to anyway."""
     sb = get_user_supabase()
-    profile_resp = sb.table("profiles").select("organization_id, email").limit(1).execute()
+    user_id = session.get("sb_user_id")
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles").select("organization_id, email").limit(1).execute(),
+        lambda: get_service_client().table("profiles").select("organization_id, email").eq("id", user_id).limit(1).execute(),
+    )
     if not profile_resp.data:
         return None, None
     return profile_resp.data[0]["organization_id"], profile_resp.data[0]["email"]
@@ -271,13 +280,25 @@ def _get_org_id_email_and_admin_status():
     """Same as _get_org_id_and_email(), plus is_org_admin -- every
     Church/Org seat-billing route below is an admin-only action (buying
     seats, changing quantity spends the church's money and changes real
-    people's access), never something any seat-holder can trigger."""
+    people's access), never something any seat-holder can trigger.
+
+    Same query_with_jwt_fallback() wrap as _get_org_id_and_email() above --
+    same failure shape (Sentry PYTHON-3), never actually observed on this
+    specific function yet, but it's the identical query pattern, so fixing
+    only the observed twin and leaving this one alone would just be waiting
+    for the same bug to resurface here next."""
     sb = get_user_supabase()
-    profile_resp = (
-        sb.table("profiles")
-        .select("organization_id, email, is_org_admin")
-        .limit(1)
-        .execute()
+    user_id = session.get("sb_user_id")
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles")
+            .select("organization_id, email, is_org_admin")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, email, is_org_admin")
+            .eq("id", user_id)
+            .limit(1)
+            .execute(),
     )
     if not profile_resp.data:
         return None, None, False
