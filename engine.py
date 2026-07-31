@@ -17,7 +17,17 @@ import json
 from pathlib import Path
 from anthropic import Anthropic
 
-client = Anthropic()
+# Explicit 50s request timeout, added 2026-07-31. Previously unset, meaning
+# the SDK's own (much longer) default was the only client-side limit -- a
+# slow/stuck Anthropic call had no graceful failure path and just rode
+# gunicorn's blunt worker-level --timeout (Procfile) until the whole worker
+# got killed outright. 50s leaves headroom under the Procfile's 60s worker
+# timeout, so a genuine hang raises a catchable anthropic.APITimeoutError in
+# time for callers (pro_chat.py, app.py) to return a friendly retry message
+# instead of the connection just dying. Real incident that surfaced this:
+# Sentry PYTHON-7/8/9, 2026-07-31 (WORKER TIMEOUT -> SystemExit -> SIGKILL)
+# while generating an ordinary chat reply -- see SESSION_LOG.md.
+client = Anthropic(timeout=50.0)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent

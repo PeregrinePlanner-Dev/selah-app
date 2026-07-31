@@ -15,6 +15,8 @@ later build.
 
 import os
 import re
+import anthropic
+import sentry_sdk
 from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, render_template
@@ -687,12 +689,33 @@ def pro_chat():
             ),
         })
 
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        system=system_blocks,
-        messages=clean_history,
-    )
+    try:
+        response = anthropic_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=system_blocks,
+            messages=clean_history,
+        )
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+        # Added 2026-07-31 after a real incident (Sentry PYTHON-7/8/9): this
+        # call was unguarded, so a slow/stuck Anthropic response took down
+        # the whole gunicorn worker instead of failing gracefully. See
+        # engine.py's client= comment for the full story. The user's message
+        # was already appended to the in-memory convo dict above (line 660),
+        # but planning_sessions is only written further down, after a real
+        # reply exists -- so returning early here never persists a half-turn;
+        # the failed attempt just vanishes when this request ends, safe to
+        # retry from the client's existing (unsaved) local state.
+        sentry_sdk.capture_exception(e)
+        return jsonify({
+            "reply": "That response is taking longer than expected. Please try again in a moment.",
+            "question": "",
+            "sources": [],
+            "node": active_node,
+            "anchor": convo.get("anchor", ""),
+            "chips": [],
+            "turn": convo.get("turn", 0),
+        })
     raw_text = response.content[0].text
     parsed = parse_response(raw_text)
 
@@ -867,12 +890,17 @@ def prep_doc():
     if not convo.get("messages"):
         return jsonify({"error": "Nothing to create a session recap from yet -- have a conversation first."}), 400
 
-    doc_text = generate_prep_doc(
-        convo.get("node") or "Grace",
-        convo["messages"],
-        convo.get("sources", []),
-        sections=sections,
-    )
+    try:
+        doc_text = generate_prep_doc(
+            convo.get("node") or "Grace",
+            convo["messages"],
+            convo.get("sources", []),
+            sections=sections,
+        )
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+        # See pro_chat()'s matching catch above for the full incident story.
+        sentry_sdk.capture_exception(e)
+        return jsonify({"error": "That took longer than expected to generate. Please try again in a moment."}), 504
     return jsonify({"doc": doc_text})
 
 
@@ -920,7 +948,12 @@ def compare_translation():
     ):
         return jsonify({"error": TRANSLATION_COMPARE_CAP_MESSAGE}), 429
 
-    result = generate_translation_comparison(reference)
+    try:
+        result = generate_translation_comparison(reference)
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+        # See pro_chat()'s matching catch above for the full incident story.
+        sentry_sdk.capture_exception(e)
+        return jsonify({"error": "That took longer than expected to generate. Please try again in a moment."}), 504
     return jsonify({
         "reference": reference,
         "translations": result["translations"],

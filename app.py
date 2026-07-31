@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import anthropic
 from collections import defaultdict
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -104,12 +105,16 @@ app = Flask(__name__)
 # unchanged -- Pro needed no code changes since it already read the shared
 # key. ANTHROPIC_API_KEY_FREE is a key scoped to a separate Workspace with
 # its own spend limit set directly in the Anthropic Console (Settings ->
-# Manage -> Spend limits within that Workspace), currently $25/mo -- a
-# provisional number, expected to be revisited; keep free_gate.py's own
-# FREE_TIER_MONTHLY_BUDGET constant in sync with whatever that real Anthropic
-# limit actually is, since a mismatch means Anthropic could hard-block
-# requests before the app's own capacity panel thinks there's a problem.
-free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"))
+# Manage -> Spend limits within that Workspace). Per Rick, 2026-07-31: reset
+# to $100/mo (previously $25, provisional) -- not independently re-verified
+# against the live Console by this session, just recorded as reported. Keep
+# free_gate.py's own FREE_TIER_MONTHLY_BUDGET constant in sync with whatever
+# that real Anthropic limit actually is, since a mismatch means Anthropic
+# could hard-block requests before the app's own capacity panel thinks
+# there's a problem.
+# timeout=50.0 added 2026-07-31 -- see engine.py's client= comment for the
+# full incident/reasoning (mirrors the same fix applied there).
+free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"), timeout=50.0)
 
 # Selah for Ministry (Pro) auth -- additive only, registered as a separate
 # blueprint under /pro/*. The free tool's existing routes below are
@@ -574,12 +579,31 @@ def chat():
         for m in convo["messages"][-MAX_HISTORY:]
     ]
 
-    response = free_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        system=build_system_blocks(active_node),
-        messages=clean_history,
-    )
+    try:
+        response = free_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=build_system_blocks(active_node),
+            messages=clean_history,
+        )
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+        # Added 2026-07-31 after a real incident on the Pro side (Sentry
+        # PYTHON-7/8/9) -- this call was unguarded, so a slow/stuck Anthropic
+        # response took down the whole gunicorn worker instead of failing
+        # gracefully. See engine.py's client= comment for the full story.
+        # convo["messages"] only lives in the in-memory `conversations` dict
+        # for this tier, and it isn't written back until after a real reply
+        # exists, so returning early here doesn't leave anything half-saved.
+        sentry_sdk.capture_exception(e)
+        return jsonify({
+            "reply": "That response is taking longer than expected. Please try again in a moment.",
+            "question": "",
+            "sources": [],
+            "node": active_node,
+            "anchor": convo.get("anchor", ""),
+            "chips": [],
+            "turn": convo.get("turn", 0),
+        })
     raw_text = response.content[0].text
     parsed   = parse_response(raw_text)
 
@@ -763,36 +787,48 @@ def upload_session():
         f"CONVERSATION:\n{full_transcript[:6000]}"
     )
 
-    context_resp = free_client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=400,
-        messages=[{"role": "user", "content": context_prompt}],
-    )
-    context_brief = context_resp.content[0].text.strip()
+    try:
+        context_resp = free_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": context_prompt}],
+        )
+        context_brief = context_resp.content[0].text.strip()
 
-    # Last 6 exchanges (12 messages) for conversational thread
-    recent_messages = all_messages[-12:]
+        # Last 6 exchanges (12 messages) for conversational thread
+        recent_messages = all_messages[-12:]
 
-    # Build greeting using context brief + last exchanges
-    last_exchanges = "\n\n".join(
-        f"{'Person' if m['role']=='user' else 'Selah'}: {m['content']}"
-        for m in all_messages[-4:]
-    )
-    returning_prompt = (
-        f"Context brief from prior session:\n{context_brief}\n\n"
-        f"Last exchanges:\n{last_exchanges}\n\n"
-        "Write a warm returning-session opening of 2-3 sentences only. "
-        "Reference the specific tension or question they left unresolved, then ask one focused reflection prompt. "
-        "Do NOT mention how much time has passed — you don't know. "
-        "No headers. No bullet points. No numbered lists. Plain prose only."
-    )
+        # Build greeting using context brief + last exchanges
+        last_exchanges = "\n\n".join(
+            f"{'Person' if m['role']=='user' else 'Selah'}: {m['content']}"
+            for m in all_messages[-4:]
+        )
+        returning_prompt = (
+            f"Context brief from prior session:\n{context_brief}\n\n"
+            f"Last exchanges:\n{last_exchanges}\n\n"
+            "Write a warm returning-session opening of 2-3 sentences only. "
+            "Reference the specific tension or question they left unresolved, then ask one focused reflection prompt. "
+            "Do NOT mention how much time has passed — you don't know. "
+            "No headers. No bullet points. No numbered lists. Plain prose only."
+        )
 
-    greeting_resp = free_client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=200,
-        messages=[{"role": "user", "content": returning_prompt}],
-    )
-    greeting = greeting_resp.content[0].text.strip()
+        greeting_resp = free_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{"role": "user", "content": returning_prompt}],
+        )
+        greeting = greeting_resp.content[0].text.strip()
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+        # Added 2026-07-31, same incident/reasoning as /chat's catch above.
+        # Both calls in this recap-restore flow are wrapped together since
+        # they're sequential steps of one logical operation -- either one
+        # stalling means there's no usable greeting to seed the session with.
+        sentry_sdk.capture_exception(e)
+        return jsonify({
+            "greeting": "That took longer than expected to load. Please try uploading your recap again in a moment.",
+            "node": "",
+            "anchor": "",
+        })
 
     # Seed: hidden context brief, then last 6 exchanges, then greeting
     seed_messages = (
