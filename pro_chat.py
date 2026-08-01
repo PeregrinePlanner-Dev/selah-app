@@ -15,6 +15,7 @@ later build.
 
 import os
 import re
+import time
 import anthropic
 import sentry_sdk
 from datetime import date, datetime, timedelta, timezone
@@ -26,7 +27,8 @@ from engine import (
     build_system_blocks, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
     generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
-    attach_scripture_verification,
+    attach_scripture_verification, WORKER_TIMEOUT_SECONDS,
+    HAIKU_SAFE_MARGIN_SECONDS,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, query_with_jwt_fallback
 from pro_billing import DISPLAY_PRICING
@@ -420,6 +422,23 @@ def _check_and_reserve_usage(
 @pro_chat_bp.route("/chat", methods=["POST"])
 @login_required
 def pro_chat():
+    # request_start / _budget_remaining() added 2026-08-01 after PYTHON-7/8/9
+    # recurred a THIRD time despite the 08-01 fix (max_retries=0, Haiku
+    # timeout=15.0, Procfile 60s->90s). That fix assumed a fixed worst-case
+    # (main call <=50s, Haiku call <=15s) and never actually measured real
+    # wall-clock time -- so it couldn't account for real variance elsewhere
+    # in the request (Supabase profile/subscription/session reads, a main
+    # reply that legitimately runs close to its 50s ceiling, etc.). The
+    # recurrence crashed inside the Haiku call again (SSL read still
+    # in-flight) -- meaning whatever budget was left under the Procfile's
+    # 90s worker --timeout wasn't enough, even with Haiku's own 15s cap,
+    # because gunicorn's timeout is measured against this request's total
+    # elapsed time, not reset per sub-call. Rather than guess at another
+    # fixed number, this measures actual elapsed time and skips the
+    # (non-critical, already-optional) Haiku call outright if too little
+    # of the 90s budget is left -- a hard guarantee instead of another
+    # estimate. See the Haiku call site below for where this is checked.
+    request_start = time.monotonic()
     data = request.json or {}
     message = data.get("message", "").strip()
     session_db_id = data.get("session_id")
@@ -727,50 +746,66 @@ def pro_chat():
 
     chips = []
     sources = parsed["sources"]
-    try:
-        convo_text = format_convo_for_haiku(convo["messages"])
-        # timeout=15.0 added 2026-08-01: this call runs AFTER the main Sonnet
-        # reply already succeeded, inside the same gunicorn worker window --
-        # it's cosmetic (anchor/chips/sources) and already fails soft via the
-        # except below, so it should never be allowed to eat meaningful time
-        # off the request's remaining budget. Part of the PYTHON-7/8/9 fix.
-        haiku_resp = anthropic_client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=700,
-            messages=[{
-                "role": "user",
-                "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text),
-            }],
-            timeout=15.0,
+    elapsed = time.monotonic() - request_start
+    remaining = WORKER_TIMEOUT_SECONDS - elapsed
+    if remaining < HAIKU_SAFE_MARGIN_SECONDS:
+        # Hard skip added 2026-08-01 (see request_start comment above): the
+        # main reply already succeeded and is already appended to convo
+        # above, so the user gets their real answer regardless -- this only
+        # sacrifices the cosmetic anchor/chips/sources for this one turn
+        # rather than risking the whole worker. sentry_sdk.capture_message
+        # (not capture_exception -- nothing raised) so this is visible if it
+        # starts happening often, which would mean the margin itself needs
+        # revisiting, not just this guard.
+        sentry_sdk.capture_message(
+            f"Skipped pro_chat Haiku follow-up: only {remaining:.1f}s left "
+            f"of {WORKER_TIMEOUT_SECONDS}s worker budget after main reply.",
+            level="warning",
         )
-        haiku_text = haiku_resp.content[0].text.strip()
+    else:
+        try:
+            convo_text = format_convo_for_haiku(convo["messages"])
+            # timeout is min(15.0, remaining minus a small buffer) -- never
+            # ask for more time than the worker actually has left, on top of
+            # the flat 15s cap added earlier the same day.
+            haiku_timeout = min(15.0, max(1.0, remaining - 5.0))
+            haiku_resp = anthropic_client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=700,
+                messages=[{
+                    "role": "user",
+                    "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text),
+                }],
+                timeout=haiku_timeout,
+            )
+            haiku_text = haiku_resp.content[0].text.strip()
 
-        anchor_match = re.search(r'ANCHOR:\s*(.+?)(?=\nCHIP_|\Z)', haiku_text, re.DOTALL)
-        chip_matches = re.findall(r'CHIP_\d+:\s*(.+)', haiku_text)
+            anchor_match = re.search(r'ANCHOR:\s*(.+?)(?=\nCHIP_|\Z)', haiku_text, re.DOTALL)
+            chip_matches = re.findall(r'CHIP_\d+:\s*(.+)', haiku_text)
 
-        if anchor_match:
-            convo["anchor"] = anchor_match.group(1).strip()
-        chips = [c.strip() for c in chip_matches if c.strip()]
+            if anchor_match:
+                convo["anchor"] = anchor_match.group(1).strip()
+            chips = [c.strip() for c in chip_matches if c.strip()]
 
-        if not sources:
-            blocks = re.split(r'SOURCE_END', haiku_text)
-            for block in blocks:
-                type_m = re.search(r'SOURCE_TYPE:\s*(\S+)', block)
-                label_m = re.search(r'SOURCE_LABEL:\s*(.+)', block)
-                content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
-                t_val = type_m.group(1).strip().lower() if type_m else ""
-                l_val = label_m.group(1).strip().lower() if label_m else ""
-                c_val = content_m.group(1).strip().lower() if content_m else ""
-                if (type_m and t_val not in ("none", "")
-                        and label_m and l_val not in ("none", "none identified", "")
-                        and content_m and c_val not in ("none", "none identified", "")):
-                    sources.append({
-                        "type": type_m.group(1).strip(),
-                        "label": label_m.group(1).strip(),
-                        "content": content_m.group(1).strip(),
-                    })
-    except Exception as e:
-        print(f"[PRO ANCHOR/CHIPS/SOURCE ERROR] {e}")
+            if not sources:
+                blocks = re.split(r'SOURCE_END', haiku_text)
+                for block in blocks:
+                    type_m = re.search(r'SOURCE_TYPE:\s*(\S+)', block)
+                    label_m = re.search(r'SOURCE_LABEL:\s*(.+)', block)
+                    content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
+                    t_val = type_m.group(1).strip().lower() if type_m else ""
+                    l_val = label_m.group(1).strip().lower() if label_m else ""
+                    c_val = content_m.group(1).strip().lower() if content_m else ""
+                    if (type_m and t_val not in ("none", "")
+                            and label_m and l_val not in ("none", "none identified", "")
+                            and content_m and c_val not in ("none", "none identified", "")):
+                        sources.append({
+                            "type": type_m.group(1).strip(),
+                            "label": label_m.group(1).strip(),
+                            "content": content_m.group(1).strip(),
+                        })
+        except Exception as e:
+            print(f"[PRO ANCHOR/CHIPS/SOURCE ERROR] {e}")
 
     # Non-blocking reference-existence check on any scripture-type sources
     # this turn produced -- see engine.attach_scripture_verification().

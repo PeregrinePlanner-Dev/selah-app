@@ -41,6 +41,20 @@ from anthropic import Anthropic
 # Haiku) plus processing overhead within one request.
 client = Anthropic(timeout=50.0, max_retries=0)
 
+# Shared request-budget constants, added 2026-08-01 after PYTHON-7/8/9
+# recurred a THIRD time (still inside the Haiku follow-up call) even with
+# the fixes above. Fixed per-call timeouts alone kept guessing at a worst
+# case without ever measuring real elapsed time, so they couldn't account
+# for variance elsewhere in the request (Supabase reads, a main reply that
+# legitimately runs close to its own ceiling, etc.). WORKER_TIMEOUT_SECONDS
+# must be kept in sync with the Procfile's --timeout by hand -- there's no
+# clean way to read gunicorn's own CLI flag from inside the app process.
+# HAIKU_SAFE_MARGIN_SECONDS is the minimum time left required before even
+# attempting the (non-critical, already-optional) Haiku follow-up call --
+# see pro_chat.py / app.py for where this is actually checked.
+WORKER_TIMEOUT_SECONDS = 90
+HAIKU_SAFE_MARGIN_SECONDS = 20
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent
 NODES_DIR  = BASE_DIR / "nodes"

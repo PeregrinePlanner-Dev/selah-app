@@ -21,7 +21,8 @@ from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
     format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags,
-    attach_scripture_verification,
+    attach_scripture_verification, WORKER_TIMEOUT_SECONDS,
+    HAIKU_SAFE_MARGIN_SECONDS,
 )
 
 load_dotenv()
@@ -493,6 +494,13 @@ def church_guide():
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    # request_start added 2026-08-01 -- see pro_chat.py's matching comment
+    # (PYTHON-7/8/9 recurred a third time; this measures real elapsed time
+    # instead of assuming a fixed worst case). Captured before the gate
+    # check below since that's fast/local (no network call), so it doesn't
+    # meaningfully affect the budget math.
+    request_start = time.monotonic()
+
     # Free-tier gate, added 2026-07-17. Checked before the rate limiter --
     # no point counting an unauthenticated request against the IP limiter at
     # all if it's about to be rejected anyway.
@@ -617,50 +625,61 @@ def chat():
     # ── Combined anchor + chips + source -- one Haiku call ────────────────────
     chips   = []
     sources = parsed["sources"]
-    try:
-        convo_text = format_convo_for_haiku(convo["messages"])
-        # timeout=15.0 added 2026-08-01 -- see pro_chat.py's matching comment;
-        # same reasoning applies here (part of the PYTHON-7/8/9 fix).
-        haiku_resp = free_client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=700,
-            messages=[{
-                "role": "user",
-                "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text)
-            }],
-            timeout=15.0,
+    elapsed = time.monotonic() - request_start
+    remaining = WORKER_TIMEOUT_SECONDS - elapsed
+    if remaining < HAIKU_SAFE_MARGIN_SECONDS:
+        # Hard skip added 2026-08-01 -- see pro_chat.py's matching comment
+        # (PYTHON-7/8/9 recurred a third time; same fix applied here since
+        # this free-tier path has the identical two-call shape).
+        sentry_sdk.capture_message(
+            f"Skipped free /chat Haiku follow-up: only {remaining:.1f}s left "
+            f"of {WORKER_TIMEOUT_SECONDS}s worker budget after main reply.",
+            level="warning",
         )
-        haiku_text = haiku_resp.content[0].text.strip()
+    else:
+        try:
+            convo_text = format_convo_for_haiku(convo["messages"])
+            haiku_timeout = min(15.0, max(1.0, remaining - 5.0))
+            haiku_resp = free_client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=700,
+                messages=[{
+                    "role": "user",
+                    "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text)
+                }],
+                timeout=haiku_timeout,
+            )
+            haiku_text = haiku_resp.content[0].text.strip()
 
-        anchor_match = re.search(r'ANCHOR:\s*(.+?)(?=\nCHIP_|\Z)', haiku_text, re.DOTALL)
-        chip_matches = re.findall(r'CHIP_\d+:\s*(.+)', haiku_text)
+            anchor_match = re.search(r'ANCHOR:\s*(.+?)(?=\nCHIP_|\Z)', haiku_text, re.DOTALL)
+            chip_matches = re.findall(r'CHIP_\d+:\s*(.+)', haiku_text)
 
-        if anchor_match:
-            convo["anchor"] = anchor_match.group(1).strip()
-        chips = [c.strip() for c in chip_matches if c.strip()]
-        convo["chips"] = chips
+            if anchor_match:
+                convo["anchor"] = anchor_match.group(1).strip()
+            chips = [c.strip() for c in chip_matches if c.strip()]
+            convo["chips"] = chips
 
-        # Parse all SOURCE blocks from Haiku if Sonnet tags produced nothing
-        if not sources:
-            blocks = re.split(r'SOURCE_END', haiku_text)
-            for block in blocks:
-                type_m    = re.search(r'SOURCE_TYPE:\s*(\S+)',                              block)
-                label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                              block)
-                content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
-                t_val = type_m.group(1).strip().lower()   if type_m    else ""
-                l_val = label_m.group(1).strip().lower()  if label_m   else ""
-                c_val = content_m.group(1).strip().lower() if content_m else ""
-                if (type_m and t_val not in ("none", "")
-                        and label_m and l_val not in ("none", "none identified", "")
-                        and content_m and c_val not in ("none", "none identified", "")):
-                    sources.append({
-                        "type":    type_m.group(1).strip(),
-                        "label":   label_m.group(1).strip(),
-                        "content": content_m.group(1).strip(),
-                    })
+            # Parse all SOURCE blocks from Haiku if Sonnet tags produced nothing
+            if not sources:
+                blocks = re.split(r'SOURCE_END', haiku_text)
+                for block in blocks:
+                    type_m    = re.search(r'SOURCE_TYPE:\s*(\S+)',                              block)
+                    label_m   = re.search(r'SOURCE_LABEL:\s*(.+)',                              block)
+                    content_m = re.search(r'SOURCE_CONTENT:\s*(.+?)(?=\nSOURCE_|\Z)', block, re.DOTALL)
+                    t_val = type_m.group(1).strip().lower()   if type_m    else ""
+                    l_val = label_m.group(1).strip().lower()  if label_m   else ""
+                    c_val = content_m.group(1).strip().lower() if content_m else ""
+                    if (type_m and t_val not in ("none", "")
+                            and label_m and l_val not in ("none", "none identified", "")
+                            and content_m and c_val not in ("none", "none identified", "")):
+                        sources.append({
+                            "type":    type_m.group(1).strip(),
+                            "label":   label_m.group(1).strip(),
+                            "content": content_m.group(1).strip(),
+                        })
 
-    except Exception as e:
-        print(f"[ANCHOR/CHIPS/SOURCE ERROR] {e}")
+        except Exception as e:
+            print(f"[ANCHOR/CHIPS/SOURCE ERROR] {e}")
 
     # Non-blocking reference-existence check on any scripture-type sources
     # this turn produced -- see engine.attach_scripture_verification().
