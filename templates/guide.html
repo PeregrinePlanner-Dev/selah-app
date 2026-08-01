@@ -71,6 +71,18 @@
   }
   .content hr { border: none; border-top: 1px solid #e2e8f0; margin: 22px 0; }
 
+  /* Added 2026-08-01, per Rick's request: the question actually asked
+     (the real prompt someone typed to Selah) gets a distinct background
+     from the surrounding explanation, for contrast. Applied via JS below
+     rather than pure CSS -- these paragraphs aren't otherwise marked up
+     any differently from Selah's own italicized follow-up questions in
+     the source markdown, so a plain-CSS selector can't tell them apart
+     reliably across all 11 pages. */
+  .content p.prompt-quote {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+
   .cta-box {
     background: #2f6b66; color: white; border-radius: 12px;
     padding: 22px 24px; margin-top: 30px; text-align: center;
@@ -135,6 +147,25 @@
   </footer>
 
 </div>
+
+{% if not is_home %}
+<script>
+// Marks the real, quoted prompts (what a person actually typed to Selah)
+// with .prompt-quote for the contrast background above -- distinguished
+// from Selah's own italicized follow-up questions by the one thing that's
+// actually different between them in the source content: a prompt is
+// always wrapped in quotation marks ("..."), Selah's own questions never
+// are. Runs once per page load; content is fixed, not user-editable.
+document.querySelectorAll(".content p").forEach(function (p) {
+  if (p.children.length === 1 && p.firstElementChild.tagName === "EM") {
+    var t = p.firstElementChild.textContent.trim();
+    if (t.charAt(0) === '"' || t.charAt(0) === "“") {
+      p.classList.add("prompt-quote");
+    }
+  }
+});
+</script>
+{% endif %}
 
 </body>
 </html>

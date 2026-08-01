@@ -503,10 +503,14 @@ function openDetail(kind, i) {
   if (item.slug) {
     const a = document.createElement("a");
     a.href = "/guide/" + item.slug;
-    a.textContent = "See real examples for this role →";
+    // title used instead of "this role" (Rick's call, 2026-08-01); size
+    // dropped and weight lightened so it reads as a secondary link, not
+    // a second CTA competing with the modal itself.
+    a.textContent = "See real examples for " + item.title + " →";
     a.style.display = "inline-block";
     a.style.marginTop = "10px";
-    a.style.fontWeight = "700";
+    a.style.fontWeight = "600";
+    a.style.fontSize = "0.82rem";
     body.appendChild(a);
   }
   document.getElementById("detail-modal").classList.add("show");
