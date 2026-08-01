@@ -17,6 +17,7 @@ from pro_org import pro_org_bp
 from pro_scheduler import pro_scheduler_bp
 from pro_email import send_email
 from free_gate import free_gate_bp, is_free_gate_authenticated, current_free_org_id, clear_inactivity_flag
+from guide import guide_bp
 from engine import (
     NODES, NODE_DISPLAY_NAMES, NODE_NAMES, MAX_HISTORY,
     route_to_node, build_system_blocks, parse_response,
@@ -127,6 +128,11 @@ app.register_blueprint(pro_chat_bp)
 app.register_blueprint(pro_billing_bp)
 app.register_blueprint(pro_org_bp)
 app.register_blueprint(pro_scheduler_bp)
+
+# Selah for Church Staff guide -- public, no login/seat check. Added
+# 2026-08-01. See guide.py / guide_content.py module docstrings for why
+# this is deliberately public rather than gated like the routes above.
+app.register_blueprint(guide_bp)
 
 # Free-tier mandatory sign-in gate -- additive, added 2026-07-17. See
 # free_gate.py's module docstring and 05- Future/Selah_Decisions_2026-07-17.md

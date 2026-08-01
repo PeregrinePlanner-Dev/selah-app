@@ -215,6 +215,24 @@
     <div class="role-grid" id="role-chips"></div>
   </section>
 
+  <!-- Real-example teaser, added 2026-08-01. Not a paywalled feature --
+       Rick's explicit framing: this exists to help a church commit, not
+       as its own revenue driver, so it links to a fully public guide
+       page (no account needed). Widow's-mite/Senior Pastor chosen as the
+       featured example per Rick's 2026-08-01 call -- already scrubbed of
+       internal framing, and the one real pastor (Clark) who's seen it
+       responded to specifically and positively. Reserve the right to
+       swap this for a different example later. -->
+  <section class="tight">
+    <h2>See a real example</h2>
+    <div class="testimonial-box">
+      <p style="font-size:0.85rem; color:#6b7280; margin-bottom:10px;">A real, unedited prompt and answer from Selah for Ministry:</p>
+      <p class="testimonial-quote">"I'm preaching on the widow's mite this Sunday. Give me a simple 3-point outline, a real-life illustration, and two life applications that will resonate with a Gen X congregation."</p>
+      <p style="margin-top:10px; font-size:0.9rem; color:#374151;">Jesus notices what others ignore — he sits down opposite the treasury and watches. The wealthy gifts pass unnoticed; the two small coins stop him. Application frame: what does it mean to be seen by the one who sees everything? &hellip;</p>
+    </div>
+    <div class="see-more-link"><a href="/guide/senior-pastor">Read the full example, plus every other role →</a></div>
+  </section>
+
   <section class="tight">
     <h2>Plans &amp; pricing</h2>
     <div class="price-grid">
@@ -364,15 +382,18 @@ const SOON = [
     detail: "Turn a leader's own Session Recap directly into a ready-to-run small-group lesson plan." },
 ];
 
+// slug added 2026-08-01 -- see ministry.html's matching comment. Congregation
+// Members isn't a church-staff role and has no guide page, so it stays
+// without a slug (no link rendered for it).
 const ROLES = [
-  { title: "Senior Pastors", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
-  { title: "Small Group Leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
-  { title: "Youth Leader", detail: "Build high-energy lessons suited for high-energy young people." },
-  { title: "Children's Ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
-  { title: "Drama & Worship Arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
-  { title: "Worship & Music Leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
-  { title: "Pastoral Care & Counseling", detail: "Build a library of theologically sound answers you can draw on in crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
-  { title: "Elder / Board Training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
+  { title: "Senior Pastors", slug: "senior-pastor", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
+  { title: "Small Group Leader", slug: "small-group-leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
+  { title: "Youth Leader", slug: "youth-leader", detail: "Build high-energy lessons suited for high-energy young people." },
+  { title: "Children's Ministry", slug: "childrens-ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
+  { title: "Drama & Worship Arts", slug: "drama-worship-arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
+  { title: "Worship & Music Leader", slug: "worship-music-leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
+  { title: "Pastoral Care & Counseling", slug: "pastoral-care-counseling", detail: "Build a library of theologically sound answers you can draw on in crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
+  { title: "Elder / Board Training", slug: "elder-board-training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
   { title: "Congregation Members", detail: "Personal Bible study that picks up right where it left off, week after week -- subsidized by the church, priced for everyone." },
 ];
 
@@ -415,7 +436,21 @@ renderTiles();
 function openDetail(kind, i) {
   const item = kind === "feature" ? FEATURES[i] : ROLES[i];
   document.getElementById("detail-title").textContent = item.title;
-  document.getElementById("detail-body").textContent = item.detail;
+  // slug link added 2026-08-01 -- see ministry.html's matching comment.
+  const body = document.getElementById("detail-body");
+  body.textContent = "";
+  const p = document.createElement("p");
+  p.textContent = item.detail;
+  body.appendChild(p);
+  if (item.slug) {
+    const a = document.createElement("a");
+    a.href = "/guide/" + item.slug;
+    a.textContent = "See real examples for this role →";
+    a.style.display = "inline-block";
+    a.style.marginTop = "10px";
+    a.style.fontWeight = "700";
+    body.appendChild(a);
+  }
   document.getElementById("detail-modal").classList.add("show");
 }
 function closeDetail() {

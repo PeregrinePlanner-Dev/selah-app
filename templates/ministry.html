@@ -430,20 +430,27 @@ const SOON = [
     detail: "Using this week's discussion dynamics to shape next week's followup." },
 ];
 
+// slug added 2026-08-01 -- links each card's popup to a real, public
+// preview page (Selah for Church Staff guide) for that role: actual
+// example prompts plus at least one real, unedited Selah answer. Only
+// the 11 roles with a built guide page get a slug; Authors & Podcasters
+// and Seminary & Bible College Students are individual-use cases, not a
+// church role, and were deliberately left out of that guide -- see
+// guide_content.py's docstring.
 const ROLES = [
-  { title: "Senior Pastors", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
-  { title: "Small Group Leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
-  { title: "Youth Leader", detail: "Build high-energy lessons suited for high-energy young people." },
-  { title: "Children's Ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
-  { title: "Drama & Worship Arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
-  { title: "Worship & Music Leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
-  { title: "Pastoral Care & Counseling", detail: "Build a library of theologically sound answers you can draw on in the crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
-  { title: "Missions & Outreach", detail: "Prepare for cross-tradition conversations using Selah's existing interfaith material." },
-  { title: "Elder / Board Training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
+  { title: "Senior Pastors", slug: "senior-pastor", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
+  { title: "Small Group Leader", slug: "small-group-leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
+  { title: "Youth Leader", slug: "youth-leader", detail: "Build high-energy lessons suited for high-energy young people." },
+  { title: "Children's Ministry", slug: "childrens-ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
+  { title: "Drama & Worship Arts", slug: "drama-worship-arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
+  { title: "Worship & Music Leader", slug: "worship-music-leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
+  { title: "Pastoral Care & Counseling", slug: "pastoral-care-counseling", detail: "Build a library of theologically sound answers you can draw on in the crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
+  { title: "Missions & Outreach", slug: "missions-outreach", detail: "Prepare for cross-tradition conversations using Selah's existing interfaith material." },
+  { title: "Elder / Board Training", slug: "elder-board-training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
   { title: "Authors & Podcasters", detail: "Research and citation support for the content you're already creating." },
-  { title: "Christian School Teachers", detail: "Age-appropriate materials for your classroom, with real sourcing behind it." },
+  { title: "Christian School Teachers", slug: "christian-school-teachers", detail: "Age-appropriate materials for your classroom, with real sourcing behind it." },
   { title: "Seminary & Bible College Students", detail: "Use your conversations as the basis for material mastery." },
-  { title: "Chaplaincy", detail: "Handle hospital, military, and prison visits with the extra sensitivity these contexts call for." },
+  { title: "Chaplaincy", slug: "chaplaincy", detail: "Handle hospital, military, and prison visits with the extra sensitivity these contexts call for." },
 ];
 
 function renderTiles() {
@@ -485,7 +492,23 @@ renderTiles();
 function openDetail(kind, i) {
   const item = kind === "feature" ? FEATURES[i] : ROLES[i];
   document.getElementById("detail-title").textContent = item.title;
-  document.getElementById("detail-body").textContent = item.detail;
+  // slug link added 2026-08-01 -- item.detail/title are hardcoded copy
+  // above (trusted, not user input), so building this small HTML string
+  // directly is safe; textContent alone can't render a link.
+  const body = document.getElementById("detail-body");
+  body.textContent = "";
+  const p = document.createElement("p");
+  p.textContent = item.detail;
+  body.appendChild(p);
+  if (item.slug) {
+    const a = document.createElement("a");
+    a.href = "/guide/" + item.slug;
+    a.textContent = "See real examples for this role →";
+    a.style.display = "inline-block";
+    a.style.marginTop = "10px";
+    a.style.fontWeight = "700";
+    body.appendChild(a);
+  }
   document.getElementById("detail-modal").classList.add("show");
 }
 function closeDetail() {
