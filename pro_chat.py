@@ -26,9 +26,9 @@ from engine import (
     NODES, NODE_NAMES, NODE_DISPLAY_NAMES, MAX_HISTORY, route_to_node,
     build_system_blocks, parse_response, format_convo_for_haiku,
     ANCHOR_CHIPS_QUERY, strip_tags, client as anthropic_client,
-    generate_prep_doc, generate_translation_comparison, RECAP_SECTION_KEYS,
-    attach_scripture_verification, WORKER_TIMEOUT_SECONDS,
-    HAIKU_SAFE_MARGIN_SECONDS,
+    haiku_client, generate_prep_doc, generate_translation_comparison,
+    RECAP_SECTION_KEYS, attach_scripture_verification,
+    WORKER_TIMEOUT_SECONDS, HAIKU_SAFE_MARGIN_SECONDS,
 )
 from pro_auth import login_required, get_user_supabase, get_service_client, csrf_token, query_with_jwt_fallback
 from pro_billing import DISPLAY_PRICING
@@ -765,18 +765,19 @@ def pro_chat():
     else:
         try:
             convo_text = format_convo_for_haiku(convo["messages"])
-            # timeout is min(15.0, remaining minus a small buffer) -- never
-            # ask for more time than the worker actually has left, on top of
-            # the flat 15s cap added earlier the same day.
-            haiku_timeout = min(15.0, max(1.0, remaining - 5.0))
-            haiku_resp = anthropic_client.messages.create(
+            # haiku_client (engine.py) -- switched from anthropic_client +
+            # a per-call timeout= kwarg after that override demonstrably
+            # failed to bound the call (same crash, 4th time, still blocked
+            # in the raw socket read). haiku_client has its own 15s ceiling
+            # set at construction time, the same mechanism that has
+            # reliably bounded the main call since the first 08-01 fix.
+            haiku_resp = haiku_client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=700,
                 messages=[{
                     "role": "user",
                     "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text),
                 }],
-                timeout=haiku_timeout,
             )
             haiku_text = haiku_resp.content[0].text.strip()
 

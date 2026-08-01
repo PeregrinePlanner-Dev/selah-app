@@ -22,7 +22,7 @@ from engine import (
     route_to_node, build_system_blocks, parse_response,
     format_convo_for_haiku, ANCHOR_CHIPS_QUERY, strip_tags,
     attach_scripture_verification, WORKER_TIMEOUT_SECONDS,
-    HAIKU_SAFE_MARGIN_SECONDS,
+    HAIKU_SAFE_MARGIN_SECONDS, haiku_client,
 )
 
 load_dotenv()
@@ -639,15 +639,16 @@ def chat():
     else:
         try:
             convo_text = format_convo_for_haiku(convo["messages"])
-            haiku_timeout = min(15.0, max(1.0, remaining - 5.0))
-            haiku_resp = free_client.messages.create(
+            # haiku_client (engine.py) -- see pro_chat.py's matching comment;
+            # switched from free_client + a per-call timeout= kwarg after
+            # that override failed to actually bound the call in production.
+            haiku_resp = haiku_client.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=700,
                 messages=[{
                     "role": "user",
                     "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text)
                 }],
-                timeout=haiku_timeout,
             )
             haiku_text = haiku_resp.content[0].text.strip()
 

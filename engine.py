@@ -55,6 +55,24 @@ client = Anthropic(timeout=50.0, max_retries=0)
 WORKER_TIMEOUT_SECONDS = 90
 HAIKU_SAFE_MARGIN_SECONDS = 20
 
+# haiku_client added 2026-08-01 -- SAME-DAY 4th occurrence of PYTHON-7/8/9,
+# still inside the Haiku call, even with the elapsed-time skip guard AND a
+# per-call `timeout=` kwarg passed directly to messages.create(). The crash
+# event's own stacktrace showed the call still blocked in the raw SSL
+# socket read at the moment gunicorn's watchdog fired -- meaning whatever
+# timeout value was passed as a per-call kwarg was not actually bounding
+# that socket's read the way the constructor-level `timeout=` on `client`
+# above demonstrably does (the main call, which only ever used the
+# constructor-level timeout, has not been the crash site since the first
+# 08-01 fix -- only the Haiku call, which used a per-call override, kept
+# crashing). Rather than keep trusting an override that isn't behaving as
+# documented, this gives the Haiku call its own dedicated client built the
+# same proven way as the main one: a hard timeout set at construction time.
+# max_retries=0 for the same reason as the main client. Callers should stop
+# passing `timeout=` to individual .messages.create() calls on this client
+# -- the 15s ceiling is now fixed at the client level, not per-call.
+haiku_client = Anthropic(timeout=15.0, max_retries=0)
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent
 NODES_DIR  = BASE_DIR / "nodes"
