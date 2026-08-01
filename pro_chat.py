@@ -729,6 +729,11 @@ def pro_chat():
     sources = parsed["sources"]
     try:
         convo_text = format_convo_for_haiku(convo["messages"])
+        # timeout=15.0 added 2026-08-01: this call runs AFTER the main Sonnet
+        # reply already succeeded, inside the same gunicorn worker window --
+        # it's cosmetic (anchor/chips/sources) and already fails soft via the
+        # except below, so it should never be allowed to eat meaningful time
+        # off the request's remaining budget. Part of the PYTHON-7/8/9 fix.
         haiku_resp = anthropic_client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=700,
@@ -736,6 +741,7 @@ def pro_chat():
                 "role": "user",
                 "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text),
             }],
+            timeout=15.0,
         )
         haiku_text = haiku_resp.content[0].text.strip()
 

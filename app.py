@@ -112,9 +112,10 @@ app = Flask(__name__)
 # that real Anthropic limit actually is, since a mismatch means Anthropic
 # could hard-block requests before the app's own capacity panel thinks
 # there's a problem.
-# timeout=50.0 added 2026-07-31 -- see engine.py's client= comment for the
-# full incident/reasoning (mirrors the same fix applied there).
-free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"), timeout=50.0)
+# timeout=50.0 added 2026-07-31, max_retries=0 added 2026-08-01 -- see
+# engine.py's client= comment for the full incident/reasoning (mirrors the
+# same fix applied there; the same crash shape hit this free-tier path too).
+free_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY_FREE"), timeout=50.0, max_retries=0)
 
 # Selah for Ministry (Pro) auth -- additive only, registered as a separate
 # blueprint under /pro/*. The free tool's existing routes below are
@@ -618,6 +619,8 @@ def chat():
     sources = parsed["sources"]
     try:
         convo_text = format_convo_for_haiku(convo["messages"])
+        # timeout=15.0 added 2026-08-01 -- see pro_chat.py's matching comment;
+        # same reasoning applies here (part of the PYTHON-7/8/9 fix).
         haiku_resp = free_client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=700,
@@ -625,6 +628,7 @@ def chat():
                 "role": "user",
                 "content": ANCHOR_CHIPS_QUERY.format(convo_text=convo_text)
             }],
+            timeout=15.0,
         )
         haiku_text = haiku_resp.content[0].text.strip()
 

@@ -27,7 +27,19 @@ from anthropic import Anthropic
 # instead of the connection just dying. Real incident that surfaced this:
 # Sentry PYTHON-7/8/9, 2026-07-31 (WORKER TIMEOUT -> SystemExit -> SIGKILL)
 # while generating an ordinary chat reply -- see SESSION_LOG.md.
-client = Anthropic(timeout=50.0)
+#
+# max_retries=0 added 2026-08-01 after the SAME crash recurred (PYTHON-7/8/9
+# again, regressed) despite the fix above. Root cause: the SDK's own default
+# is max_retries=2, and each retry gets its own fresh 50s budget -- so a
+# single slow/stuck call could silently re-attempt and burn 2-3x 50s of real
+# wall-clock time before ever raising APITimeoutError, well past gunicorn's
+# worker --timeout. That's why the graceful except block below never got a
+# chance to fire: gunicorn killed the worker first. Disabling retries here
+# means the 50s figure is now a hard ceiling per call, not a per-attempt
+# figure that can multiply. See Procfile's timeout bump (60s->90s) for the
+# other half of this fix -- real margin for two chained calls (Sonnet +
+# Haiku) plus processing overhead within one request.
+client = Anthropic(timeout=50.0, max_retries=0)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent
