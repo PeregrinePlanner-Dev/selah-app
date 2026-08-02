@@ -71,7 +71,7 @@
 
   <div class="card">
     {% if released %}
-      <p class="lead">Your seat's been released — thank you for giving it back rather than letting it sit idle. Want back in later? Just ask for a fresh invite any time.</p>
+      <p class="lead">Your seat's been released — thank you for giving it back rather than letting it sit idle. Want back in later? Just ask for a fresh invitation any time.</p>
       <button onclick="window.location.href='/access'">Done</button>
     {% elif already_signed_in %}
       <p class="lead">You're already signed in.</p>
@@ -85,7 +85,7 @@
       </div>
 
       <div id="step-email" class="step active">
-        <p class="lead">Selah's free tool is invite-only right now. Got a personal invite link? Just click it and you're in. Already have an account? Enter your email below to sign in.</p>
+        <p class="lead">Selah's free tool is by invitation right now. Have a personal invitation link? Click it and you're in. Don't have one? Join the waitlist below -- new users are added as funding allows. Already have an account? Enter your email to sign in.</p>
         <label for="first_name">First name</label>
         <input type="text" id="first_name" autocomplete="given-name">
         <label for="last_name">Last name</label>
@@ -114,11 +114,11 @@
           <span>I confirm I am 13 years of age or older.</span>
         </label>
         <button id="btn-request" onclick="requestCode()">Continue</button>
-        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have an invite? Join the waitlist</a></div>
+        <div class="footnote" style="margin-top:14px;"><a href="#" onclick="showStep('step-waitlist'); return false;">Don't have an invitation? Join the waitlist</a></div>
       </div>
 
       <div id="step-waitlist" class="step">
-        <p class="lead">Selah's free tool is invite-only for now while it stays within budget. Leave your name and email and we'll reach out when a spot opens — no promises on timing, but it's a real list someone checks.</p>
+        <p class="lead">If you're interested in Selah's free version, join the waitlist below -- new users are added as funding allows. Leave your name and email and we'll reach out when a spot opens; no promises on timing, but it's a real list someone checks.</p>
         <label for="wl_name">Name</label>
         <input type="text" id="wl_name" autocomplete="name">
         <label for="wl_email">Email</label>
@@ -346,7 +346,7 @@ async function submitWaitlist() {
 }
 
 function releaseSeat() {
-  if (!confirm("Release your Selah seat? This deletes your account and everything in it, and opens the spot up for someone else. You can always ask for a fresh invite later.")) return;
+  if (!confirm("Release your Selah seat? This deletes your account and everything in it, and opens the spot up for someone else. You can always ask for a fresh invitation later.")) return;
   fetch("/access/release", { method: "POST" })
     .then(res => res.text())
     .then(html => { document.open(); document.write(html); document.close(); })

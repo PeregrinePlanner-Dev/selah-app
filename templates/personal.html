@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Selah for Ministry</title>
-<meta name="description" content="Selah for Ministry: real accounts, structured teaching prep, and continuity across your sermon or lesson prep, for pastors, leaders, and teachers.">
+<title>Selah for Personal Study</title>
+<meta name="description" content="Selah for Personal Study: real accounts and structured, ongoing depth for your own walk with God -- no group to lead, no lesson to prep, just your own study taken seriously.">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-FG9VBEVGZQ"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -51,14 +51,6 @@
   }
   .cta-btn-primary:hover { background: #234f4b; }
 
-  /* ── Testimonial ── */
-  .testimonial-box {
-    background: white; border-left: 4px solid #2f6b66; border-radius: 6px;
-    padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  }
-  .testimonial-quote { font-style: italic; color: #1f2937; font-size: 1rem; line-height: 1.65; margin-bottom: 12px; }
-  .testimonial-cite { font-style: normal; font-weight: 700; color: #2f6b66; font-size: 0.88rem; }
-
   /* ── Feature grid (real, built features — clickable tiles) ── */
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
@@ -75,7 +67,7 @@
   .see-more-link a { font-weight: 700; text-decoration: none; }
   .see-more-link a:hover { text-decoration: underline; }
 
-  /* ── Role cards (deliberately distinct from the feature tiles above: 3-col, serif, different card color) ── */
+  /* ── Use-case cards (deliberately distinct from the feature tiles above: 3-col, serif, different card color) ── */
   .role-divider { border: none; border-top: 1px solid #d7dae0; margin: 34px 0 6px; }
   .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 700px) { .role-grid { grid-template-columns: 1fr 1fr; } }
@@ -97,14 +89,6 @@
   .soon-list li::before { content: "◷"; color: #b45309; font-weight: 700; position: absolute; left: 0; }
   .soon-list .soon-title { font-weight: 700; color: #1f2937; }
   .soon-list .soon-detail { font-size: 0.88rem; color: #6b7280; }
-
-  /* ── Role chips ── */
-  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip {
-    background: #f0fdf4; border: 1px solid #a7f3d0; border-radius: 999px;
-    padding: 7px 14px; font-size: 0.82rem; color: #065f46; cursor: pointer;
-  }
-  .chip:hover { background: #ecfdf5; }
 
   /* ── Pricing ── */
   .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
@@ -130,15 +114,6 @@
   .price-card .price-cta:hover { background: #234f4b; }
   .price-card .price-cta.secondary { background: #f0fdf4; color: #065f46; border: 1px solid #a7f3d0; }
   .price-card .price-cta.secondary:hover { background: #e6faee; }
-  .seat-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 0.88rem; }
-  .seat-table td { padding: 6px 0; color: #374151; }
-  .seat-table td:last-child { text-align: right; font-weight: 700; color: #1f2937; }
-  .seat-table tr + tr td { border-top: 1px solid #f0f1f3; }
-  .new-badge {
-    display: inline-block; background: #fef3c7; color: #92400e; font-size: 0.68rem;
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-    padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
-  }
   .trial-note {
     background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
     padding: 14px 18px; font-size: 0.88rem; color: #1e3a5f; margin-top: 16px;
@@ -159,15 +134,15 @@
   .spec-benefits li:last-child { margin-bottom: 0; }
   .spec-benefits li::before { content: "•"; color: #2f6b66; font-weight: 700; position: absolute; left: 0; }
 
-  /* ── Church teaser ── */
-  .church-teaser {
+  /* ── Cross-link teaser (points up to /ministry, mirrors ministry.html's church-teaser pattern in the other direction) ── */
+  .cross-teaser {
     background: #f0fdf4; border: 1px solid #a7f3d0; border-radius: 12px;
     padding: 24px 26px;
   }
-  .church-teaser-eyebrow { color: #065f46; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-  .church-teaser h2 { margin-bottom: 8px; }
-  .church-teaser p { margin-bottom: 4px; }
-  .church-teaser .cta-btn-primary { margin-top: 12px; }
+  .cross-teaser-eyebrow { color: #065f46; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .cross-teaser h2 { margin-bottom: 8px; }
+  .cross-teaser p { margin-bottom: 4px; }
+  .cross-teaser .cta-btn-primary { margin-top: 12px; }
 
   /* ── CTA ── */
   .cta-box {
@@ -211,26 +186,17 @@
 
 <header class="site-header">
   <div>
-    <div class="brand">Selah for Ministry</div>
-    <div class="brand-sub">Built for those serious about preaching, teaching, lesson prep, and personal Bible study.</div>
+    <div class="brand">Selah for Personal Study</div>
+    <div class="brand-sub">For your walk with God.</div>
   </div>
 </header>
 
 <div class="wrap">
 
   <section class="hero">
-    <div class="eyebrow">For pastors, leaders, teachers and those looking for more depth of study</div>
-    <h1>Selah, built for those who are serious about ministry.</h1>
-    <p class="lede">Selah for Ministry is no longer simply "help me understand this." Now, it's "help me communicate the Word to others." This version offers conversations that pick up right where you left them, and an easy way to turn your study into a tangible teaching tool.</p>
+    <h1>Selah, get closer to God.</h1>
+    <p class="lede">Selah for Personal Study is for one person: you. Ask the question you've actually been sitting with and follow it as deep as you want — Selah keeps the record, so you can pick it back up anytime.</p>
     <a class="cta-btn-primary" href="/pro/">Start your free trial →</a>
-  </section>
-
-  <section class="tight">
-    <h2>Is Selah effective?</h2>
-    <div class="testimonial-box">
-      <p class="testimonial-quote">"Selah – Exploring Theology has completely changed how I approach personal Bible study, sermon preparation, small group teaching preparation, and other ministry-related issues. My questions are met with cogent responses including appropriate Scriptures and wisdom from a library of Christian theologians and authors. Each response continues the conversation with additional questions to help me work my way through a topic. I highly recommend this effective ministry tool."</p>
-      <div class="testimonial-cite">— Clark Cothern, Senior Pastor, Vallecito Church</div>
-    </div>
   </section>
 
   <section class="tight">
@@ -243,8 +209,8 @@
   <hr class="role-divider">
 
   <section class="tight">
-    <h2>Who benefits from Selah for Ministry?</h2>
-    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Not just the pastor. Click a title to see how others are using Selah.</p>
+    <h2>Who is Selah for Personal Study built for?</h2>
+    <p style="font-size:0.85rem;color:#6b7280;margin-bottom:14px;">Click a card to see how others use it on their own.</p>
     <div class="role-grid" id="role-chips"></div>
   </section>
 
@@ -254,7 +220,7 @@
 
       <div class="price-card">
         <div class="price-name">Explore</div>
-        <div class="price-sub">Get started in your structured study</div>
+        <div class="price-sub">Get started in your own study</div>
         <div class="price-amount">${{ pricing.explore.monthly }}<span class="unit">/month</span></div>
         <div class="price-note">${{ pricing.explore.annual }}/year (two months free).</div>
         <ul>
@@ -267,7 +233,7 @@
 
       <div class="price-card">
         <div class="price-name">Pursue</div>
-        <div class="price-sub">Deeper study and teaching prep</div>
+        <div class="price-sub">More room for deeper study</div>
         <div class="price-amount">${{ pricing.pursue.monthly }}<span class="unit">/month</span></div>
         <div class="price-note">${{ pricing.pursue.annual }}/year (two months free).</div>
         <ul>
@@ -308,11 +274,11 @@
   </section>
 
   <section class="tight">
-    <div class="church-teaser">
-      <div class="church-teaser-eyebrow">For churches &amp; ministry teams</div>
-      <h2>Consider Selah for your entire congregation?</h2>
-      <p>See how you can build a new love for the Word in your entire flock. Selah for Churches brings the best features and makes them affordable for everyone.</p>
-      <a class="cta-btn-primary" href="/church">See church features &amp; pricing →</a>
+    <div class="cross-teaser">
+      <div class="cross-teaser-eyebrow">Leading or teaching others, too?</div>
+      <h2>See Selah for Ministry</h2>
+      <p>Same depth, plus tools that turn your own study into something you can teach.</p>
+      <a class="cta-btn-primary" href="/ministry">See Selah for Ministry →</a>
     </div>
   </section>
 
@@ -323,14 +289,14 @@
 
   <section>
     <div class="cta-box">
-      <h2>Ready to explore Selah for Ministry?</h2>
+      <h2>Ready to explore Selah for Personal Study?</h2>
       <p>Start your free trial here.</p>
       <a class="cta-btn" href="/pro/">Let's begin →</a>
     </div>
   </section>
 
   <footer>
-    Selah for Ministry is a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
+    Selah for Personal Study is a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
     <div style="margin-top:8px; opacity:0.8;">&copy; 2026 Artistyle, LLC. All rights reserved.</div>
   </footer>
 
@@ -348,69 +314,61 @@
 </div>
 
 <script>
-// Only genuinely built, shipped features go here — anything still on the
-// roadmap belongs in SOON below, never blended into this list. See
-// Selah_Free_vs_Pro_Functionality_Comparison.md for the audit this was
-// built from (2026-07-08), and Selah_Ministry_Feature_Highlights_2026-07-18_v3.docx
-// for the full 9-row ranked version this top-6 and the spec table below are both
-// pulled from.
+// Same underlying built features as ministry.html's FEATURES/SPEC -- this is
+// the same Pro product. Titles/copy reframed away from "teaching prep"
+// toward personal study/journaling, since that's the actual use here.
+// Everything else (translation compare, cross-tradition bridge, memory,
+// multi-voice theology) already reads fine for an individual as-is.
 const FEATURES = [
   { title: "Honest, Multi-Voice Theology",
     teaser: "60+ theologians. Honest disagreement, not one flattened answer.",
     detail: "Draws on 60+ respected theologians across multiple traditions, not just one narrow point of view. Shows where thoughtful Christians genuinely disagree, and why, instead of flattening to one perspective. Feels like sitting down with a room full of wise voices, not one opinionated bot." },
-  { title: "A Ready-Made Teaching Tool",
-    teaser: "Turn any conversation into something you can teach from.",
-    detail: "Turns any conversation into a plain-language summary, source list, citations, or discussion questions. Ready in moments, not hours of manual prep. Takes you from \"I explored this\" to \"I can teach this.\"" },
-  { title: "Conversations That Remember You",
-    teaser: "Sessions that survive redeploys and device changes.",
-    detail: "Pick up right where you left off, on any device, even weeks later. Nothing is lost to a server restart or a new browser tab. Study builds on itself instead of starting over every time." },
-  { title: "Complete Memory for Long Conversations",
-    teaser: "Long studies keep their shape instead of losing the thread.",
-    detail: "Remembers where a study has been, even across a long or resumed conversation. Keeps the thread instead of losing it. Makes deep, ongoing study possible, not just a one-off Q&A." },
+  { title: "A Study You Can Actually Keep",
+    teaser: "Turn any conversation into a summary you'll actually revisit.",
+    detail: "Turns any conversation into a plain-language summary, source list, and citations. Ready in moments, useful for your own notes or the next time this question comes up. Takes you from \"I explored this\" to \"I actually understand this.\"" },
+  { title: "Nothing About Your Study Gets Lost",
+    teaser: "Persists across devices and even the longest conversations.",
+    detail: "Pick up right where you left off, on any device, even weeks later -- nothing is lost to a server restart or a new browser tab. Even a long, winding study keeps its shape instead of losing the thread, so real, ongoing study is possible, not just a one-off Q&A." },
   { title: "A Bridge for Cross-Tradition Conversations",
-    teaser: "Entry points for cross-tradition conversations.",
-    detail: "Purpose-built entry points for conversations with others of a different faith background. A real asset for missions, outreach, and everyday apologetics. Helps you meet people where they actually are." },
+    teaser: "Entry points for real conversations with someone who sees it differently.",
+    detail: "Purpose-built entry points for conversations with others of a different faith background. A real asset before a hard conversation with a friend, family member, or coworker. Helps you meet people where they actually are." },
   { title: "Exploration That Feels Like Discovery",
     teaser: "Follow a question wherever it leads.",
-    detail: "Follow a question wherever it actually leads, not a rigid lesson plan. Every rabbit trail still stays grounded in real sources, so curiosity never feels unsafe. Turns Bible study from an obligation into something fun that people actually want to come back to." },
+    detail: "Follow a question wherever it actually leads, not a rigid lesson plan. Every rabbit trail still stays grounded in real sources, so curiosity never feels unsafe. Turns Bible study from an obligation into something fun you actually want to come back to." },
 ];
 
-// The full ranked feature set — everything above, plus three more that don't
-// have a top-of-page card. Static, no clicks: this section is meant to be
-// skimmed in one pass right after pricing, not explored tile by tile.
+// The full ranked feature set -- same content as ministry.html's SPEC, with
+// only the teaching-prep entry reworded to match FEATURES above. Static, no
+// clicks: meant to be skimmed in one pass right after pricing.
 const SPEC = [
   { title: "Honest, Multi-Voice Theology", bullets: [
     "Draws on 60+ respected theologians across multiple traditions, not just one narrow point of view",
     "Shows where thoughtful Christians genuinely disagree, and why, instead of flattening to one perspective",
     "Feels like sitting down with a room full of wise voices, not one opinionated bot" ] },
-  { title: "A Ready-Made Teaching Tool", bullets: [
-    "Turns any conversation into a plain-language summary, source list, citations, or discussion questions",
-    "Ready in moments, not hours of manual prep",
-    "Takes you from \"I explored this\" to \"I can teach this\"" ] },
-  { title: "Conversations That Remember You", bullets: [
+  { title: "A Study You Can Actually Keep", bullets: [
+    "Turns any conversation into a plain-language summary, source list, and citations",
+    "Ready in moments, useful for your own notes or the next time this question comes up",
+    "Takes you from \"I explored this\" to \"I actually understand this\"" ] },
+  { title: "Nothing About Your Study Gets Lost", bullets: [
     "Pick up right where you left off, on any device, even weeks later",
-    "Nothing is lost to a server restart or a new browser tab",
-    "Study builds on itself instead of starting over every time" ] },
-  { title: "Complete Memory for Long Conversations", bullets: [
-    "Remembers where a study has been, even across a long or resumed conversation",
-    "Keeps the thread instead of losing it",
+    "Nothing is lost to a server restart or a new browser tab, even across a long or resumed conversation",
     "Makes deep, ongoing study possible, not just a one-off Q&A" ] },
   { title: "A Bridge for Cross-Tradition Conversations", bullets: [
     "Purpose-built entry points for conversations with others of a different faith background",
-    "A real asset for missions, outreach, and everyday apologetics",
+    "A real asset before a hard conversation with a friend, family member, or coworker",
     "Helps you meet people where they actually are" ] },
   { title: "Exploration That Feels Like Discovery", bullets: [
     "Follow a question wherever it actually leads, not a rigid lesson plan",
     "Every rabbit trail still stays grounded in real sources, so curiosity never feels unsafe",
-    "Turns Bible study from an obligation into something fun that people actually want to come back to" ] },
+    "Turns Bible study from an obligation into something fun you actually want to come back to" ] },
   { title: "Care for the Difficult Moments", bullets: [
     "Carries pastoral sensitivity into conversations about grief, doubt, and crisis",
-    "Built to be useful in a hospital room or a late-night crisis call, not just at a desk",
+    "Built to be useful at 2 am, when you have real questions",
     "Never trades honesty for comfort, or comfort for honesty" ] },
   { title: "Side-by-Side Translation Insight", bullets: [
     "Compares a verse across NASB, ESV, and KJV instantly",
     "Flags whether a wording difference is a real theological question or simply stylistic",
-    "Saves the guesswork during prep" ] },
+    "Saves the guesswork during your own study" ] },
   { title: "A Map of What You've Explored", bullets: [
     "Tracks which doctrines and theologians you've spent time with",
     "Identifies the places you haven't explored yet",
@@ -418,10 +376,7 @@ const SPEC = [
 ];
 
 // Not built yet. Kept in a visually distinct, non-clickable list on purpose
-// — never presented as if it's live today. Trimmed to 2 items 2026-07-08 per
-// Rick's call -- "A Quiet Hand on the Wheel" (drift-nudge) stays out of this
-// public-facing list for now; it's still tracked internally in
-// Selah_Pro_Build_Roadmap.md, just not pitched here yet.
+// -- never presented as if it's live today. Same two items as ministry.html.
 const SOON = [
   { title: "The Philosophy Layer",
     detail: "Approaching hard questions using history's foundational philosophers, alongside the theologians already built in." },
@@ -429,27 +384,22 @@ const SOON = [
     detail: "Using this week's discussion dynamics to shape next week's followup." },
 ];
 
-// slug added 2026-08-01 -- links each card's popup to a real, public
-// preview page (Selah for Church Staff guide) for that role: actual
-// example prompts plus at least one real, unedited Selah answer. Only
-// the 11 roles with a built guide page get a slug; Authors & Podcasters
-// and Seminary & Bible College Students are individual-use cases, not a
-// church role, and were deliberately left out of that guide -- see
-// guide_content.py's docstring.
+// Added 2026-08-02 -- use-case cards for Selah for Personal Study, the
+// individual-focused counterpart to ministry.html's ROLES. No slug links:
+// unlike the church-staff guide, there's no built library of real captured
+// examples per use-case yet -- these are honest use-case descriptions, not
+// a promise of an examples page that doesn't exist. Add slugs here only
+// once (if) a matching real-example page gets built, same pattern as
+// ministry.html's ROLES/guide_content.py.
 const ROLES = [
-  { title: "Senior Pastors", slug: "senior-pastor", detail: "Sermon preparation that produces the structured outline, real citations, and discussion questions built alongside the underlying theology." },
-  { title: "Small Group Leader", slug: "small-group-leader", detail: "Build next week's discussion from what actually happened in your group last week, not a generic script." },
-  { title: "Youth Leader", slug: "youth-leader", detail: "Build high-energy lessons suited for high-energy young people." },
-  { title: "Children's Ministry", slug: "childrens-ministry", detail: "When you need story over abstraction. Preps your lesson with a plan for the unexpected questions kids actually ask." },
-  { title: "Drama & Worship Arts", slug: "drama-worship-arts", detail: "Doctrine turns into a dynamic scene, not a discussion guide. Watch the Word come to life." },
-  { title: "Worship & Music Leader", slug: "worship-music-leader", detail: "Theologically loose lyrics don't make it to Sunday morning. Build song sets that enhance the sermon series." },
-  { title: "Pastoral Care & Counseling", slug: "pastoral-care-counseling", detail: "Build a library of theologically sound answers you can draw on in the crisis moments that need an immediate response, whether in a hospital room or on a crisis call." },
-  { title: "Missions & Outreach", slug: "missions-outreach", detail: "Prepare for cross-tradition conversations using Selah's existing interfaith material." },
-  { title: "Elder / Board Training", slug: "elder-board-training", detail: "Pressure-test a position statement for sound theology before it's presented to the congregation. Solve issues with truth, not opinion." },
-  { title: "Authors & Podcasters", detail: "Research and citation support for the content you're already creating." },
-  { title: "Christian School Teachers", slug: "christian-school-teachers", detail: "Age-appropriate materials for your classroom, with real sourcing behind it." },
-  { title: "Seminary & Bible College Students", detail: "Use your conversations as the basis for material mastery." },
-  { title: "Chaplaincy", slug: "chaplaincy", detail: "Handle hospital, military, and prison visits with the extra sensitivity these contexts call for." },
+  { title: "I'm new in the faith", detail: "Ask the basic questions without feeling like you should already know the answer." },
+  { title: "I've believed for years, and want more", detail: "Push past the answers you've already heard into real, honest depth." },
+  { title: "I'm wrestling with real doubt", detail: "Sit with the hard question honestly, without being rushed to a tidy answer." },
+  { title: "I'm in the middle of real grief", detail: "Explore what Scripture and faithful thinkers actually say when the easy answers don't hold up." },
+  { title: "I've got a hard conversation coming", detail: "Think through what you actually believe before a conversation with someone who sees it differently." },
+  { title: "I'm raising kids in the faith", detail: "Get your own footing on the difficult questions before your kids ask them." },
+  { title: "I'm coming back after time away", detail: "Pick back up where curiosity feels safe again, at your own pace." },
+  { title: "I'm just exploring", detail: "No agenda required. Follow whatever question is actually on your mind today." },
 ];
 
 function renderTiles() {
@@ -491,9 +441,6 @@ renderTiles();
 function openDetail(kind, i) {
   const item = kind === "feature" ? FEATURES[i] : ROLES[i];
   document.getElementById("detail-title").textContent = item.title;
-  // slug link added 2026-08-01 -- item.detail/title are hardcoded copy
-  // above (trusted, not user input), so building this small HTML string
-  // directly is safe; textContent alone can't render a link.
   const body = document.getElementById("detail-body");
   body.textContent = "";
   const p = document.createElement("p");
@@ -502,9 +449,6 @@ function openDetail(kind, i) {
   if (item.slug) {
     const a = document.createElement("a");
     a.href = "/guide/" + item.slug;
-    // title used instead of "this role" (Rick's call, 2026-08-01); size
-    // dropped and weight lightened so it reads as a secondary link, not
-    // a second CTA competing with the modal itself.
     a.textContent = "See real examples for " + item.title + " →";
     a.style.display = "inline-block";
     a.style.marginTop = "10px";

@@ -146,7 +146,7 @@ GENERIC_CODE_ERROR = (
     "request a new one."
 )
 WRONG_EMAIL_ERROR = (
-    "That invite code was sent to a different email address. Enter the "
+    "That invitation code was sent to a different email address. Enter the "
     "email it was originally sent to, or ask whoever invited you for a "
     "fresh code."
 )
@@ -435,7 +435,7 @@ def access_request():
             return jsonify({"error": WRONG_EMAIL_ERROR}), 400
         if "invalid_or_used_free_tier_invite_code" in msg:
             return jsonify({
-                "error": "That invite code isn't valid, has already been used, "
+                "error": "That invitation code isn't valid, has already been used, "
                          "or has expired. Double-check it, or ask whoever "
                          "invited you for a fresh one."
             }), 400
@@ -617,14 +617,14 @@ def _release_free_seat(user_id: str, email: str | None, first_name: str | None =
             body = f"""
               <p>{greeting}</p>
               <p>Your Selah account hadn't been used in 60 days, including the two weeks since we checked in to ask -- so it's been released to free up the spot for someone on the waitlist.</p>
-              <p>Want back in? Just ask for a fresh invite any time.</p>
+              <p>Want back in? Just ask for a fresh invitation any time.</p>
             """
         else:
             subject = "Your Selah seat has been released"
             body = f"""
               <p>{greeting}</p>
-              <p>Your Selah account has been released, and the spot's been freed up for the next person waiting for an invite. Thank you for giving it back rather than letting it sit idle.</p>
-              <p>Want back in later? Just ask for a fresh invite any time.</p>
+              <p>Your Selah account has been released, and the spot's been freed up for the next person waiting for an invitation. Thank you for giving it back rather than letting it sit idle.</p>
+              <p>Want back in later? Just ask for a fresh invitation any time.</p>
             """
         send_email(email, subject, body)
     return True
@@ -647,7 +647,7 @@ def send_free_tier_inactivity_nudge_email(email: str, sign_in_link: str, first_n
     subject = "Still using Selah?"
     html = f"""
       <p>{greeting}</p>
-      <p>It's been 30 days since you've used Selah's free tool. No pressure -- but if you're not using it right now, releasing your spot opens it up for someone waiting for an invite. If we don't hear anything, an inactive seat is released automatically after 60 days total, so this doesn't just sit as a silent deadline.</p>
+      <p>It's been 30 days since you've used Selah's free tool. No pressure -- but if you're not using it right now, releasing your spot opens it up for someone waiting for an invitation. If we don't hear anything, an inactive seat is released automatically after 60 days total, so this doesn't just sit as a silent deadline.</p>
       <p><a href="{sign_in_link}">Sign in</a> to keep going, or release your seat from there if you're done with it. Signing in and using Selah at all resets this.</p>
     """
     return send_email(email, subject, html)
@@ -1229,8 +1229,8 @@ def _create_and_send_invite(name: str, email: str) -> dict:
     greeting = f"Hi {name}," if name else "Hi,"
     html = f"""
       <p>{greeting}</p>
-      <p>You've been invited to try Selah's free exploration tool. <strong style="color:#b45309;">This invite expires in {DEFAULT_INVITE_EXPIRY_DAYS} days</strong> -- don't wait too long to claim it.</p>
-      <p><a href="{invite_link}" style="font-weight:600;">Click here to get started</a> -- it'll have your email and invite code
+      <p>You've been invited to try Selah's free exploration tool. <strong style="color:#b45309;">This invitation expires in {DEFAULT_INVITE_EXPIRY_DAYS} days</strong> -- don't wait too long to claim it.</p>
+      <p><a href="{invite_link}" style="font-weight:600;">Click here to get started</a> -- it'll have your email and invitation code
       ({token}) already filled in. First time only; after that you'll just sign in with your email.</p>
     """
     sent = send_email(email, f"You're invited to Selah -- expires in {DEFAULT_INVITE_EXPIRY_DAYS} days", html)

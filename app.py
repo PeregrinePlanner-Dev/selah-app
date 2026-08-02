@@ -293,6 +293,17 @@ def index():
 def ministry():
     return render_template("ministry.html", pricing=DISPLAY_PRICING)
 
+@app.route("/personal")
+def personal():
+    # Added 2026-08-02 -- Selah for Personal Study. Same underlying Pro
+    # product/pricing as /ministry (Explore/Pursue/Immerse, same /pro/
+    # signup), just a separate landing page for individuals studying on
+    # their own rather than teaching/leading others. See ministry.html's
+    # existing church-teaser pattern -- this page's own teaser points the
+    # other direction, up to /ministry, for anyone who lands here but is
+    # actually teaching or leading a group.
+    return render_template("personal.html", pricing=DISPLAY_PRICING)
+
 @app.route("/church")
 def church():
     # Dedicated Church/Org marketing page -- linked from the brief teaser

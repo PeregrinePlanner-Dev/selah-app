@@ -319,10 +319,10 @@ def pro_home():
 # failed invite must never silently land someone on an ordinary signup
 # without telling them -- this is that message.
 _INVITE_RESOLUTION_MESSAGES = {
-    "invalid_code": "That invite link/code isn't recognized -- your account was created as a regular signup instead. Double-check the link with your church, or continue on your own.",
-    "expired": "That invite link/code has expired -- your account was created as a regular signup instead. Ask your church for a fresh one, or continue on your own.",
-    "already_used": "That invite link has already been used by someone else -- Leadership invites are single-use. Your account was created as a regular signup instead; ask your church admin for a new invite.",
-    "wrong_email": "That invite was issued to a different email address -- Leadership invites are tied to one specific person. Your account was created as a regular signup instead; ask your church admin to reissue it to this email.",
+    "invalid_code": "That invitation link/code isn't recognized -- your account was created as a regular signup instead. Double-check the link with your church, or continue on your own.",
+    "expired": "That invitation link/code has expired -- your account was created as a regular signup instead. Ask your church for a fresh one, or continue on your own.",
+    "already_used": "That invitation link has already been used by someone else -- Leadership invitations are single-use. Your account was created as a regular signup instead; ask your church admin for a new invitation.",
+    "wrong_email": "That invitation was issued to a different email address -- Leadership invitations are tied to one specific person. Your account was created as a regular signup instead; ask your church admin to reissue it to this email.",
 }
 
 
