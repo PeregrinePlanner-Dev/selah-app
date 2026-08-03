@@ -696,7 +696,13 @@ def pro_chat():
     # prompt blocks below rather than concatenated into them, so the large
     # static prompt keeps its prompt-cache hit rate -- only this small,
     # per-turn-changing block is sent fresh each time.
-    system_blocks = build_system_blocks(active_node)
+    # include_philosophy=True unconditionally -- 2026-08-03, Rick's call:
+    # every paid account gets the Philosophy Layer, regardless of Individual
+    # Pro exchange tier or Church/Org seat type. This route (pro_chat.py) is
+    # only ever reached by an authenticated paid session in the first place,
+    # so no additional tier/seat_type check is needed here -- reaching this
+    # line already means "paid."
+    system_blocks = build_system_blocks(active_node, include_philosophy=True)
     if convo.get("anchor"):
         system_blocks.append({
             "type": "text",

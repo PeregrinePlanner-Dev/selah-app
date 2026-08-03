@@ -335,6 +335,9 @@ const FEATURES = [
   { title: "Exploration That Feels Like Discovery",
     teaser: "Follow a question wherever it leads.",
     detail: "Follow a question wherever it actually leads, not a rigid lesson plan. Every rabbit trail still stays grounded in real sources, so curiosity never feels unsafe. Turns Bible study from an obligation into something fun you actually want to come back to." },
+  { title: "The Philosophy Layer",
+    teaser: "History's philosophers, brought in when a question goes deeper.",
+    detail: "When a question pushes past the theological answer to the deeper premise underneath it, Selah can draw on history's major philosophers -- from Socrates and Aristotle through Kant, Kierkegaard, and Nietzsche -- as supporting context, never as a competing voice to the theologians already at the center of the conversation." },
 ];
 
 // The full ranked feature set -- same content as ministry.html's SPEC, with
@@ -373,13 +376,17 @@ const SPEC = [
     "Tracks which doctrines and theologians you've spent time with",
     "Identifies the places you haven't explored yet",
     "Turns scattered curiosity into a coherent, ever-expanding portrait of your own study" ] },
+  { title: "The Philosophy Layer", bullets: [
+    "Draws on history's major philosophers, ancient through contemporary, as premise-level background, not a competing voice",
+    "Only brought in when a question actually pushes past the theological answer to what's underneath it",
+    "A theologian still carries the argument; a philosopher only ever supports it" ] },
 ];
 
 // Not built yet. Kept in a visually distinct, non-clickable list on purpose
-// -- never presented as if it's live today. Same two items as ministry.html.
+// -- never presented as if it's live today. "The Philosophy Layer" moved
+// out 2026-08-03 (shipped, see FEATURES/SPEC above); same one remaining
+// item as ministry.html.
 const SOON = [
-  { title: "The Philosophy Layer",
-    detail: "Approaching hard questions using history's foundational philosophers, alongside the theologians already built in." },
   { title: "Following the Spirit's Actual Work",
     detail: "Using this week's discussion dynamics to shape next week's followup." },
 ];

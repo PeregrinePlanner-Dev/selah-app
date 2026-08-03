@@ -81,6 +81,20 @@ PROMPT_DIR = BASE_DIR / "prompt"
 # ── Load master prompt & nodes at startup ─────────────────────────────────────
 MASTER_PROMPT = (PROMPT_DIR / "TES_Master_Prompt_v1.md").read_text(encoding="utf-8")
 
+# Philosophy Layer, added 2026-08-03 -- Rick's call: every paid account gets
+# this (Individual Pro at any exchange tier, Church/Org at any seat type),
+# free tier never does. Loaded as its OWN cached block (see
+# build_system_blocks' include_philosophy param below) rather than folded
+# into MASTER_PROMPT itself, so the free/paid split is enforced in code --
+# not left to the model to infer which tier it's talking to. Content is a
+# compressed distillation of the 33 already-written profiles in
+# "04- Philosophers and Apologists/" (vault), mirroring the existing
+# Theologian Engine section's own compact per-figure style -- same proven
+# pattern (rely on Claude's real knowledge of these figures, no per-profile
+# file injection), not the heavier "load all 33, dynamically pick one per
+# turn" architecture floated in PHILOSOPHER_TRACKER.md and never built.
+PHILOSOPHY_LAYER = (PROMPT_DIR / "PHILOSOPHY_LAYER_v1.md").read_text(encoding="utf-8")
+
 NODES = {}
 NODE_DISPLAY_NAMES = {}
 for f in sorted(NODES_DIR.glob("*.md")):
@@ -573,11 +587,20 @@ Rules:
 - If you introduced nothing new this turn, omit SOURCE tags entirely.
 """
 
-def build_system_blocks(node_name: str) -> list:
-    """Three system blocks, in the same reading order the model always saw
-    (MASTER_PROMPT -> node content -> RESPONSE_FORMAT), but as SEPARATE
-    cache_control breakpoints instead of one concatenated string under a
-    single breakpoint.
+def build_system_blocks(node_name: str, include_philosophy: bool = False) -> list:
+    """System blocks, in the same reading order the model always saw
+    (MASTER_PROMPT -> [Philosophy Layer, paid tiers only] -> node content ->
+    RESPONSE_FORMAT), but as SEPARATE cache_control breakpoints instead of
+    one concatenated string under a single breakpoint.
+
+    include_philosophy added 2026-08-03 -- True for every paid caller
+    (pro_chat.py's chat route, unconditionally: Individual Pro at any
+    exchange tier, Church/Org at any seat type all get it per Rick's call),
+    False by default so app.py's free-tier call site needs no change to
+    keep the Philosophy Layer out of the free tool. Its own cache_control
+    block, same 1h TTL as MASTER_PROMPT/node -- it's static per-request
+    (doesn't vary by node the way the node block does), so it stays warm
+    across every paid turn app-wide, not just one node's traffic.
 
     Why: MASTER_PROMPT (~10.1K tokens) and RESPONSE_FORMAT (~0.6K tokens) are
     byte-identical on every single call, regardless of node or user -- only
@@ -608,13 +631,21 @@ def build_system_blocks(node_name: str) -> list:
         "Use the content below as your primary doctrinal and tension reference.\n\n"
         + node_content
     )
-    return [
+    blocks = [
         {"type": "text", "text": MASTER_PROMPT,
          "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-        {"type": "text", "text": node_block,
-         "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-        {"type": "text", "text": RESPONSE_FORMAT},
     ]
+    if include_philosophy:
+        blocks.append(
+            {"type": "text", "text": PHILOSOPHY_LAYER,
+             "cache_control": {"type": "ephemeral", "ttl": "1h"}}
+        )
+    blocks.append(
+        {"type": "text", "text": node_block,
+         "cache_control": {"type": "ephemeral", "ttl": "1h"}}
+    )
+    blocks.append({"type": "text", "text": RESPONSE_FORMAT})
+    return blocks
 
 # ── Combined anchor + chips + source extraction -- one Haiku call per turn ────
 # Source extraction is folded in here, eliminating the separate second Haiku call.
