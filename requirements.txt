@@ -6,4 +6,3 @@ supabase
 stripe
 resend
 sentry-sdk[flask]
-markdown

@@ -741,6 +741,25 @@ def pro_chat():
             "chips": [],
             "turn": convo.get("turn", 0),
         })
+    except anthropic.BadRequestError as e:
+        # Added 2026-08-04 after a real incident (Sentry PYTHON-A): a 400
+        # "Output blocked by content filtering policy" response from
+        # Anthropic is a different exception type than the timeout/
+        # connection errors caught above, so it was falling through
+        # uncaught and crashing the request. Deliberately NOT the same
+        # "try again in a moment" wording as the timeout case above --
+        # retrying the identical message would very likely trip the same
+        # filter again, so this steers toward rephrasing instead.
+        sentry_sdk.capture_exception(e)
+        return jsonify({
+            "reply": "That response couldn't be completed. Try rephrasing your message and sending it again.",
+            "question": "",
+            "sources": [],
+            "node": active_node,
+            "anchor": convo.get("anchor", ""),
+            "chips": [],
+            "turn": convo.get("turn", 0),
+        })
     raw_text = response.content[0].text
     parsed = parse_response(raw_text)
 
@@ -949,6 +968,12 @@ def prep_doc():
         # See pro_chat()'s matching catch above for the full incident story.
         sentry_sdk.capture_exception(e)
         return jsonify({"error": "That took longer than expected to generate. Please try again in a moment."}), 504
+    except anthropic.BadRequestError as e:
+        # See pro_chat()'s matching catch above (Sentry PYTHON-A, 2026-08-04)
+        # for the full incident story -- same missing exception type, same
+        # fix, applied here for consistency across all three call sites.
+        sentry_sdk.capture_exception(e)
+        return jsonify({"error": "That couldn't be generated right now. Try again with fewer sections selected."}), 400
     return jsonify({"doc": doc_text})
 
 
@@ -1002,6 +1027,12 @@ def compare_translation():
         # See pro_chat()'s matching catch above for the full incident story.
         sentry_sdk.capture_exception(e)
         return jsonify({"error": "That took longer than expected to generate. Please try again in a moment."}), 504
+    except anthropic.BadRequestError as e:
+        # See pro_chat()'s matching catch above (Sentry PYTHON-A, 2026-08-04)
+        # for the full incident story -- same missing exception type, same
+        # fix, applied here for consistency across all three call sites.
+        sentry_sdk.capture_exception(e)
+        return jsonify({"error": "That comparison couldn't be completed. Try a different reference."}), 400
     return jsonify({
         "reference": reference,
         "translations": result["translations"],
