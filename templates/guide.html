@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if is_home %}Selah for Church Staff: A Role-by-Role Guide{% else %}{{ title }} — Selah for Church Staff{% endif %}</title>
+<meta name="description" content="Real, role-specific examples of what Selah produces for church staff — sermon prep, lesson plans, pastoral care language, and more, one role at a time.">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FG9VBEVGZQ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-FG9VBEVGZQ');
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5; color: #111827; line-height: 1.6;
+  }
+  a { color: #2f6b66; }
+
+  .site-header {
+    background: #2f6b66; color: white;
+    padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .site-header .brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+  .site-header .brand-sub { font-size: 0.72rem; opacity: 0.85; margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .site-header .back-link {
+    color: white; text-decoration: none; font-size: 0.82rem;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 6px 12px;
+  }
+  .site-header .back-link:hover { background: rgba(255,255,255,0.12); }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 32px 0; }
+
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 1.7rem; font-weight: 700; color: #1e3a5f; margin-bottom: 8px; }
+  .role-eyebrow { color: #2f6b66; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .lede { font-size: 1rem; color: #374151; margin-bottom: 22px; }
+
+  /* ── Role index (home page) ── */
+  .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  @media (max-width: 520px) { .role-grid { grid-template-columns: 1fr; } }
+  .role-card {
+    display: block; background: white; border: 1px solid #dbe2ea; border-radius: 10px;
+    padding: 16px 18px; text-decoration: none;
+    font-family: Georgia, 'Times New Roman', serif;
+    transition: border-color .15s, transform .1s;
+  }
+  .role-card:hover { border-color: #8ab4f0; transform: translateY(-1px); }
+  .role-card .role-card-title { font-weight: 700; font-size: 1rem; color: #1e3a5f; }
+  .role-card .role-card-title::after { content: " →"; color: #2f6b66; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+  /* ── Role content page ── */
+  .content h2 {
+    font-size: 1.05rem; font-weight: 700; color: #1e3a5f;
+    margin: 28px 0 10px; padding-top: 14px; border-top: 1px solid #e2e8f0;
+  }
+  .content h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .content h3 { font-size: 0.95rem; font-weight: 700; color: #2f6b66; margin: 18px 0 8px; }
+  .content p { color: #374151; margin-bottom: 12px; font-size: 0.95rem; }
+  .content ul, .content ol { margin: 0 0 14px 22px; color: #374151; font-size: 0.95rem; }
+  .content li { margin-bottom: 6px; }
+  .content strong { color: #1f2937; }
+  .content em { color: #2f6b66; }
+  .content blockquote {
+    border-left: 3px solid #bfdbfe; background: #eff6ff; border-radius: 0 6px 6px 0;
+    padding: 10px 16px; margin: 0 0 14px; color: #1f2937; font-size: 0.93rem;
+  }
+  .content hr { border: none; border-top: 1px solid #e2e8f0; margin: 22px 0; }
+
+  /* Added 2026-08-01, per Rick's request: the question actually asked
+     (the real prompt someone typed to Selah) gets a distinct background
+     from the surrounding explanation, for contrast. Applied via JS below
+     rather than pure CSS -- these paragraphs aren't otherwise marked up
+     any differently from Selah's own italicized follow-up questions in
+     the source markdown, so a plain-CSS selector can't tell them apart
+     reliably across all 11 pages. */
+  .content p.prompt-quote {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+
+  .cta-box {
+    background: #2f6b66; color: white; border-radius: 12px;
+    padding: 22px 24px; margin-top: 30px; text-align: center;
+  }
+  .cta-box p { color: white; opacity: 0.92; margin-bottom: 12px; }
+  .cta-box a.cta-btn {
+    display: inline-block; background: white; color: #2f6b66;
+    font-weight: 700; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-size: 0.9rem;
+  }
+
+  footer { text-align: center; padding: 30px 0 40px; color: #9ca3af; font-size: 0.8rem; }
+  footer a { color: #2f6b66; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="brand">Selah for Church Staff</div>
+    <div class="brand-sub">A role-by-role guide</div>
+  </div>
+  {% if is_home %}
+  <a class="back-link" href="/church">← Selah for Churches</a>
+  {% else %}
+  <a class="back-link" href="/guide">← All roles</a>
+  {% endif %}
+</header>
+
+<div class="wrap">
+
+{% if is_home %}
+  <section>
+    <h1>See what Selah actually produces for your role</h1>
+    <p class="lede">Every page below shows real prompts a church-staff role would use, plus at least one real, unedited answer Selah gave. Pick your role to see it for yourself.</p>
+    <div class="role-grid">
+      {% for r in roles %}
+      <a class="role-card" href="/guide/{{ r.slug }}">
+        <div class="role-card-title">{{ r.title }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+{% else %}
+  <section>
+    <div class="role-eyebrow">Selah for Church Staff</div>
+    <h1>{{ title }}</h1>
+    <p class="lede">Example prompts this role can use, plus real answers Selah has actually given.</p>
+    <div class="content">
+      {{ content_html | safe }}
+    </div>
+    <div class="cta-box">
+      <p>Ready to bring this to your whole church?</p>
+      <a class="cta-btn" href="/church">See Selah for Churches →</a>
+    </div>
+  </section>
+{% endif %}
+
+  <footer>
+    Selah for Church Staff is part of <a href="/ministry">Selah for Ministry</a>, itself a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
+    <div style="margin-top:8px; opacity:0.8;">&copy; 2026 Artistyle, LLC. All rights reserved.</div>
+  </footer>
+
+</div>
+
+{% if not is_home %}
+<script>
+// Marks the real, quoted prompts (what a person actually typed to Selah)
+// with .prompt-quote for the contrast background above -- distinguished
+// from Selah's own italicized follow-up questions by the one thing that's
+// actually different between them in the source content: a prompt is
+// always wrapped in quotation marks ("..."), Selah's own questions never
+// are. Runs once per page load; content is fixed, not user-editable.
+document.querySelectorAll(".content p").forEach(function (p) {
+  if (p.children.length === 1 && p.firstElementChild.tagName === "EM") {
+    var t = p.firstElementChild.textContent.trim();
+    if (t.charAt(0) === '"' || t.charAt(0) === "“") {
+      p.classList.add("prompt-quote");
+    }
+  }
+});
+</script>
+{% endif %}
+
+</body>
+</html>
