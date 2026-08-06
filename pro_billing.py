@@ -441,19 +441,35 @@ def billing_status():
     already-synced subscriptions row. Returns a free/active default if no
     subscriptions row exists at all (shouldn't happen post-signup, since
     handle_new_user() always creates one, but this keeps the endpoint
-    honest rather than erroring if that ever changes)."""
+    honest rather than erroring if that ever changes).
+
+    Both queries below wrapped in query_with_jwt_fallback() 2026-08-06
+    (Sentry PYTHON-B) -- _get_org_id_and_email() just above was already
+    wrapped as of 2026-07-30 (Sentry PYTHON-3), but this function's OWN two
+    Supabase calls were not, and the real stacktrace for PYTHON-B pointed
+    at line 456 (the subscriptions .execute()), not the org-id lookup --
+    confirming this function's calls hit the exact same pro_app.html
+    concurrent-page-load race (billing/status, org/status, sessions all
+    firing at once) that query_with_jwt_fallback() exists to recover from,
+    just on a call site that got missed the first time this was fixed."""
     organization_id, _ = _get_org_id_and_email()
     if not organization_id:
         return jsonify({"error": "no profile found for this account"}), 400
 
     sb = get_user_supabase()
-    sub_resp = (
-        sb.table("subscriptions")
-        .select("tier_slug, status, billing_cycle, current_price, current_period_end, cancel_at_period_end, trial_end, price_lock_expires_at")
-        .eq("organization_id", organization_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
+    sub_resp = query_with_jwt_fallback(
+        lambda: sb.table("subscriptions")
+            .select("tier_slug, status, billing_cycle, current_price, current_period_end, cancel_at_period_end, trial_end, price_lock_expires_at")
+            .eq("organization_id", organization_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("subscriptions")
+            .select("tier_slug, status, billing_cycle, current_price, current_period_end, cancel_at_period_end, trial_end, price_lock_expires_at")
+            .eq("organization_id", organization_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute(),
     )
     if not sub_resp.data:
         return jsonify({"tier_slug": "free", "status": "active"})
@@ -465,14 +481,21 @@ def billing_status():
     # (Rick's "door 3": a new session with no credits left) without having
     # to send a throwaway chat message just to find out. Same usage_records
     # lookup pro_chat.py's _check_and_reserve_usage uses, read-only here.
-    usage_resp = (
-        sb.table("usage_records")
-        .select("conversations_used, conversations_cap")
-        .eq("organization_id", organization_id)
-        .eq("billing_month", date.today().replace(day=1).isoformat())
-        .is_("module_slug", "null")
-        .limit(1)
-        .execute()
+    usage_resp = query_with_jwt_fallback(
+        lambda: sb.table("usage_records")
+            .select("conversations_used, conversations_cap")
+            .eq("organization_id", organization_id)
+            .eq("billing_month", date.today().replace(day=1).isoformat())
+            .is_("module_slug", "null")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("usage_records")
+            .select("conversations_used, conversations_cap")
+            .eq("organization_id", organization_id)
+            .eq("billing_month", date.today().replace(day=1).isoformat())
+            .is_("module_slug", "null")
+            .limit(1)
+            .execute(),
     )
     if usage_resp.data:
         result["exchanges_used"] = usage_resp.data[0]["conversations_used"]

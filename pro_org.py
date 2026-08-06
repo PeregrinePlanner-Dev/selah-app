@@ -690,7 +690,15 @@ def org_status():
     row = profile_resp.data[0]
     organization_id = row["organization_id"]
 
-    org_resp = sb.table("organizations").select("org_type, name, postal_code").eq("id", organization_id).limit(1).execute()
+    # query_with_jwt_fallback() (pro_auth.py) -- same 2026-08-06 fix as
+    # pro_billing.billing_status (Sentry PYTHON-B): the profile_resp query
+    # just above was already wrapped as of 2026-07-30, but this second
+    # call in the same function was not, leaving the identical
+    # pro_app.html concurrent-page-load race unprotected here too.
+    org_resp = query_with_jwt_fallback(
+        lambda: sb.table("organizations").select("org_type, name, postal_code").eq("id", organization_id).limit(1).execute(),
+        lambda: get_service_client().table("organizations").select("org_type, name, postal_code").eq("id", organization_id).limit(1).execute(),
+    )
     org_type = org_resp.data[0]["org_type"] if org_resp.data else "individual"
     org_name = org_resp.data[0].get("name") if org_resp.data else None
     org_postal_code = org_resp.data[0].get("postal_code") if org_resp.data else None
