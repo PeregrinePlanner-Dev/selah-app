@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if view == 'hub' %}Theologians & Philosophers — Selah{% elif page_title %}{{ page_title }} — Selah{% else %}Selah{% endif %}</title>
+<meta name="description" content="The theologians and philosophers Selah draws on, in one place — who they were, and why they're part of Selah's roster.">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FG9VBEVGZQ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-FG9VBEVGZQ');
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f0f2f5; color: #111827; line-height: 1.55;
+  }
+  a { color: #2f6b66; }
+
+  .site-header {
+    background: #2f6b66; color: white;
+    padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .site-header .brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+  .site-header .brand-sub { font-size: 0.72rem; opacity: 0.85; margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .site-header .back-link {
+    color: white; text-decoration: none; font-size: 0.82rem;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 6px 12px;
+  }
+  .site-header .back-link:hover { background: rgba(255,255,255,0.12); }
+
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 36px 0; }
+
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 1.8rem; font-weight: 700; color: #1e3a5f; margin-bottom: 10px; }
+  .eyebrow { color: #2f6b66; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .lede { font-size: 1rem; color: #374151; margin-bottom: 22px; }
+
+  /* ── Hub cards ── */
+  .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+  @media (max-width: 620px) { .hub-grid { grid-template-columns: 1fr; } }
+  .hub-card {
+    display: block; background: white; border: 1px solid #dbe2ea; border-radius: 12px;
+    padding: 22px 22px; text-decoration: none;
+    transition: border-color .15s, transform .1s;
+  }
+  .hub-card:hover { border-color: #8ab4f0; transform: translateY(-1px); }
+  .hub-card .hub-card-title { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 1.15rem; color: #1e3a5f; margin-bottom: 6px; }
+  .hub-card .hub-card-title::after { content: " →"; color: #2f6b66; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .hub-card .hub-card-desc { font-size: 0.88rem; color: #6b7280; }
+  .hub-card .hub-card-count { display: inline-block; margin-top: 10px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #2f6b66; background: #eff6ff; border-radius: 999px; padding: 3px 10px; }
+
+  /* ── Era-grouped roster ── */
+  .era-block { margin-bottom: 28px; }
+  .era-title {
+    font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #6b7280; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #d7dae0;
+  }
+  .figure-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .figure-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .figure-grid { grid-template-columns: 1fr; } }
+  .figure-card {
+    background: white; border: 1px solid #e2e4e9; border-radius: 10px;
+    padding: 12px 14px; cursor: pointer; text-align: left; width: 100%;
+    font-family: Georgia, 'Times New Roman', serif;
+    transition: border-color .15s, transform .1s;
+  }
+  .figure-card:hover { border-color: #a7d4cf; transform: translateY(-1px); }
+  .figure-card .figure-name { font-weight: 700; font-size: 0.9rem; color: #1e3a5f; }
+  .figure-card .figure-dates { font-size: 0.76rem; color: #6b7280; margin-top: 2px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .figure-card.has-bio .figure-name::after { content: " →"; color: #2f6b66; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+  /* ── Gated state ── */
+  .gate-box {
+    background: white; border: 1px solid #e2e4e9; border-radius: 12px;
+    padding: 30px 28px; text-align: center;
+  }
+  .gate-box h2 { font-family: Georgia, 'Times New Roman', serif; color: #1e3a5f; margin-bottom: 10px; }
+  .gate-box p { color: #374151; margin-bottom: 16px; }
+  .cta-btn-primary {
+    display: inline-block; background: #2f6b66; color: white;
+    font-weight: 700; padding: 12px 26px; border-radius: 8px; text-decoration: none; font-size: 0.92rem;
+  }
+  .cta-btn-primary:hover { background: #234f4b; }
+
+  footer { text-align: center; padding: 30px 0 40px; color: #9ca3af; font-size: 0.8rem; }
+  footer a { color: #2f6b66; }
+
+  /* ── Shared detail popup ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 12px; max-width: 520px; width: 100%;
+    max-height: 82vh; overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+  .modal-header {
+    background: #2f6b66; color: white;
+    padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+    border-radius: 12px 12px 0 0; position: sticky; top: 0;
+  }
+  .modal-header h3 { font-size: 1rem; font-weight: 700; font-family: Georgia, 'Times New Roman', serif; }
+  .modal-close { background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer; opacity: 0.85; line-height: 1; }
+  .modal-close:hover { opacity: 1; }
+  .modal-body { padding: 18px 20px; font-size: 0.92rem; color: #374151; }
+  .modal-body p { margin-bottom: 12px; }
+  .modal-body p:last-child { margin-bottom: 0; }
+  .modal-body strong { color: #1f2937; }
+  .modal-body em { color: #2f6b66; font-style: normal; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="brand">Selah</div>
+    <div class="brand-sub">Theologians &amp; Philosophers</div>
+  </div>
+  {% if view == 'hub' %}
+  <a class="back-link" href="/ministry">← Selah for Ministry</a>
+  {% else %}
+  <a class="back-link" href="/figures">← Theologians &amp; Philosophers</a>
+  {% endif %}
+</header>
+
+<div class="wrap">
+
+{% if view == 'hub' %}
+  <section>
+    <div class="eyebrow">Selah's Roster</div>
+    <h1>The voices behind every conversation</h1>
+    <p class="lede">Selah doesn't argue in its own voice alone — it draws on a real roster of named theologians and philosophers, each with their own commitments, contrasts, and reasons for being included. See who they are before (or after) you talk to Selah about them.</p>
+    <div class="hub-grid">
+      <a class="hub-card" href="/figures/theologians">
+        <div class="hub-card-title">Theologians</div>
+        <div class="hub-card-desc">From the early church fathers through today's leading evangelical voices — the core roster Selah draws its theological arguments from.</div>
+        <span class="hub-card-count">66 figures</span>
+      </a>
+      <a class="hub-card" href="/figures/philosophers">
+        <div class="hub-card-title">Philosophers &amp; Apologists</div>
+        <div class="hub-card-desc">The philosophical background a theological argument often rests on — brought in as support, never as a competing voice. Part of Selah's Philosophy Layer, a paid-tier feature.</div>
+        <span class="hub-card-count">33 figures · Pro</span>
+      </a>
+    </div>
+  </section>
+
+{% elif view == 'philosophers_gated' %}
+  <section>
+    <div class="gate-box">
+      <h2>The Philosophy Layer is a paid-tier feature</h2>
+      <p>Selah's philosopher roster is part of the Philosophy Layer, available on every paid plan — Individual Pro and Church/Org alike. Upgrade to see the full roster and use it in your conversations.</p>
+      <a class="cta-btn-primary" href="/ministry">See Selah for Ministry plans →</a>
+    </div>
+  </section>
+
+{% else %}
+  <section>
+    <div class="eyebrow">Selah's Roster</div>
+    <h1>{{ page_title }}</h1>
+    <p class="lede">
+      {% if view == 'theologians' %}
+      Sorted by era. Tap a name for a short bio — who they were, and why they're part of Selah's roster.
+      {% else %}
+      Sorted by era. Philosophers are deployed as premise-level background — the deeper commitment a theological position rests on — never as a competing primary voice. Tap a name for a short bio.
+      {% endif %}
+    </p>
+
+    {% for era, figures in groups %}
+    <div class="era-block">
+      <div class="era-title">{{ era }}</div>
+      <div class="figure-grid">
+        {% for f in figures %}
+        <button class="figure-card{% if f.bio %} has-bio{% endif %}" onclick="openBio('{{ f.slug }}')">
+          <div class="figure-name">{{ f.name }}</div>
+          <div class="figure-dates">{{ f.dates }}</div>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+{% endif %}
+
+  <footer>
+    Part of <a href="/ministry">Selah for Ministry</a>, a companion to the free <a href="https://selahexploringtheology.com">Selah — Exploring Theology</a> tool. &nbsp;·&nbsp; <a href="/legal">Terms &amp; Privacy</a>
+    <div style="margin-top:8px; opacity:0.8;">&copy; 2026 Artistyle, LLC. All rights reserved.</div>
+  </footer>
+
+</div>
+
+<!-- ── Shared detail popup ── -->
+<div class="modal-overlay" id="detail-modal" onclick="closeDetailBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detail-title"></h3>
+      <button class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+{% if view in ('theologians', 'philosophers') %}
+<script>
+// BIOS content below is hardcoded server-rendered copy (figures_content.py),
+// never user input -- same trust level as guide.html's content_html|safe,
+// so building innerHTML directly here is safe (see ministry.html's
+// openDetail() for the equivalent reasoning on that page).
+const BIOS = {
+  {% for e in entries %}
+  "{{ e.slug }}": { name: {{ e.name|tojson }}, dates: {{ e.dates|tojson }}, bio: {{ (e.bio or "")|tojson }} },
+  {% endfor %}
+};
+
+function openBio(slug) {
+  const f = BIOS[slug];
+  if (!f) return;
+  document.getElementById("detail-title").textContent = f.name + " (" + f.dates + ")";
+  const body = document.getElementById("detail-body");
+  body.innerHTML = f.bio || "<p style=\"color:#9ca3af;font-style:italic;\">Full bio coming soon.</p>";
+  document.getElementById("detail-modal").classList.add("show");
+}
+function closeDetail() {
+  document.getElementById("detail-modal").classList.remove("show");
+}
+function closeDetailBg(e) {
+  if (e.target === document.getElementById("detail-modal")) closeDetail();
+}
+</script>
+{% endif %}
+
+</body>
+</html>
