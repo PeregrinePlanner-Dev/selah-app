@@ -494,15 +494,12 @@ def signup():
                         .execute()
                     )
                     org_name = (org_resp.data[0].get("name") if org_resp.data else None) or org_name
-                send_seat_granted_email(email, first_name, org_name, row["seat_type"])
+                    send_seat_granted_email(email, first_name, org_name, row["seat_type"])
+                else:
+                    send_welcome_email(email, first_name)
             else:
                 send_welcome_email(email, first_name)
         else:
-            send_welcome_email(email, first_name)
-        else:
-            # Still no profile row after retrying -- send the plain
-            # welcome instead of silently sending nothing.
-            print(f"[SIGNUP-NOTICE] profile row for {result.user.id} ({email!r}) not found after retries -- sending plain welcome as fallback")
             send_welcome_email(email, first_name)
     except Exception as e:
         # Never let this status check be the reason signup itself fails --
