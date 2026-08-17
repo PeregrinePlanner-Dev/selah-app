@@ -451,13 +451,23 @@ def signup():
     # itself be the thing that breaks signup.
     try:
         svc = get_service_client()
-        prof = (
-            svc.table("profiles")
-            .select("invite_resolution, seat_status, seat_type, organization_id")
-            .eq("id", result.user.id)
-            .limit(1)
-            .execute()
-        )
+        prof = None
+        for _attempt in range(3):
+            prof = (
+                svc.table("profiles")
+                .select("invite_resolution, seat_status, seat_type, organization_id")
+                .eq("id", result.user.id)
+                .limit(1)
+                .execute()
+            )
+            if prof.data:
+                break
+            # Brand-new signup -- the profile row is written by the
+            # handle_new_user() DB trigger, which can lag a beat behind
+            # this request. Retry briefly instead of silently sending no
+            # email at all (2026-08-13, post-signup email gap fix -- see
+            # SESSION_LOG.md for the incident this addresses).
+            time.sleep(0.4)
         if prof.data:
             row = prof.data[0]
             if row.get("invite_resolution") in _INVITE_RESOLUTION_MESSAGES:
@@ -484,15 +494,21 @@ def signup():
                         .execute()
                     )
                     org_name = (org_resp.data[0].get("name") if org_resp.data else None) or org_name
-                send_seat_granted_email(email, first_name, org_name, row["seat_type"])
+                    send_seat_granted_email(email, first_name, org_name, row["seat_type"])
+                else:
+                    send_welcome_email(email, first_name)
             else:
                 send_welcome_email(email, first_name)
         else:
             send_welcome_email(email, first_name)
-    except Exception:
+    except Exception as e:
         # Never let this status check be the reason signup itself fails --
-        # worst case the person just doesn't see the notice or the email.
-        pass
+        # but DO log it, so a broken welcome/notice email shows up in
+        # Render logs instead of vanishing with no trace. Fixes an
+        # incident where real trial signups in July/Aug 2026 never got a
+        # welcome email and it went undetected for weeks because this
+        # except swallowed everything silently (2026-08-13).
+        print(f"[SIGNUP-NOTICE] post-signup status check/email failed for {result.user.id} ({email!r}): {e}")
 
     return redirect(url_for("pro.pro_home"))
 
