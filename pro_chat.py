@@ -519,49 +519,25 @@ def pro_chat():
     # against the 100/mo Membership cap, never their real 200/mo pool. Now
     # scoped to the tier_slug matching THIS profile's own seat_type instead
     # of just taking whichever subscription happens to be newest.
-    # FIXED 2026-08-17: this subscriptions lookup (both branches) was never
-    # wrapped in query_with_jwt_fallback() the way the profiles query above
-    # was on 2026-07-30 (Sentry PYTHON-6 concurrent-refresh race) -- an
-    # oversight, not a new regression. Only Church/Org accounts hit the
-    # leader/member branch, so this specifically broke Church/Org seat-holders
-    # (Rick's own comped account included) when the refresh-token race hit
-    # mid-request: confirmed via Supabase edge_logs -- a stale-token 401 here
-    # with no retry, while the profiles query above recovered fine through its
-    # own fallback. Same pattern as that query: real client first, service-role
-    # client with the identical explicit filter as fallback (RLS would have
-    # scoped this the same way anyway).
     if profile_seat_type in ("leader", "member"):
         wanted_tier_slug = "church_leadership" if profile_seat_type == "leader" else "church_member"
-        sub_resp = query_with_jwt_fallback(
-            lambda: sb.table("subscriptions")
-                .select("id, tier_slug, status, trial_end, seat_quantity")
-                .eq("organization_id", organization_id)
-                .eq("tier_slug", wanted_tier_slug)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute(),
-            lambda: get_service_client().table("subscriptions")
-                .select("id, tier_slug, status, trial_end, seat_quantity")
-                .eq("organization_id", organization_id)
-                .eq("tier_slug", wanted_tier_slug)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute(),
+        sub_resp = (
+            sb.table("subscriptions")
+            .select("id, tier_slug, status, trial_end, seat_quantity")
+            .eq("organization_id", organization_id)
+            .eq("tier_slug", wanted_tier_slug)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
         )
     else:
-        sub_resp = query_with_jwt_fallback(
-            lambda: sb.table("subscriptions")
-                .select("id, tier_slug, status, trial_end, seat_quantity")
-                .eq("organization_id", organization_id)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute(),
-            lambda: get_service_client().table("subscriptions")
-                .select("id, tier_slug, status, trial_end, seat_quantity")
-                .eq("organization_id", organization_id)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute(),
+        sub_resp = (
+            sb.table("subscriptions")
+            .select("id, tier_slug, status, trial_end, seat_quantity")
+            .eq("organization_id", organization_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
         )
     sub_row = sub_resp.data[0] if sub_resp.data else None
     tier_slug = sub_row["tier_slug"] if sub_row else "free"
@@ -873,19 +849,43 @@ def pro_chat():
             convo["sources"].append(s)
             existing_norms.add(norm)
 
+    # FIXED 2026-08-17 (round 2): this write was the actual remaining cause
+    # of "Something went wrong" on new conversations, confirmed via
+    # edge_logs -- the 2026-08-17 subscriptions fix above was real and its
+    # retries were succeeding (401 followed by a 200 fallback each time),
+    # but every failing request also showed a POST 401 to planning_sessions
+    # with NO retry afterward, right where a new conversation's session row
+    # gets written. Same stale-token-race pattern, same fix: real client
+    # first, service-role client as fallback (both branches already carry
+    # every field RLS would have required anyway).
     if session_db_id:
-        sb.table("planning_sessions").update({
-            "session_data": convo,
-            "turn_count": convo["turn"],
-            "updated_at": "now()",
-        }).eq("id", session_db_id).execute()
+        query_with_jwt_fallback(
+            lambda: sb.table("planning_sessions").update({
+                "session_data": convo,
+                "turn_count": convo["turn"],
+                "updated_at": "now()",
+            }).eq("id", session_db_id).execute(),
+            lambda: get_service_client().table("planning_sessions").update({
+                "session_data": convo,
+                "turn_count": convo["turn"],
+                "updated_at": "now()",
+            }).eq("id", session_db_id).execute(),
+        )
     else:
-        insert_resp = sb.table("planning_sessions").insert({
-            "user_id": session["sb_user_id"],
-            "organization_id": organization_id,
-            "session_data": convo,
-            "turn_count": convo["turn"],
-        }).execute()
+        insert_resp = query_with_jwt_fallback(
+            lambda: sb.table("planning_sessions").insert({
+                "user_id": session["sb_user_id"],
+                "organization_id": organization_id,
+                "session_data": convo,
+                "turn_count": convo["turn"],
+            }).execute(),
+            lambda: get_service_client().table("planning_sessions").insert({
+                "user_id": session["sb_user_id"],
+                "organization_id": organization_id,
+                "session_data": convo,
+                "turn_count": convo["turn"],
+            }).execute(),
+        )
         session_db_id = insert_resp.data[0]["id"]
 
     return jsonify({
