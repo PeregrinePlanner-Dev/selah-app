@@ -673,13 +673,26 @@ def pro_chat():
             "upgrade_required": True,
         })
 
+    # FIXED 2026-08-17 (round 3): the third and last unwrapped query in this
+    # endpoint, found the same way as the other two -- edge_logs showed a
+    # 401 on this exact query, by itself, with no retry, on the SECOND
+    # message of a conversation (the first message takes the `else` branch
+    # below and never reaches this read at all, which is why round 2's fix
+    # to the insert made message #1 work while this one still broke message
+    # #2). Same fix, same pattern, applied to every remaining query in this
+    # function this time rather than one at a time.
     if session_db_id:
-        row_resp = (
-            sb.table("planning_sessions")
-            .select("session_data")
-            .eq("id", session_db_id)
-            .limit(1)
-            .execute()
+        row_resp = query_with_jwt_fallback(
+            lambda: sb.table("planning_sessions")
+                .select("session_data")
+                .eq("id", session_db_id)
+                .limit(1)
+                .execute(),
+            lambda: get_service_client().table("planning_sessions")
+                .select("session_data")
+                .eq("id", session_db_id)
+                .limit(1)
+                .execute(),
         )
         if not row_resp.data:
             return jsonify({"error": "session not found"}), 404
@@ -966,7 +979,24 @@ def prep_doc():
 
     sb = get_user_supabase()
 
-    profile_resp = sb.table("profiles").select("organization_id, seat_status, seat_type").limit(1).execute()
+    # FIXED 2026-08-17 (round 4 -- full-file audit after the same JWT-race
+    # bug hit pro_chat() three separate times today): this route had the
+    # identical unwrapped-query gap, just never reported yet because it's
+    # used less often than the main chat send. Same query_with_jwt_fallback()
+    # pattern as pro_chat(), applied here preemptively rather than waiting
+    # for it to fail on Rick live. Session-data fallback filters by BOTH id
+    # and user_id (not id alone) -- session_db_id comes from the client, and
+    # RLS is what normally stops one user reading another user's session by
+    # guessing/brute-forcing an id; the fallback has to enforce that same
+    # ownership check itself since a service-role client bypasses RLS.
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles").select("organization_id, seat_status, seat_type").limit(1).execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, seat_status, seat_type")
+            .eq("id", session["sb_user_id"])
+            .limit(1)
+            .execute(),
+    )
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
     organization_id = profile_resp.data[0]["organization_id"]
@@ -976,13 +1006,19 @@ def prep_doc():
     if profile_seat_type == "member":
         return jsonify({"error": "Session Recap is a Leadership feature -- Membership seats have full chat access but not this tool."}), 403
 
-    sub_resp = (
-        sb.table("subscriptions")
-        .select("tier_slug")
-        .eq("organization_id", organization_id)
-        .eq("status", "active")
-        .limit(1)
-        .execute()
+    sub_resp = query_with_jwt_fallback(
+        lambda: sb.table("subscriptions")
+            .select("tier_slug")
+            .eq("organization_id", organization_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("subscriptions")
+            .select("tier_slug")
+            .eq("organization_id", organization_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute(),
     )
     tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
 
@@ -991,12 +1027,18 @@ def prep_doc():
     ):
         return jsonify({"error": PREP_DOC_CAP_MESSAGE}), 429
 
-    row_resp = (
-        sb.table("planning_sessions")
-        .select("session_data")
-        .eq("id", session_db_id)
-        .limit(1)
-        .execute()
+    row_resp = query_with_jwt_fallback(
+        lambda: sb.table("planning_sessions")
+            .select("session_data")
+            .eq("id", session_db_id)
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("planning_sessions")
+            .select("session_data")
+            .eq("id", session_db_id)
+            .eq("user_id", session["sb_user_id"])
+            .limit(1)
+            .execute(),
     )
     if not row_resp.data:
         return jsonify({"error": "session not found"}), 404
@@ -1048,19 +1090,33 @@ def compare_translation():
 
     sb = get_user_supabase()
 
-    profile_resp = sb.table("profiles").select("organization_id, seat_status").limit(1).execute()
+    # FIXED 2026-08-17 (round 4) -- same gap, same fix, see prep_doc() above.
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles").select("organization_id, seat_status").limit(1).execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, seat_status")
+            .eq("id", session["sb_user_id"])
+            .limit(1)
+            .execute(),
+    )
     if not profile_resp.data:
         return jsonify({"error": "no profile found for this account"}), 400
     organization_id = profile_resp.data[0]["organization_id"]
     is_comped = profile_resp.data[0].get("seat_status") == "comped"
 
-    sub_resp = (
-        sb.table("subscriptions")
-        .select("tier_slug")
-        .eq("organization_id", organization_id)
-        .eq("status", "active")
-        .limit(1)
-        .execute()
+    sub_resp = query_with_jwt_fallback(
+        lambda: sb.table("subscriptions")
+            .select("tier_slug")
+            .eq("organization_id", organization_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("subscriptions")
+            .select("tier_slug")
+            .eq("organization_id", organization_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute(),
     )
     tier_slug = sub_resp.data[0]["tier_slug"] if sub_resp.data else "free"
 
@@ -1149,7 +1205,16 @@ def coverage():
     resume (get_session), keeping this endpoint a simple aggregate read
     rather than an N-way write across every session on each call."""
     sb = get_user_supabase()
-    resp = sb.table("planning_sessions").select("session_data").execute()
+    # FIXED 2026-08-17 (round 4) -- same gap as list_sessions() above, which
+    # already had this fix; this route just never got it applied alongside.
+    user_id = session.get("sb_user_id")
+    resp = query_with_jwt_fallback(
+        lambda: sb.table("planning_sessions").select("session_data").execute(),
+        lambda: get_service_client().table("planning_sessions")
+            .select("session_data")
+            .eq("user_id", user_id)
+            .execute(),
+    )
 
     nodes_covered = set()
     theologians = set()
@@ -1183,12 +1248,24 @@ def get_session(session_id):
     caller's own rows automatically; a foreign session_id simply returns
     no rows, not another user's data."""
     sb = get_user_supabase()
-    resp = (
-        sb.table("planning_sessions")
-        .select("id, session_data, turn_count, updated_at")
-        .eq("id", session_id)
-        .limit(1)
-        .execute()
+    # FIXED 2026-08-17 (round 4) -- same gap as everywhere else in this file.
+    # This is the resume-a-past-conversation read, arguably the single
+    # highest-traffic query in the whole file next to the chat send itself,
+    # and it had never been wrapped. Fallback filters by id AND user_id
+    # (not id alone) since session_id is caller-supplied and RLS is
+    # normally what stops cross-user reads here.
+    resp = query_with_jwt_fallback(
+        lambda: sb.table("planning_sessions")
+            .select("id, session_data, turn_count, updated_at")
+            .eq("id", session_id)
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("planning_sessions")
+            .select("id, session_data, turn_count, updated_at")
+            .eq("id", session_id)
+            .eq("user_id", session["sb_user_id"])
+            .limit(1)
+            .execute(),
     )
     if not resp.data:
         return jsonify({"error": "session not found"}), 404
@@ -1204,9 +1281,14 @@ def get_session(session_id):
         backfilled = _backfill_sources_from_history(convo)
         if backfilled:
             convo["sources"] = backfilled
-            sb.table("planning_sessions").update({
-                "session_data": convo,
-            }).eq("id", session_id).execute()
+            query_with_jwt_fallback(
+                lambda: sb.table("planning_sessions").update({
+                    "session_data": convo,
+                }).eq("id", session_id).execute(),
+                lambda: get_service_client().table("planning_sessions").update({
+                    "session_data": convo,
+                }).eq("id", session_id).eq("user_id", session["sb_user_id"]).execute(),
+            )
 
     return jsonify({
         "id": row["id"],
@@ -1241,7 +1323,16 @@ def delete_session(session_id):
     it. Returns ok even if the row was already gone (deleting something
     that's already deleted isn't an error from the client's point of view)."""
     sb = get_user_supabase()
-    sb.table("planning_sessions").delete().eq("id", session_id).execute()
+    # FIXED 2026-08-17 (round 4) -- same gap; fallback scoped to id AND
+    # user_id for the same reason as get_session() above.
+    query_with_jwt_fallback(
+        lambda: sb.table("planning_sessions").delete().eq("id", session_id).execute(),
+        lambda: get_service_client().table("planning_sessions")
+            .delete()
+            .eq("id", session_id)
+            .eq("user_id", session["sb_user_id"])
+            .execute(),
+    )
     return jsonify({"ok": True})
 
 
