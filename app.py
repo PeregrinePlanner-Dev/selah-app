@@ -431,11 +431,19 @@ def start_route():
 
 @app.route("/invite")
 def invite():
-    # Shareable invitation page for the free tool -- built 2026-07-08 at Rick's
-    # request after his pastor friend (Clark Cothern) asked for something he
-    # could send to his congregation and pastoral network. Additive only, no
-    # existing route touched.
-    return render_template("invite.html")
+    # Retired 2026-08-27 -- this page was built 2026-07-08, before the
+    # 2026-07-17 free-tier gate, and its whole pitch ("no account
+    # necessary", "nothing to sign up for") was never updated to match --
+    # anyone who followed a previously-shared link would be told something
+    # false right up until the "Try Selah free" button dropped them at the
+    # real sign-in/invite-code screen. Rather than maintain a second,
+    # easy-to-forget front door in parallel with /access, retiring it:
+    # anyone hitting this URL (old shared links, bookmarks) lands on the
+    # real homepage instead, which already redirects an unauthenticated
+    # visitor to the real sign-in screen on its own. templates/invite.html
+    # is now unreferenced -- left in place, not deleted, in case any of its
+    # copy/testimonial is worth reusing later.
+    return redirect(url_for("index"))
 
 @app.route("/legal")
 def legal():
