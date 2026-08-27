@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import html
 import anthropic
 from collections import defaultdict
 from datetime import datetime
@@ -499,12 +500,25 @@ def privacy_contact_submit():
     if not email or not message:
         return redirect(url_for("privacy_contact", error="Email and message are required."))
 
+    # Escape every user-supplied field before it goes into the HTML email --
+    # this is a hand-built HTML string, not a Jinja render_template call, so
+    # nothing escapes it automatically. Without this, a submitted name/email/
+    # request_type/message containing real HTML (a link, a button) would
+    # render as live, clickable markup inside the notification email sent to
+    # the founder inbox -- exactly the vector a probing bot submission would
+    # be testing for. Added 2026-08-27 after a bot-recon contact-form
+    # submission (see DAILY_INTEGRITY_LOG.md / SELAH_BUILD_PROTOCOL.md Gate 4).
+    safe_name         = html.escape(name) if name else ""
+    safe_email        = html.escape(email)
+    safe_request_type = html.escape(request_type) if request_type else ""
+    safe_message      = html.escape(message).replace("\n", "<br>")
+
     body = f"""
       <p><strong>New privacy/contact request from selahexploringtheology.com</strong></p>
-      <p><strong>Name:</strong> {name or '(not provided)'}</p>
-      <p><strong>Email:</strong> {email}</p>
-      <p><strong>Request type:</strong> {request_type or '(not specified)'}</p>
-      <p><strong>Message:</strong><br>{message}</p>
+      <p><strong>Name:</strong> {safe_name or '(not provided)'}</p>
+      <p><strong>Email:</strong> {safe_email}</p>
+      <p><strong>Request type:</strong> {safe_request_type or '(not specified)'}</p>
+      <p><strong>Message:</strong><br>{safe_message}</p>
     """
     send_email("arrowroot56@gmail.com", f"Selah privacy contact form: {request_type or 'General'}", body)
 
