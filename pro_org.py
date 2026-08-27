@@ -87,11 +87,27 @@ def _get_admin_org_id():
         return None, (jsonify({"error": "Too many actions in a short time -- please wait a few minutes and try again."}), 429)
 
     sb = get_user_supabase()
-    profile_resp = (
-        sb.table("profiles")
-        .select("organization_id, is_org_admin")
-        .limit(1)
-        .execute()
+    user_id = session.get("sb_user_id")
+    # query_with_jwt_fallback() (pro_auth.py, added 2026-07-30) -- recovers
+    # from the same concurrent-page-load JWT-expiry race already fixed
+    # elsewhere in this file (see org_status below) and in pro_billing.py/
+    # pro_chat.py. This is the ONE call site that was missed when that fix
+    # rolled out: every admin route in this file starts here, so the
+    # dashboard's own concurrent status/roster/invites/audit-log/topics
+    # fetches on page load hit this exact race (confirmed live 2026-08-27,
+    # Sentry: APIError: JWT expired, pro_org.org_topics). Fallback filter
+    # is .eq('id', session['sb_user_id']), exactly what RLS would have
+    # scoped this read to anyway.
+    profile_resp = query_with_jwt_fallback(
+        lambda: sb.table("profiles")
+            .select("organization_id, is_org_admin")
+            .limit(1)
+            .execute(),
+        lambda: get_service_client().table("profiles")
+            .select("organization_id, is_org_admin")
+            .eq("id", user_id)
+            .limit(1)
+            .execute(),
     )
     if not profile_resp.data:
         return None, (jsonify({"error": "no profile found for this account"}), 400)
