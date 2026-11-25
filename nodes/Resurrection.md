@@ -90,6 +90,9 @@ The most prominent contemporary apologetic defender of the resurrection. His min
 **Gary Habermas (1950–)**
 The most thorough evangelical NT scholar on the historical resurrection. His *The Historical Jesus* and *The Risen Jesus and Future Hope* compile the scholarly evidence for the resurrection's historicity across multiple lines. Habermas developed the minimal facts approach independently of Craig, and his survey of critical scholarly opinion (including skeptical scholars) establishes which facts about the resurrection enjoy broad historical consensus. His contribution: he moves the discussion from faith statement to historical investigation, demonstrating that even methodologically secular historiography cannot dismiss the resurrection without engaging the evidence.
 
+**Lee Strobel (1952–)**
+A former legal journalist for the Chicago Tribune and self-described atheist who set out to disprove his wife's newfound faith. *The Case for Christ* (1998) reframes the resurrection evidence as a journalist's investigation rather than a scholar's treatise — Strobel interviews the same scholars (including Habermas and Craig's contemporaries) but structures the case as cross-examination: witnesses, evidence, verdict. His contribution to TES: he enters the resurrection question from the same skeptical, evidence-first posture many users bring, and models working through the historical case rather than starting from belief.
+
 ---
 
 ## Entry Points

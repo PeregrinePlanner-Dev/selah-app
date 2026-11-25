@@ -98,7 +98,7 @@ Calvin gave a more positive account of the law's role in the Christian life than
 **Dietrich Bonhoeffer (1906–1945)**
 *The Cost of Discipleship* — the most important 20th-century treatment of cheap grace (antinomianism in modern dress). Bonhoeffer's distinction: cheap grace is grace preached without the cross, discipleship, or transformation — grace that forgives without requiring anything. Costly grace is the gospel that calls us to follow Christ, which is both utterly free (not earned) and utterly demanding (the whole life). His phrase: "cheap grace is the deadly enemy of our Church." Bonhoeffer wrote from within a German Christianity that had become so comfortable with itself that it could bless the Nazi state. The cheap grace critique is not a law-gospel confusion — it is an insistence that genuine grace always transforms.
 
-**Stephen Westerholm (1948–)**
+**Stephen Westerholm (1949–)**
 *Perspectives Old and New on Paul* — the most important evangelical scholarly treatment of Paul and the law. Westerholm carefully distinguishes Paul's "law" in its various uses and argues that the Reformation reading (Paul opposing justification by works of law as moral achievement) is essentially correct against the New Perspective's claim that "works of the law" refers only to Jewish identity markers. His work grounds the Lutheran Luther's Law/Gospel reading in careful NT exegesis, countering the New Perspective's revision.
 
 ---

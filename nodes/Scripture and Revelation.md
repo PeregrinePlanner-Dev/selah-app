@@ -135,8 +135,11 @@ The architect of the Documentary Hypothesis. His *Prolegomena to the History of 
 **Bart Ehrman (1955-)**
 The most widely-read popular-level critic of the NT's reliability. Former evangelical, now agnostic. *Misquoting Jesus* (2005) argues that the NT text has been significantly altered in transmission; *Jesus, Interrupted* (2009) argues the Gospels contradict one another. His work reaches enormous general audiences. The key counter-point: Ehrman's textual variants are real but overwhelmingly minor; no doctrine hangs on a disputed reading. Craig Blomberg, D.A. Carson, and Daniel Wallace have engaged his arguments specifically.
 
-**K.A. Kitchen (1932-)**
+**K.A. Kitchen (1932-2025)**
 Egyptologist and OT scholar whose *On the Reliability of the Old Testament* (2003) provides the most rigorous archaeological and ancient Near Eastern rebuttal of late-dating theories. Kitchen shows that Pentateuchal legal and covenantal forms fit 2nd millennium BC patterns precisely — not the patterns of the 1st millennium that Wellhausen's late dates require. His challenge to the Documentary Hypothesis is empirical, not confessional.
+
+**Josh McDowell (1939–)**
+A former skeptic who set out in college to disprove Christianity's historical claims and was converted by the evidence instead. *Evidence That Demands a Verdict* (1972, revised and expanded repeatedly since) compiles manuscript, archaeological, and prophetic evidence for Scripture's reliability into a single accessible reference — ranked 13th on Christianity Today's 2006 list of the most influential evangelical books since WWII. His contribution to TES: alongside Kitchen's technical rebuttal of Wellhausen, McDowell offers the same reliability case at a popular, entry-level register — useful when a user's doubt is broad ("can I trust any of this?") rather than narrowly academic.
 
 ---
 

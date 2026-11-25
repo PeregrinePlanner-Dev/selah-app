@@ -21,3 +21,6 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local dev utilities — not part of the app, never deployed
+clear-git-locks.ps1
