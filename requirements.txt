@@ -5,5 +5,5 @@ gunicorn
 supabase
 stripe
 resend
-sentry-sdk[flask]
+sentry-sdk[flask]<3
 markdown
